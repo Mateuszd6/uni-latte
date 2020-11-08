@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 #define INDENT_WIDTH 2
 
@@ -11,6 +12,8 @@ int _n_;
 char *buf_;
 int cur_;
 int buf_size;
+
+extern ptrdiff_t get_lnum(void* ast_node);
 
 /* You may wish to change the renderC functions */
 void renderC(Char c)
@@ -758,7 +761,10 @@ void shProgram(Program _p_)
   case is_Prog:
     bufAppendC('(');
 
-    bufAppendS("Prog");
+    bufAppendS("Prog ");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -784,6 +790,9 @@ void shTopDef(TopDef _p_)
     bufAppendC('(');
 
     bufAppendS("FnDef");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -837,6 +846,9 @@ void shArg(Arg _p_)
     bufAppendC('(');
 
     bufAppendS("Ar");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -882,6 +894,9 @@ void shBlock(Block _p_)
     bufAppendC('(');
 
     bufAppendS("Blk");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -922,17 +937,20 @@ void shStmt(Stmt _p_)
   switch(_p_->kind)
   {
   case is_Empty:
-  
+
     bufAppendS("Empty");
 
-  
 
-  
+
+
     break;
   case is_BStmt:
     bufAppendC('(');
 
     bufAppendS("BStmt");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -947,6 +965,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("Decl");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -965,6 +986,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("Ass");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -981,6 +1005,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("Incr");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -993,6 +1020,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("Decr");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1005,6 +1035,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("Ret");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1016,17 +1049,21 @@ void shStmt(Stmt _p_)
 
     break;
   case is_VRet:
-  
+
     bufAppendS("VRet");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
     break;
   case is_Cond:
     bufAppendC('(');
 
     bufAppendS("Cond");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1045,6 +1082,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("CondElse");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1063,6 +1103,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("While");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1081,6 +1124,9 @@ void shStmt(Stmt _p_)
     bufAppendC('(');
 
     bufAppendS("SExp");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1106,6 +1152,9 @@ void shItem(Item _p_)
     bufAppendC('(');
 
     bufAppendS("NoInit");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1118,6 +1167,9 @@ void shItem(Item _p_)
     bufAppendC('(');
 
     bufAppendS("Init");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1160,41 +1212,56 @@ void shType(Type _p_)
   switch(_p_->kind)
   {
   case is_Int:
-  
+
     bufAppendS("Int");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_Str:
-  
+
     bufAppendS("Str");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_Bool:
-  
+
     bufAppendS("Bool");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_Void:
-  
+
     bufAppendS("Void");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_Fun:
     bufAppendC('(');
 
     bufAppendS("Fun");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1244,6 +1311,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("EVar");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1256,6 +1326,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("ELitInt");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1265,25 +1338,34 @@ void shExpr(Expr _p_)
 
     break;
   case is_ELitTrue:
-  
+
     bufAppendS("ELitTrue");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_ELitFalse:
-  
+
     bufAppendS("ELitFalse");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_EApp:
     bufAppendC('(');
 
     bufAppendS("EApp");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1300,6 +1382,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("EString");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1312,6 +1397,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("Neg");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1326,6 +1414,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("Not");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1340,6 +1431,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("EMul");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1358,6 +1452,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("EAdd");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1376,6 +1473,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("ERel");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1394,6 +1494,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("EAnd");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1408,6 +1511,9 @@ void shExpr(Expr _p_)
     bufAppendC('(');
 
     bufAppendS("EOr");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
     bufAppendC(' ');
 
@@ -1448,20 +1554,26 @@ void shAddOp(AddOp _p_)
   switch(_p_->kind)
   {
   case is_Plus:
-  
+
     bufAppendS("Plus");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_Minus:
-  
+
     bufAppendS("Minus");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
 
   default:
@@ -1475,28 +1587,34 @@ void shMulOp(MulOp _p_)
   switch(_p_->kind)
   {
   case is_Times:
-  
+
     bufAppendS("Times");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_Div:
-  
+
     bufAppendS("Div");
 
-  
 
-  
+
+
     break;
   case is_Mod:
-  
+
     bufAppendS("Mod");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
 
   default:
@@ -1510,52 +1628,70 @@ void shRelOp(RelOp _p_)
   switch(_p_->kind)
   {
   case is_LTH:
-  
+
     bufAppendS("LTH");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_LE:
-  
+
     bufAppendS("LE");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_GTH:
-  
+
     bufAppendS("GTH");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_GE:
-  
+
     bufAppendS("GE");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_EQU:
-  
+
     bufAppendS("EQU");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
   case is_NE:
-  
+
     bufAppendS("NE");
+    bufAppendC('[');
+    shInteger(get_lnum(_p_));
+    bufAppendC(']');
 
-  
 
-  
+
+
     break;
 
   default:
@@ -1646,4 +1782,3 @@ void resizeBuffer(void)
 }
 char *buf_;
 int cur_, buf_size;
-

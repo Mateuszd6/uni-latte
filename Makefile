@@ -1,6 +1,6 @@
-CC = clang -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro
+CC = clang
 CCFLAGS = -std=c99 -O0 -ggdb
-CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function
+CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro
 CSANITIZERS = -fsanitize=address,undefined
 CPLATFORM = -D_POSIX_C_SOURCE=200809L
 

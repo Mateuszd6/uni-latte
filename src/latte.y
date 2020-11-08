@@ -427,25 +427,25 @@ ListExpr reverseListExpr(ListExpr l)
 
 %start Program
 %%
-Program : ListTopDef { $$ = make_Prog($1); YY_RESULT_Program_= $$; } 
+Program : ListTopDef { $$ = make_Prog($1); YY_RESULT_Program_= $$; }
 ;
-TopDef : Type _IDENT_ _SYMB_0 ListArg _SYMB_1 Block { $$ = make_FnDef($1, $2, $4, $6);  } 
+TopDef : Type _IDENT_ _SYMB_0 ListArg _SYMB_1 Block { $$ = make_FnDef($1, $2, $4, $6);  }
 ;
-ListTopDef : TopDef { $$ = make_ListTopDef($1, 0);  } 
+ListTopDef : TopDef { $$ = make_ListTopDef($1, 0);  }
   | TopDef ListTopDef { $$ = make_ListTopDef($1, $2);  }
 ;
-Arg : Type _IDENT_ { $$ = make_Ar($1, $2);  } 
+Arg : Type _IDENT_ { $$ = make_Ar($1, $2);  }
 ;
-ListArg : /* empty */ { $$ = 0;  } 
+ListArg : /* empty */ { $$ = 0;  }
   | Arg { $$ = make_ListArg($1, 0);  }
   | Arg _SYMB_2 ListArg { $$ = make_ListArg($1, $3);  }
 ;
-Block : _SYMB_3 ListStmt _SYMB_4 { $$ = make_Blk(reverseListStmt($2));  } 
+Block : _SYMB_3 ListStmt _SYMB_4 { $$ = make_Blk(reverseListStmt($2));  }
 ;
-ListStmt : /* empty */ { $$ = 0;  } 
+ListStmt : /* empty */ { $$ = 0;  }
   | ListStmt Stmt { $$ = make_ListStmt($2, $1);  }
 ;
-Stmt : _SYMB_5 { $$ = make_Empty();  } 
+Stmt : _SYMB_5 { $$ = make_Empty();  }
   | Block { $$ = make_BStmt($1);  }
   | Type ListItem _SYMB_5 { $$ = make_Decl($1, $2);  }
   | _IDENT_ _SYMB_6 Expr _SYMB_5 { $$ = make_Ass($1, $3);  }
@@ -458,22 +458,22 @@ Stmt : _SYMB_5 { $$ = make_Empty();  }
   | _SYMB_32 _SYMB_0 Expr _SYMB_1 Stmt { $$ = make_While($3, $5);  }
   | Expr _SYMB_5 { $$ = make_SExp($1);  }
 ;
-Item : _IDENT_ { $$ = make_NoInit($1);  } 
+Item : _IDENT_ { $$ = make_NoInit($1);  }
   | _IDENT_ _SYMB_6 Expr { $$ = make_Init($1, $3);  }
 ;
-ListItem : Item { $$ = make_ListItem($1, 0);  } 
+ListItem : Item { $$ = make_ListItem($1, 0);  }
   | Item _SYMB_2 ListItem { $$ = make_ListItem($1, $3);  }
 ;
-Type : _SYMB_27 { $$ = make_Int();  } 
+Type : _SYMB_27 { $$ = make_Int();  }
   | _SYMB_29 { $$ = make_Str();  }
   | _SYMB_23 { $$ = make_Bool();  }
   | _SYMB_31 { $$ = make_Void();  }
 ;
-ListType : /* empty */ { $$ = 0;  } 
+ListType : /* empty */ { $$ = 0;  }
   | Type { $$ = make_ListType($1, 0);  }
   | Type _SYMB_2 ListType { $$ = make_ListType($1, $3);  }
 ;
-Expr6 : _IDENT_ { $$ = make_EVar($1);  } 
+Expr6 : _IDENT_ { $$ = make_EVar($1);  }
   | _INTEGER_ { $$ = make_ELitInt($1);  }
   | _SYMB_30 { $$ = make_ELitTrue();  }
   | _SYMB_25 { $$ = make_ELitFalse();  }
@@ -481,41 +481,40 @@ Expr6 : _IDENT_ { $$ = make_EVar($1);  }
   | _STRING_ { $$ = make_EString($1);  }
   | _SYMB_0 Expr _SYMB_1 { $$ = $2;  }
 ;
-Expr5 : _SYMB_9 Expr6 { $$ = make_Neg($2);  } 
+Expr5 : _SYMB_9 Expr6 { $$ = make_Neg($2);  }
   | _SYMB_10 Expr6 { $$ = make_Not($2);  }
   | Expr6 { $$ = $1;  }
 ;
-Expr4 : Expr4 MulOp Expr5 { $$ = make_EMul($1, $2, $3);  } 
+Expr4 : Expr4 MulOp Expr5 { $$ = make_EMul($1, $2, $3);  }
   | Expr5 { $$ = $1;  }
 ;
-Expr3 : Expr3 AddOp Expr4 { $$ = make_EAdd($1, $2, $3);  } 
+Expr3 : Expr3 AddOp Expr4 { $$ = make_EAdd($1, $2, $3);  }
   | Expr4 { $$ = $1;  }
 ;
-Expr2 : Expr2 RelOp Expr3 { $$ = make_ERel($1, $2, $3);  } 
+Expr2 : Expr2 RelOp Expr3 { $$ = make_ERel($1, $2, $3);  }
   | Expr3 { $$ = $1;  }
 ;
-Expr1 : Expr2 _SYMB_11 Expr1 { $$ = make_EAnd($1, $3);  } 
+Expr1 : Expr2 _SYMB_11 Expr1 { $$ = make_EAnd($1, $3);  }
   | Expr2 { $$ = $1;  }
 ;
-Expr : Expr1 _SYMB_12 Expr { $$ = make_EOr($1, $3);  } 
+Expr : Expr1 _SYMB_12 Expr { $$ = make_EOr($1, $3);  }
   | Expr1 { $$ = $1;  }
 ;
-ListExpr : /* empty */ { $$ = 0;  } 
+ListExpr : /* empty */ { $$ = 0;  }
   | Expr { $$ = make_ListExpr($1, 0);  }
   | Expr _SYMB_2 ListExpr { $$ = make_ListExpr($1, $3);  }
 ;
-AddOp : _SYMB_13 { $$ = make_Plus();  } 
+AddOp : _SYMB_13 { $$ = make_Plus();  }
   | _SYMB_9 { $$ = make_Minus();  }
 ;
-MulOp : _SYMB_14 { $$ = make_Times();  } 
+MulOp : _SYMB_14 { $$ = make_Times();  }
   | _SYMB_15 { $$ = make_Div();  }
   | _SYMB_16 { $$ = make_Mod();  }
 ;
-RelOp : _SYMB_17 { $$ = make_LTH();  } 
+RelOp : _SYMB_17 { $$ = make_LTH();  }
   | _SYMB_18 { $$ = make_LE();  }
   | _SYMB_19 { $$ = make_GTH();  }
   | _SYMB_20 { $$ = make_GE();  }
   | _SYMB_21 { $$ = make_EQU();  }
   | _SYMB_22 { $$ = make_NE();  }
 ;
-

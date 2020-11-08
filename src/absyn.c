@@ -4,11 +4,13 @@
 #include <stdlib.h>
 #include "absyn.h"
 
+extern void add_node_lnum(void* ptr);
 
 /********************   Prog    ********************/
 Program make_Prog(ListTopDef p1)
 {
     Program tmp = (Program) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Prog!\n");
@@ -21,6 +23,7 @@ Program make_Prog(ListTopDef p1)
 TopDef make_FnDef(Type p1, Ident p2, ListArg p3, Block p4)
 {
     TopDef tmp = (TopDef) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating FnDef!\n");
@@ -36,6 +39,7 @@ TopDef make_FnDef(Type p1, Ident p2, ListArg p3, Block p4)
 ListTopDef make_ListTopDef(TopDef p1, ListTopDef p2)
 {
     ListTopDef tmp = (ListTopDef) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ListTopDef!\n");
@@ -48,6 +52,7 @@ ListTopDef make_ListTopDef(TopDef p1, ListTopDef p2)
 Arg make_Ar(Type p1, Ident p2)
 {
     Arg tmp = (Arg) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Ar!\n");
@@ -61,6 +66,7 @@ Arg make_Ar(Type p1, Ident p2)
 ListArg make_ListArg(Arg p1, ListArg p2)
 {
     ListArg tmp = (ListArg) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ListArg!\n");
@@ -73,6 +79,7 @@ ListArg make_ListArg(Arg p1, ListArg p2)
 Block make_Blk(ListStmt p1)
 {
     Block tmp = (Block) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Blk!\n");
@@ -85,6 +92,7 @@ Block make_Blk(ListStmt p1)
 ListStmt make_ListStmt(Stmt p1, ListStmt p2)
 {
     ListStmt tmp = (ListStmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ListStmt!\n");
@@ -97,6 +105,7 @@ ListStmt make_ListStmt(Stmt p1, ListStmt p2)
 Stmt make_Empty()
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Empty!\n");
@@ -109,6 +118,7 @@ Stmt make_Empty()
 Stmt make_BStmt(Block p1)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating BStmt!\n");
@@ -116,12 +126,14 @@ Stmt make_BStmt(Block p1)
     }
     tmp->kind = is_BStmt;
     tmp->u.bstmt_.block_ = p1;
+
     return tmp;
 }
 /********************   Decl    ********************/
 Stmt make_Decl(Type p1, ListItem p2)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Decl!\n");
@@ -130,12 +142,16 @@ Stmt make_Decl(Type p1, ListItem p2)
     tmp->kind = is_Decl;
     tmp->u.decl_.type_ = p1;
     tmp->u.decl_.listitem_ = p2;
+
+    printf("Hello, I've made Decl with address %p\n", (void*)tmp);
+
     return tmp;
 }
 /********************   Ass    ********************/
 Stmt make_Ass(Ident p1, Expr p2)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Ass!\n");
@@ -150,6 +166,7 @@ Stmt make_Ass(Ident p1, Expr p2)
 Stmt make_Incr(Ident p1)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Incr!\n");
@@ -163,6 +180,7 @@ Stmt make_Incr(Ident p1)
 Stmt make_Decr(Ident p1)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Decr!\n");
@@ -176,6 +194,7 @@ Stmt make_Decr(Ident p1)
 Stmt make_Ret(Expr p1)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Ret!\n");
@@ -189,6 +208,7 @@ Stmt make_Ret(Expr p1)
 Stmt make_VRet()
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating VRet!\n");
@@ -201,6 +221,7 @@ Stmt make_VRet()
 Stmt make_Cond(Expr p1, Stmt p2)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Cond!\n");
@@ -215,6 +236,7 @@ Stmt make_Cond(Expr p1, Stmt p2)
 Stmt make_CondElse(Expr p1, Stmt p2, Stmt p3)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating CondElse!\n");
@@ -230,6 +252,7 @@ Stmt make_CondElse(Expr p1, Stmt p2, Stmt p3)
 Stmt make_While(Expr p1, Stmt p2)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating While!\n");
@@ -244,6 +267,7 @@ Stmt make_While(Expr p1, Stmt p2)
 Stmt make_SExp(Expr p1)
 {
     Stmt tmp = (Stmt) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating SExp!\n");
@@ -256,6 +280,7 @@ Stmt make_SExp(Expr p1)
 Item make_NoInit(Ident p1)
 {
     Item tmp = (Item) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating NoInit!\n");
@@ -269,6 +294,7 @@ Item make_NoInit(Ident p1)
 Item make_Init(Ident p1, Expr p2)
 {
     Item tmp = (Item) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Init!\n");
@@ -282,6 +308,7 @@ Item make_Init(Ident p1, Expr p2)
 ListItem make_ListItem(Item p1, ListItem p2)
 {
     ListItem tmp = (ListItem) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ListItem!\n");
@@ -294,6 +321,7 @@ ListItem make_ListItem(Item p1, ListItem p2)
 Type make_Int()
 {
     Type tmp = (Type) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Int!\n");
@@ -306,6 +334,7 @@ Type make_Int()
 Type make_Str()
 {
     Type tmp = (Type) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Str!\n");
@@ -318,6 +347,7 @@ Type make_Str()
 Type make_Bool()
 {
     Type tmp = (Type) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Bool!\n");
@@ -330,6 +360,7 @@ Type make_Bool()
 Type make_Void()
 {
     Type tmp = (Type) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Void!\n");
@@ -342,6 +373,7 @@ Type make_Void()
 Type make_Fun(Type p1, ListType p2)
 {
     Type tmp = (Type) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Fun!\n");
@@ -355,6 +387,7 @@ Type make_Fun(Type p1, ListType p2)
 ListType make_ListType(Type p1, ListType p2)
 {
     ListType tmp = (ListType) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ListType!\n");
@@ -367,6 +400,7 @@ ListType make_ListType(Type p1, ListType p2)
 Expr make_EVar(Ident p1)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EVar!\n");
@@ -380,6 +414,7 @@ Expr make_EVar(Ident p1)
 Expr make_ELitInt(Integer p1)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ELitInt!\n");
@@ -393,6 +428,7 @@ Expr make_ELitInt(Integer p1)
 Expr make_ELitTrue()
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ELitTrue!\n");
@@ -405,6 +441,7 @@ Expr make_ELitTrue()
 Expr make_ELitFalse()
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ELitFalse!\n");
@@ -417,6 +454,7 @@ Expr make_ELitFalse()
 Expr make_EApp(Ident p1, ListExpr p2)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EApp!\n");
@@ -431,6 +469,7 @@ Expr make_EApp(Ident p1, ListExpr p2)
 Expr make_EString(String p1)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EString!\n");
@@ -438,12 +477,14 @@ Expr make_EString(String p1)
     }
     tmp->kind = is_EString;
     tmp->u.estring_.string_ = p1;
+
     return tmp;
 }
 /********************   Neg    ********************/
 Expr make_Neg(Expr p1)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Neg!\n");
@@ -457,6 +498,7 @@ Expr make_Neg(Expr p1)
 Expr make_Not(Expr p1)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Not!\n");
@@ -470,6 +512,7 @@ Expr make_Not(Expr p1)
 Expr make_EMul(Expr p1, MulOp p2, Expr p3)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EMul!\n");
@@ -485,6 +528,7 @@ Expr make_EMul(Expr p1, MulOp p2, Expr p3)
 Expr make_EAdd(Expr p1, AddOp p2, Expr p3)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EAdd!\n");
@@ -500,6 +544,7 @@ Expr make_EAdd(Expr p1, AddOp p2, Expr p3)
 Expr make_ERel(Expr p1, RelOp p2, Expr p3)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ERel!\n");
@@ -515,6 +560,7 @@ Expr make_ERel(Expr p1, RelOp p2, Expr p3)
 Expr make_EAnd(Expr p1, Expr p2)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EAnd!\n");
@@ -529,6 +575,7 @@ Expr make_EAnd(Expr p1, Expr p2)
 Expr make_EOr(Expr p1, Expr p2)
 {
     Expr tmp = (Expr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EOr!\n");
@@ -542,6 +589,7 @@ Expr make_EOr(Expr p1, Expr p2)
 ListExpr make_ListExpr(Expr p1, ListExpr p2)
 {
     ListExpr tmp = (ListExpr) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating ListExpr!\n");
@@ -554,6 +602,7 @@ ListExpr make_ListExpr(Expr p1, ListExpr p2)
 AddOp make_Plus()
 {
     AddOp tmp = (AddOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Plus!\n");
@@ -566,6 +615,7 @@ AddOp make_Plus()
 AddOp make_Minus()
 {
     AddOp tmp = (AddOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Minus!\n");
@@ -577,6 +627,7 @@ AddOp make_Minus()
 MulOp make_Times()
 {
     MulOp tmp = (MulOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Times!\n");
@@ -589,6 +640,7 @@ MulOp make_Times()
 MulOp make_Div()
 {
     MulOp tmp = (MulOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Div!\n");
@@ -601,6 +653,7 @@ MulOp make_Div()
 MulOp make_Mod()
 {
     MulOp tmp = (MulOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating Mod!\n");
@@ -612,6 +665,7 @@ MulOp make_Mod()
 RelOp make_LTH()
 {
     RelOp tmp = (RelOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating LTH!\n");
@@ -624,6 +678,7 @@ RelOp make_LTH()
 RelOp make_LE()
 {
     RelOp tmp = (RelOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating LE!\n");
@@ -636,6 +691,7 @@ RelOp make_LE()
 RelOp make_GTH()
 {
     RelOp tmp = (RelOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating GTH!\n");
@@ -648,6 +704,7 @@ RelOp make_GTH()
 RelOp make_GE()
 {
     RelOp tmp = (RelOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating GE!\n");
@@ -660,6 +717,7 @@ RelOp make_GE()
 RelOp make_EQU()
 {
     RelOp tmp = (RelOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating EQU!\n");
@@ -672,6 +730,7 @@ RelOp make_EQU()
 RelOp make_NE()
 {
     RelOp tmp = (RelOp) malloc(sizeof(*tmp));
+    add_node_lnum(tmp);
     if (!tmp)
     {
         fprintf(stderr, "Error: out of memory when allocating NE!\n");
