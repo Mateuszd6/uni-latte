@@ -1,5 +1,8 @@
-CC = gcc
-CCFLAGS = -g -W -Wall
+CC = clang -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro
+CCFLAGS = -std=c99 -O0 -ggdb
+CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function
+CSANITIZERS = -fsanitize=address,undefined
+CPLATFORM = -D_POSIX_C_SOURCE=200809L
 
 FLEX = flex
 FLEX_OPTS = -Platte
@@ -7,35 +10,24 @@ FLEX_OPTS = -Platte
 BISON = bison
 BISON_OPTS = -t -platte
 
-OBJS = absyn.o lexer.o parser.o printer.o
+OBJS = ./obj/absyn.o ./obj/lexer.o ./obj/parser.o ./obj/printer.o
 
-.PHONY: all clean 
+.PHONY: all clean
 
 all: testlatte
 
 clean:
-	@-rm -f *.o main 
+	@-rm -f ./obj/*.o main
 
-testlatte: ${OBJS} test.o
-	${CC} ${CCFLAGS} ${OBJS} test.o -o main
+testlatte: ${OBJS} ./obj/test.o
+	${CC} ${CSANITIZERS} ${CCFLAGS} ${OBJS} ./obj/test.o -o main
 
-absyn.o: absyn.c absyn.h
-	${CC} ${CCFLAGS} -c absyn.c
+obj/%.o: src/%.c
+	@-mkdir -p obj
+	${CC} -c ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${CPLATFORM} $< -o $@
 
 lexer.c: latte.l
 	${FLEX} ${FLEX_OPTS} -olexer.c latte.l
 
 parser.c: latte.y
 	${BISON} ${BISON_OPTS} latte.y -o parser.c
-
-lexer.o: lexer.c parser.h
-	${CC} ${CCFLAGS} -c lexer.c 
-
-parser.o: parser.c absyn.h
-	${CC} ${CCFLAGS} -c parser.c
-
-printer.o: printer.c printer.h absyn.h
-	${CC} ${CCFLAGS} -c printer.c
-
-test.o: test.c parser.h printer.h absyn.h
-	${CC} ${CCFLAGS} -c test.c
