@@ -88,7 +88,7 @@ extern int initialize_lexer(FILE * inp);
 void yyerror(const char *str)
 {
   extern char *lattetext;
-  fprintf(stderr,"error: line %d: %s at %s\n",
+  fprintf(stderr,"ERROR\ntest.lat:%d: %s at \"%s\"\n", // TODO: filename
     yy_mylinenumber + 1, str, lattetext);
 }
 
