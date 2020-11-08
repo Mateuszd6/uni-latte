@@ -5,27 +5,27 @@
 
 typedef union
 {
-  int int_;
-  char char_;
-  double double_;
-  char* string_;
-  Program program_;
-  TopDef topdef_;
-  ListTopDef listtopdef_;
-  Arg arg_;
-  ListArg listarg_;
-  Block block_;
-  ListStmt liststmt_;
-  Stmt stmt_;
-  Item item_;
-  ListItem listitem_;
-  Type type_;
-  ListType listtype_;
-  Expr expr_;
-  ListExpr listexpr_;
-  AddOp addop_;
-  MulOp mulop_;
-  RelOp relop_;
+    int int_;
+    char char_;
+    double double_;
+    char* string_;
+    Program program_;
+    TopDef topdef_;
+    ListTopDef listtopdef_;
+    Arg arg_;
+    ListArg listarg_;
+    Block block_;
+    ListStmt liststmt_;
+    Stmt stmt_;
+    Item item_;
+    ListItem listitem_;
+    Type type_;
+    ListType listtype_;
+    Expr expr_;
+    ListExpr listexpr_;
+    AddOp addop_;
+    MulOp mulop_;
+    RelOp relop_;
 } YYSTYPE;
 
 #define _ERROR_ 258
@@ -67,7 +67,7 @@ typedef union
 #define _IDENT_ 294
 
 extern YYSTYPE yylval;
-Program pProgram(FILE *inp);
-
+Program
+pProgram(FILE* inp);
 
 #endif

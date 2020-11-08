@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "absyn.h"
 #include "parser.h"
 #include "printer.h"
-#include "absyn.h"
 
 #define ARRAY_IMPLEMENTATION
 #define ARRAY_STATIC
@@ -14,6 +14,7 @@
 
 extern int yy_mylinenumber;
 extern void add_node_lnum(void* ptr);
+extern mm get_lnum(void* ast_node); // TODO extern?
 
 typedef struct node_lnum node_lnum;
 struct node_lnum
@@ -56,20 +57,22 @@ usage(void)
 }
 
 int
-main(int argc, char ** argv)
+main(int argc, char** argv)
 {
-    FILE *input;
+    FILE* input;
     Program parse_tree;
     int quiet = 0;
-    char *filename = NULL;
+    char* filename = NULL;
 
     if (argc > 1)
     {
         if (strcmp(argv[1], "-s") == 0)
         {
             quiet = 1;
-            if (argc > 2) filename = argv[2];
-            else input = stdin;
+            if (argc > 2)
+                filename = argv[2];
+            else
+                input = stdin;
         }
         else
             filename = argv[1];
@@ -87,7 +90,8 @@ main(int argc, char ** argv)
     else
         input = stdin;
 
-    /* The default entry point is used. For other options see Parser.h */
+    array_reserve(node_lnums, 1024);
+
     parse_tree = pProgram(input);
     if (parse_tree)
     {

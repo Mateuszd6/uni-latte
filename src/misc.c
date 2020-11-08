@@ -21,12 +21,13 @@ typedef i32 b32;
 #define MIN(LHS, RHS) (((LHS) < (RHS)) ? (LHS) : (RHS))
 #define MAX(LHS, RHS) (((LHS) > (RHS)) ? (LHS) : (RHS))
 #define SWAP(LHS, RHS)                                                         \
-    do {                                                                       \
+    do                                                                         \
+    {                                                                          \
         __typeof(LHS) LHS_ = LHS;                                              \
         __typeof(RHS) RHS_ = RHS;                                              \
         (LHS) = RHS_;                                                          \
         (RHS) = LHS_;                                                          \
-    } while(0)
+    } while (0)
 
 #if 0
 #include <stdarg.h>
