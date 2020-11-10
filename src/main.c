@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,19 +57,31 @@ usage(void)
     printf("\t-s (files)\tSilent mode. Parse content of files silently.\n");
 }
 
+static void
+accept_input(void)
+{
+    fprintf(stderr, "OK\n");
+}
+
+// TODO: Move to utils
+#define LIST_FOREACH(ITER, HEAD, NEXT_FIELD)                                   \
+    for (__typeof(HEAD) ITER = (HEAD);                                         \
+         (ITER);                                                               \
+         (ITER) = (ITER)-> NEXT_FIELD)
+
 int
 main(int argc, char** argv)
 {
     FILE* input;
     Program parse_tree;
-    int quiet = 0;
+    // int quiet = 0;
     char* filename = NULL;
 
     if (argc > 1)
     {
         if (strcmp(argv[1], "-s") == 0)
         {
-            quiet = 1;
+            // quiet = 1;
             if (argc > 2)
                 filename = argv[2];
             else
@@ -95,17 +108,29 @@ main(int argc, char** argv)
     parse_tree = pProgram(input);
     if (parse_tree)
     {
-        printf("\nParse Succesful!\n");
-        if (!quiet)
+        accept_input();
+        LIST_FOREACH(it, parse_tree->u.prog_.listtopdef_, listtopdef_)
         {
-            printf("\n[Abstract Syntax]\n");
-            printf("%s\n\n", showProgram(parse_tree));
-            printf("[Linearized Tree]\n");
-            printf("%s\n\n", printProgram(parse_tree));
+            TopDef t = it->topdef_;
+            assert(t->kind == is_FnDef);
+            printf("There is a declared function called: \"%s\"\n",
+                   t->u.fndef_.ident_);
         }
+
+        // printf("\nParse Succesful!\n");
+        // if (!quiet)
+        // {
+            // printf("\n[Abstract Syntax]\n");
+            // printf("%s\n\n", showProgram(parse_tree));
+            // printf("[Linearized Tree]\n");
+            // printf("%s\n\n", printProgram(parse_tree));
+        // }
 
         return 0;
     }
 
+
+    // TODO: If don't trust bnfc, then possbibly write ERROR here also?
+    // Can't lose?
     return 1;
 }
