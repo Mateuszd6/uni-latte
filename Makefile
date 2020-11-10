@@ -14,13 +14,13 @@ OBJS = ./obj/absyn.o ./obj/lexer.o ./obj/parser.o ./obj/printer.o
 
 .PHONY: all clean
 
-all: testlatte
+all: latte
 
 clean:
-	@-rm -f ./obj/*.o main
+	@-rm -f ./obj/*.o latc main
 
-testlatte: ${OBJS} ./obj/test.o
-	${CC} ${CSANITIZERS} ${CCFLAGS} ${OBJS} ./obj/test.o -o main
+latte: ${OBJS} ./obj/main.o
+	${CC} ${CSANITIZERS} ${CCFLAGS} ${OBJS} ./obj/main.o -o latc
 
 obj/%.o: src/%.c
 	@-mkdir -p obj

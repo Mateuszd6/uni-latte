@@ -2,4 +2,5 @@ obj/**
 *.o
 examples/**
 main
+latc
 foo*
