@@ -46,11 +46,15 @@ ppListItem(ListItem p, int i);
 void
 ppType(Type p, int i);
 void
-ppListType(ListType p, int i);
-void
 ppExpr(Expr p, int i);
 void
 ppListExpr(ListExpr p, int i);
+void
+ppClBody(ClBody p, int i);
+void
+ppListClBody(ListClBody p, int i);
+void
+ppClProps(ClProps p, int i);
 void
 ppAddOp(AddOp p, int i);
 void
@@ -84,11 +88,15 @@ shListItem(ListItem p);
 void
 shType(Type p);
 void
-shListType(ListType p);
-void
 shExpr(Expr p);
 void
 shListExpr(ListExpr p);
+void
+shClBody(ClBody p);
+void
+shListClBody(ListClBody p);
+void
+shClProps(ClProps p);
 void
 shAddOp(AddOp p);
 void

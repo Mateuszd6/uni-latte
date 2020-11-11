@@ -109,6 +109,7 @@ main(int argc, char** argv)
     if (parse_tree)
     {
         accept_input();
+        exit(0);
         LIST_FOREACH(it, parse_tree->u.prog_.listtopdef_, listtopdef_)
         {
             TopDef t = it->topdef_;

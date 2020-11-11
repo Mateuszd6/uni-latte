@@ -20,9 +20,11 @@ typedef union
     Item item_;
     ListItem listitem_;
     Type type_;
-    ListType listtype_;
     Expr expr_;
     ListExpr listexpr_;
+    ClBody clbody_;
+    ListClBody listclbody_;
+    ClProps clprops_;
     AddOp addop_;
     MulOp mulop_;
     RelOp relop_;
@@ -62,9 +64,15 @@ typedef union
 #define _SYMB_30 289
 #define _SYMB_31 290
 #define _SYMB_32 291
-#define _STRING_ 292
-#define _INTEGER_ 293
-#define _IDENT_ 294
+#define _SYMB_33 292
+#define _SYMB_34 293
+#define _SYMB_35 294
+#define _SYMB_36 295
+#define _SYMB_37 296
+#define _SYMB_38 297
+#define _STRING_ 298
+#define _INTEGER_ 299
+#define _IDENT_ 300
 
 extern YYSTYPE yylval;
 Program

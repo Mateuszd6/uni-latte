@@ -153,6 +153,20 @@ ppTopDef(TopDef _p_, int _i_)
                 renderC(_R_PAREN);
             break;
 
+        case is_ClDef:
+            if (_i_ > 0)
+                renderC(_L_PAREN);
+            renderS("class");
+            ppIdent(_p_->u.cldef_.ident_, 0);
+            ppClProps(_p_->u.cldef_.clprops_, 0);
+            renderC('{');
+            ppListClBody(_p_->u.cldef_.listclbody_, 0);
+            renderC('}');
+
+            if (_i_ > 0)
+                renderC(_R_PAREN);
+            break;
+
         default:
             fprintf(stderr, "Error: bad kind field when printing TopDef!\n");
             exit(1);
@@ -299,9 +313,9 @@ ppStmt(Stmt _p_, int _i_)
         case is_Ass:
             if (_i_ > 0)
                 renderC(_L_PAREN);
-            ppIdent(_p_->u.ass_.ident_, 0);
+            ppExpr(_p_->u.ass_.expr_1, 0);
             renderC('=');
-            ppExpr(_p_->u.ass_.expr_, 0);
+            ppExpr(_p_->u.ass_.expr_2, 0);
             renderC(';');
 
             if (_i_ > 0)
@@ -311,7 +325,7 @@ ppStmt(Stmt _p_, int _i_)
         case is_Incr:
             if (_i_ > 0)
                 renderC(_L_PAREN);
-            ppIdent(_p_->u.incr_.ident_, 0);
+            ppExpr(_p_->u.incr_.expr_, 0);
             renderS("++");
             renderC(';');
 
@@ -322,7 +336,7 @@ ppStmt(Stmt _p_, int _i_)
         case is_Decr:
             if (_i_ > 0)
                 renderC(_L_PAREN);
-            ppIdent(_p_->u.decr_.ident_, 0);
+            ppExpr(_p_->u.decr_.expr_, 0);
             renderS("--");
             renderC(';');
 
@@ -387,6 +401,22 @@ ppStmt(Stmt _p_, int _i_)
             ppExpr(_p_->u.while_.expr_, 0);
             renderC(')');
             ppStmt(_p_->u.while_.stmt_, 0);
+
+            if (_i_ > 0)
+                renderC(_R_PAREN);
+            break;
+
+        case is_For:
+            if (_i_ > 0)
+                renderC(_L_PAREN);
+            renderS("for");
+            renderC('(');
+            ppIdent(_p_->u.for_.ident_1, 0);
+            ppIdent(_p_->u.for_.ident_2, 0);
+            renderC(':');
+            ppExpr(_p_->u.for_.expr_, 0);
+            renderC(')');
+            ppStmt(_p_->u.for_.stmt_, 0);
 
             if (_i_ > 0)
                 renderC(_R_PAREN);
@@ -464,50 +494,20 @@ ppType(Type _p_, int _i_)
 {
     switch (_p_->kind)
     {
-        case is_Int:
+        case is_TCls:
             if (_i_ > 0)
                 renderC(_L_PAREN);
-            renderS("int");
+            ppIdent(_p_->u.tcls_.ident_, 0);
 
             if (_i_ > 0)
                 renderC(_R_PAREN);
             break;
 
-        case is_Str:
+        case is_TArr:
             if (_i_ > 0)
                 renderC(_L_PAREN);
-            renderS("string");
-
-            if (_i_ > 0)
-                renderC(_R_PAREN);
-            break;
-
-        case is_Bool:
-            if (_i_ > 0)
-                renderC(_L_PAREN);
-            renderS("boolean");
-
-            if (_i_ > 0)
-                renderC(_R_PAREN);
-            break;
-
-        case is_Void:
-            if (_i_ > 0)
-                renderC(_L_PAREN);
-            renderS("void");
-
-            if (_i_ > 0)
-                renderC(_R_PAREN);
-            break;
-
-        case is_Fun:
-            if (_i_ > 0)
-                renderC(_L_PAREN);
-            /* Internal Category */
-            ppType(_p_->u.fun_.type_, 0);
-            renderC('(');
-            ppListType(_p_->u.fun_.listtype_, 0);
-            renderC(')');
+            ppIdent(_p_->u.tarr_.ident_, 0);
+            renderS("[]");
 
             if (_i_ > 0)
                 renderC(_R_PAREN);
@@ -520,102 +520,149 @@ ppType(Type _p_, int _i_)
 }
 
 void
-ppListType(ListType listtype, int i)
-{
-    while (listtype != 0)
-    {
-        if (listtype->listtype_ == 0)
-        {
-            ppType(listtype->type_, i);
-
-            listtype = 0;
-        }
-        else
-        {
-            ppType(listtype->type_, i);
-            renderC(',');
-            listtype = listtype->listtype_;
-        }
-    }
-}
-
-void
 ppExpr(Expr _p_, int _i_)
 {
     switch (_p_->kind)
     {
         case is_EVar:
-            if (_i_ > 6)
+            if (_i_ > 11)
                 renderC(_L_PAREN);
             ppIdent(_p_->u.evar_.ident_, 0);
 
-            if (_i_ > 6)
-                renderC(_R_PAREN);
-            break;
-
-        case is_ELitInt:
-            if (_i_ > 6)
-                renderC(_L_PAREN);
-            ppInteger(_p_->u.elitint_.integer_, 0);
-
-            if (_i_ > 6)
-                renderC(_R_PAREN);
-            break;
-
-        case is_ELitTrue:
-            if (_i_ > 6)
-                renderC(_L_PAREN);
-            renderS("true");
-
-            if (_i_ > 6)
-                renderC(_R_PAREN);
-            break;
-
-        case is_ELitFalse:
-            if (_i_ > 6)
-                renderC(_L_PAREN);
-            renderS("false");
-
-            if (_i_ > 6)
+            if (_i_ > 11)
                 renderC(_R_PAREN);
             break;
 
         case is_EApp:
-            if (_i_ > 6)
+            if (_i_ > 11)
                 renderC(_L_PAREN);
-            ppIdent(_p_->u.eapp_.ident_, 0);
+            ppExpr(_p_->u.eapp_.expr_, 10);
             renderC('(');
             ppListExpr(_p_->u.eapp_.listexpr_, 0);
             renderC(')');
 
-            if (_i_ > 6)
+            if (_i_ > 11)
                 renderC(_R_PAREN);
             break;
 
-        case is_EString:
-            if (_i_ > 6)
+        case is_EClMem:
+            if (_i_ > 10)
                 renderC(_L_PAREN);
-            ppString(_p_->u.estring_.string_, 0);
+            ppExpr(_p_->u.eclmem_.expr_, 9);
+            renderC('.');
+            ppIdent(_p_->u.eclmem_.ident_, 0);
 
-            if (_i_ > 6)
+            if (_i_ > 10)
+                renderC(_R_PAREN);
+            break;
+
+        case is_EArrApp:
+            if (_i_ > 9)
+                renderC(_L_PAREN);
+            ppExpr(_p_->u.earrapp_.expr_1, 8);
+            renderC('[');
+            ppExpr(_p_->u.earrapp_.expr_2, 0);
+            renderC(']');
+
+            if (_i_ > 9)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ENew:
+            if (_i_ > 8)
+                renderC(_L_PAREN);
+            renderS("new");
+            ppType(_p_->u.enew_.type_, 0);
+
+            if (_i_ > 8)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ENewArr:
+            if (_i_ > 8)
+                renderC(_L_PAREN);
+            renderS("new");
+            ppType(_p_->u.enewarr_.type_, 0);
+            renderC('[');
+            ppExpr(_p_->u.enewarr_.expr_, 0);
+            renderC(']');
+
+            if (_i_ > 8)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ELitInt:
+            if (_i_ > 7)
+                renderC(_L_PAREN);
+            ppInteger(_p_->u.elitint_.integer_, 0);
+
+            if (_i_ > 7)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ELitStr:
+            if (_i_ > 7)
+                renderC(_L_PAREN);
+            ppString(_p_->u.elitstr_.string_, 0);
+
+            if (_i_ > 7)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ELitTrue:
+            if (_i_ > 7)
+                renderC(_L_PAREN);
+            renderS("true");
+
+            if (_i_ > 7)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ELitFalse:
+            if (_i_ > 7)
+                renderC(_L_PAREN);
+            renderS("false");
+
+            if (_i_ > 7)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ENull:
+            if (_i_ > 7)
+                renderC(_L_PAREN);
+            renderS("null");
+
+            if (_i_ > 7)
                 renderC(_R_PAREN);
             break;
 
         case is_Neg:
-            if (_i_ > 5)
+            if (_i_ > 6)
                 renderC(_L_PAREN);
             renderC('-');
             ppExpr(_p_->u.neg_.expr_, 6);
 
-            if (_i_ > 5)
+            if (_i_ > 6)
                 renderC(_R_PAREN);
             break;
 
         case is_Not:
-            if (_i_ > 5)
+            if (_i_ > 6)
                 renderC(_L_PAREN);
             renderC('!');
             ppExpr(_p_->u.not_.expr_, 6);
+
+            if (_i_ > 6)
+                renderC(_R_PAREN);
+            break;
+
+        case is_ECast:
+            if (_i_ > 5)
+                renderC(_L_PAREN);
+            renderC('(');
+            ppIdent(_p_->u.ecast_.ident_, 0);
+            renderC(')');
+            ppExpr(_p_->u.ecast_.expr_, 6);
 
             if (_i_ > 5)
                 renderC(_R_PAREN);
@@ -699,6 +746,91 @@ ppListExpr(ListExpr listexpr, int i)
             renderC(',');
             listexpr = listexpr->listexpr_;
         }
+    }
+}
+
+void
+ppClBody(ClBody _p_, int _i_)
+{
+    switch (_p_->kind)
+    {
+        case is_CBVar:
+            if (_i_ > 0)
+                renderC(_L_PAREN);
+            ppType(_p_->u.cbvar_.type_, 0);
+            ppIdent(_p_->u.cbvar_.ident_, 0);
+            renderC(';');
+
+            if (_i_ > 0)
+                renderC(_R_PAREN);
+            break;
+
+        case is_CBFnDef:
+            if (_i_ > 0)
+                renderC(_L_PAREN);
+            ppType(_p_->u.cbfndef_.type_, 0);
+            ppIdent(_p_->u.cbfndef_.ident_, 0);
+            renderC('(');
+            ppListArg(_p_->u.cbfndef_.listarg_, 0);
+            renderC(')');
+            ppBlock(_p_->u.cbfndef_.block_, 0);
+
+            if (_i_ > 0)
+                renderC(_R_PAREN);
+            break;
+
+        default:
+            fprintf(stderr, "Error: bad kind field when printing ClBody!\n");
+            exit(1);
+    }
+}
+
+void
+ppListClBody(ListClBody listclbody, int i)
+{
+    while (listclbody != 0)
+    {
+        if (listclbody->listclbody_ == 0)
+        {
+            ppClBody(listclbody->clbody_, i);
+
+            listclbody = 0;
+        }
+        else
+        {
+            ppClBody(listclbody->clbody_, i);
+            renderS("");
+            listclbody = listclbody->listclbody_;
+        }
+    }
+}
+
+void
+ppClProps(ClProps _p_, int _i_)
+{
+    switch (_p_->kind)
+    {
+        case is_CNone:
+            if (_i_ > 0)
+                renderC(_L_PAREN);
+
+            if (_i_ > 0)
+                renderC(_R_PAREN);
+            break;
+
+        case is_CExtends:
+            if (_i_ > 0)
+                renderC(_L_PAREN);
+            renderS("extends");
+            ppIdent(_p_->u.cextends_.ident_, 0);
+
+            if (_i_ > 0)
+                renderC(_R_PAREN);
+            break;
+
+        default:
+            fprintf(stderr, "Error: bad kind field when printing ClProps!\n");
+            exit(1);
     }
 }
 
@@ -876,10 +1008,7 @@ shProgram(Program _p_)
         case is_Prog:
             bufAppendC('(');
 
-            bufAppendS("Prog ");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
+            bufAppendS("Prog");
 
             bufAppendC(' ');
 
@@ -906,9 +1035,6 @@ shTopDef(TopDef _p_)
             bufAppendC('(');
 
             bufAppendS("FnDef");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -924,6 +1050,26 @@ shTopDef(TopDef _p_)
             bufAppendC(' ');
             bufAppendC('[');
             shBlock(_p_->u.fndef_.block_);
+            bufAppendC(']');
+
+            bufAppendC(')');
+
+            break;
+        case is_ClDef:
+            bufAppendC('(');
+
+            bufAppendS("ClDef");
+
+            bufAppendC(' ');
+
+            shIdent(_p_->u.cldef_.ident_);
+            bufAppendC(' ');
+            bufAppendC('[');
+            shClProps(_p_->u.cldef_.clprops_);
+            bufAppendC(']');
+            bufAppendC(' ');
+            bufAppendC('[');
+            shListClBody(_p_->u.cldef_.listclbody_);
             bufAppendC(']');
 
             bufAppendC(')');
@@ -964,9 +1110,6 @@ shArg(Arg _p_)
             bufAppendC('(');
 
             bufAppendS("Ar");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1014,9 +1157,6 @@ shBlock(Block _p_)
             bufAppendC('(');
 
             bufAppendS("Blk");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1067,9 +1207,6 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("BStmt");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1084,9 +1221,6 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("Decl");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1105,17 +1239,12 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("Ass");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
-            shIdent(_p_->u.ass_.ident_);
+            shExpr(_p_->u.ass_.expr_1);
             bufAppendC(' ');
-            bufAppendC('[');
-            shExpr(_p_->u.ass_.expr_);
-            bufAppendC(']');
+            shExpr(_p_->u.ass_.expr_2);
 
             bufAppendC(')');
 
@@ -1124,13 +1253,12 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("Incr");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
-            shIdent(_p_->u.incr_.ident_);
+            bufAppendC('[');
+            shExpr(_p_->u.incr_.expr_);
+            bufAppendC(']');
 
             bufAppendC(')');
 
@@ -1139,13 +1267,12 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("Decr");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
-            shIdent(_p_->u.decr_.ident_);
+            bufAppendC('[');
+            shExpr(_p_->u.decr_.expr_);
+            bufAppendC(']');
 
             bufAppendC(')');
 
@@ -1154,9 +1281,6 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("Ret");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1170,18 +1294,12 @@ shStmt(Stmt _p_)
         case is_VRet:
 
             bufAppendS("VRet");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_Cond:
             bufAppendC('(');
 
             bufAppendS("Cond");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1200,9 +1318,6 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("CondElse");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1221,9 +1336,6 @@ shStmt(Stmt _p_)
             bufAppendC('(');
 
             bufAppendS("While");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1238,13 +1350,32 @@ shStmt(Stmt _p_)
             bufAppendC(')');
 
             break;
+        case is_For:
+            bufAppendC('(');
+
+            bufAppendS("For");
+
+            bufAppendC(' ');
+
+            shIdent(_p_->u.for_.ident_1);
+            bufAppendC(' ');
+            shIdent(_p_->u.for_.ident_2);
+            bufAppendC(' ');
+            bufAppendC('[');
+            shExpr(_p_->u.for_.expr_);
+            bufAppendC(']');
+            bufAppendC(' ');
+            bufAppendC('[');
+            shStmt(_p_->u.for_.stmt_);
+            bufAppendC(']');
+
+            bufAppendC(')');
+
+            break;
         case is_SExp:
             bufAppendC('(');
 
             bufAppendS("SExp");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1271,9 +1402,6 @@ shItem(Item _p_)
             bufAppendC('(');
 
             bufAppendS("NoInit");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1286,9 +1414,6 @@ shItem(Item _p_)
             bufAppendC('(');
 
             bufAppendS("Init");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1332,57 +1457,26 @@ shType(Type _p_)
 {
     switch (_p_->kind)
     {
-        case is_Int:
-
-            bufAppendS("Int");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
-
-            break;
-        case is_Str:
-
-            bufAppendS("Str");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
-
-            break;
-        case is_Bool:
-
-            bufAppendS("Bool");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
-
-            break;
-        case is_Void:
-
-            bufAppendS("Void");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
-
-            break;
-        case is_Fun:
+        case is_TCls:
             bufAppendC('(');
 
-            bufAppendS("Fun");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
+            bufAppendS("TCls");
 
             bufAppendC(' ');
 
-            /* Internal Category */
+            shIdent(_p_->u.tcls_.ident_);
+
+            bufAppendC(')');
+
+            break;
+        case is_TArr:
+            bufAppendC('(');
+
+            bufAppendS("TArr");
+
             bufAppendC(' ');
-            bufAppendC('[');
-            shType(_p_->u.fun_.type_);
-            bufAppendC(']');
-            bufAppendC(' ');
-            bufAppendC('[');
-            shListType(_p_->u.fun_.listtype_);
-            bufAppendC(']');
+
+            shIdent(_p_->u.tarr_.ident_);
 
             bufAppendC(')');
 
@@ -1395,25 +1489,6 @@ shType(Type _p_)
 }
 
 void
-shListType(ListType listtype)
-{
-    while (listtype != 0)
-    {
-        if (listtype->listtype_)
-        {
-            shType(listtype->type_);
-            bufAppendS(", ");
-            listtype = listtype->listtype_;
-        }
-        else
-        {
-            shType(listtype->type_);
-            listtype = 0;
-        }
-    }
-}
-
-void
 shExpr(Expr _p_)
 {
     switch (_p_->kind)
@@ -1422,9 +1497,6 @@ shExpr(Expr _p_)
             bufAppendC('(');
 
             bufAppendS("EVar");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1433,48 +1505,16 @@ shExpr(Expr _p_)
             bufAppendC(')');
 
             break;
-        case is_ELitInt:
-            bufAppendC('(');
-
-            bufAppendS("ELitInt");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
-
-            bufAppendC(' ');
-
-            shInteger(_p_->u.elitint_.integer_);
-
-            bufAppendC(')');
-
-            break;
-        case is_ELitTrue:
-
-            bufAppendS("ELitTrue");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
-
-            break;
-        case is_ELitFalse:
-
-            bufAppendS("ELitFalse");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
-
-            break;
         case is_EApp:
             bufAppendC('(');
 
             bufAppendS("EApp");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
-            shIdent(_p_->u.eapp_.ident_);
+            bufAppendC('[');
+            shExpr(_p_->u.eapp_.expr_);
+            bufAppendC(']');
             bufAppendC(' ');
             bufAppendC('[');
             shListExpr(_p_->u.eapp_.listexpr_);
@@ -1483,28 +1523,111 @@ shExpr(Expr _p_)
             bufAppendC(')');
 
             break;
-        case is_EString:
+        case is_EClMem:
             bufAppendC('(');
 
-            bufAppendS("EString");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
+            bufAppendS("EClMem");
 
             bufAppendC(' ');
 
-            shString(_p_->u.estring_.string_);
+            bufAppendC('[');
+            shExpr(_p_->u.eclmem_.expr_);
+            bufAppendC(']');
+            bufAppendC(' ');
+            shIdent(_p_->u.eclmem_.ident_);
 
             bufAppendC(')');
+
+            break;
+        case is_EArrApp:
+            bufAppendC('(');
+
+            bufAppendS("EArrApp");
+
+            bufAppendC(' ');
+
+            shExpr(_p_->u.earrapp_.expr_1);
+            bufAppendC(' ');
+            shExpr(_p_->u.earrapp_.expr_2);
+
+            bufAppendC(')');
+
+            break;
+        case is_ENew:
+            bufAppendC('(');
+
+            bufAppendS("ENew");
+
+            bufAppendC(' ');
+
+            bufAppendC('[');
+            shType(_p_->u.enew_.type_);
+            bufAppendC(']');
+
+            bufAppendC(')');
+
+            break;
+        case is_ENewArr:
+            bufAppendC('(');
+
+            bufAppendS("ENewArr");
+
+            bufAppendC(' ');
+
+            bufAppendC('[');
+            shType(_p_->u.enewarr_.type_);
+            bufAppendC(']');
+            bufAppendC(' ');
+            bufAppendC('[');
+            shExpr(_p_->u.enewarr_.expr_);
+            bufAppendC(']');
+
+            bufAppendC(')');
+
+            break;
+        case is_ELitInt:
+            bufAppendC('(');
+
+            bufAppendS("ELitInt");
+
+            bufAppendC(' ');
+
+            shInteger(_p_->u.elitint_.integer_);
+
+            bufAppendC(')');
+
+            break;
+        case is_ELitStr:
+            bufAppendC('(');
+
+            bufAppendS("ELitStr");
+
+            bufAppendC(' ');
+
+            shString(_p_->u.elitstr_.string_);
+
+            bufAppendC(')');
+
+            break;
+        case is_ELitTrue:
+
+            bufAppendS("ELitTrue");
+
+            break;
+        case is_ELitFalse:
+
+            bufAppendS("ELitFalse");
+
+            break;
+        case is_ENull:
+
+            bufAppendS("ENull");
 
             break;
         case is_Neg:
             bufAppendC('(');
 
             bufAppendS("Neg");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1519,9 +1642,6 @@ shExpr(Expr _p_)
             bufAppendC('(');
 
             bufAppendS("Not");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1532,13 +1652,26 @@ shExpr(Expr _p_)
             bufAppendC(')');
 
             break;
+        case is_ECast:
+            bufAppendC('(');
+
+            bufAppendS("ECast");
+
+            bufAppendC(' ');
+
+            shIdent(_p_->u.ecast_.ident_);
+            bufAppendC(' ');
+            bufAppendC('[');
+            shExpr(_p_->u.ecast_.expr_);
+            bufAppendC(']');
+
+            bufAppendC(')');
+
+            break;
         case is_EMul:
             bufAppendC('(');
 
             bufAppendS("EMul");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1557,9 +1690,6 @@ shExpr(Expr _p_)
             bufAppendC('(');
 
             bufAppendS("EAdd");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1578,9 +1708,6 @@ shExpr(Expr _p_)
             bufAppendC('(');
 
             bufAppendS("ERel");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1599,9 +1726,6 @@ shExpr(Expr _p_)
             bufAppendC('(');
 
             bufAppendS("EAnd");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1616,9 +1740,6 @@ shExpr(Expr _p_)
             bufAppendC('(');
 
             bufAppendS("EOr");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             bufAppendC(' ');
 
@@ -1656,6 +1777,106 @@ shListExpr(ListExpr listexpr)
 }
 
 void
+shClBody(ClBody _p_)
+{
+    switch (_p_->kind)
+    {
+        case is_CBVar:
+            bufAppendC('(');
+
+            bufAppendS("CBVar");
+
+            bufAppendC(' ');
+
+            bufAppendC('[');
+            shType(_p_->u.cbvar_.type_);
+            bufAppendC(']');
+            bufAppendC(' ');
+            shIdent(_p_->u.cbvar_.ident_);
+
+            bufAppendC(')');
+
+            break;
+        case is_CBFnDef:
+            bufAppendC('(');
+
+            bufAppendS("CBFnDef");
+
+            bufAppendC(' ');
+
+            bufAppendC('[');
+            shType(_p_->u.cbfndef_.type_);
+            bufAppendC(']');
+            bufAppendC(' ');
+            shIdent(_p_->u.cbfndef_.ident_);
+            bufAppendC(' ');
+            bufAppendC('[');
+            shListArg(_p_->u.cbfndef_.listarg_);
+            bufAppendC(']');
+            bufAppendC(' ');
+            bufAppendC('[');
+            shBlock(_p_->u.cbfndef_.block_);
+            bufAppendC(']');
+
+            bufAppendC(')');
+
+            break;
+
+        default:
+            fprintf(stderr, "Error: bad kind field when showing ClBody!\n");
+            exit(1);
+    }
+}
+
+void
+shListClBody(ListClBody listclbody)
+{
+    while (listclbody != 0)
+    {
+        if (listclbody->listclbody_)
+        {
+            shClBody(listclbody->clbody_);
+            bufAppendS(", ");
+            listclbody = listclbody->listclbody_;
+        }
+        else
+        {
+            shClBody(listclbody->clbody_);
+            listclbody = 0;
+        }
+    }
+}
+
+void
+shClProps(ClProps _p_)
+{
+    switch (_p_->kind)
+    {
+        case is_CNone:
+
+            bufAppendS("CNone");
+
+            break;
+        case is_CExtends:
+            bufAppendC('(');
+
+            bufAppendS("CExtends");
+
+            bufAppendC(' ');
+
+            shIdent(_p_->u.cextends_.ident_);
+
+            bufAppendC(')');
+
+            break;
+
+        default:
+            fprintf(stderr, "Error: bad kind field when showing ClProps!\n");
+            exit(1);
+    }
+}
+
+void
 shAddOp(AddOp _p_)
 {
     switch (_p_->kind)
@@ -1663,17 +1884,11 @@ shAddOp(AddOp _p_)
         case is_Plus:
 
             bufAppendS("Plus");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_Minus:
 
             bufAppendS("Minus");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
 
@@ -1691,9 +1906,6 @@ shMulOp(MulOp _p_)
         case is_Times:
 
             bufAppendS("Times");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_Div:
@@ -1704,9 +1916,6 @@ shMulOp(MulOp _p_)
         case is_Mod:
 
             bufAppendS("Mod");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
 
@@ -1724,49 +1933,31 @@ shRelOp(RelOp _p_)
         case is_LTH:
 
             bufAppendS("LTH");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_LE:
 
             bufAppendS("LE");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_GTH:
 
             bufAppendS("GTH");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_GE:
 
             bufAppendS("GE");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_EQU:
 
             bufAppendS("EQU");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
         case is_NE:
 
             bufAppendS("NE");
-            bufAppendC('[');
-            shInteger(get_lnum(_p_));
-            bufAppendC(']');
 
             break;
 

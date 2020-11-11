@@ -1,14 +1,14 @@
--- programs ------------------------------------------------
+-- Programs ------------------------------------------------
 entrypoints Program ;
-
 Prog.      Program ::= [TopDef] ;
 FnDef.     TopDef ::= Type Ident "(" [Arg] ")" Block ;
+ClDef.     TopDef ::= "class" Ident ClProps "{" [ClBody] "}" ;
 separator nonempty TopDef "" ;
 
 Ar.        Arg ::= Type Ident;
 separator  Arg "," ;
 
--- statements ----------------------------------------------
+-- Statements ----------------------------------------------
 Blk.       Block ::= "{" [Stmt] "}" ;
 separator  Stmt "" ;
 Empty.     Stmt ::= ";" ;
@@ -18,42 +18,56 @@ NoInit.    Item ::= Ident ;
 Init.      Item ::= Ident "=" Expr ;
 separator nonempty Item "," ;
 
-Ass.       Stmt ::= Ident "=" Expr  ";" ;
-Incr.      Stmt ::= Ident "++"  ";" ;
-Decr.      Stmt ::= Ident "--"  ";" ;
+-- LHSs for these shouldn't really be expressions, but doing that in bnfc seems
+-- impossible without absurd s/r conflicts, so we check if Expr is an LValue
+-- during semantic analysis:
+Ass.       Stmt ::= Expr "=" Expr ";" ;
+Incr.      Stmt ::= Expr "++" ";" ;
+Decr.      Stmt ::= Expr "--" ";" ;
 Ret.       Stmt ::= "return" Expr ";" ;
 VRet.      Stmt ::= "return" ";" ;
 Cond.      Stmt ::= "if" "(" Expr ")" Stmt  ;
 CondElse.  Stmt ::= "if" "(" Expr ")" Stmt "else" Stmt  ;
 While.     Stmt ::= "while" "(" Expr ")" Stmt ;
-SExp.      Stmt ::= Expr  ";" ;
+For.       Stmt ::= "for" "(" Ident Ident ":" Expr ")" Stmt ;
+SExp.      Stmt ::= Expr ";" ;
 
 -- Types ---------------------------------------------------
-Int.       Type ::= "int" ;
-Str.       Type ::= "string" ;
-Bool.      Type ::= "boolean" ;
-Void.      Type ::= "void" ;
-internal   Fun. Type ::= Type "(" [Type] ")" ;
-separator  Type "," ;
+TCls.      Type ::= Ident ;
+TArr.      Type ::= Ident "[]" ;
 
 -- Expressions ---------------------------------------------
-EVar.      Expr6 ::= Ident ;
-ELitInt.   Expr6 ::= Integer ;
-ELitTrue.  Expr6 ::= "true" ;
-ELitFalse. Expr6 ::= "false" ;
-EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
-EString.   Expr6 ::= String ;
-Neg.       Expr5 ::= "-" Expr6 ;
-Not.       Expr5 ::= "!" Expr6 ;
+EVar.      Expr11 ::= Ident ;
+EApp.      Expr11 ::= Expr10 "(" [Expr] ")" ;
+EClMem.    Expr10 ::= Expr9 "." Ident ;
+EArrApp.   Expr9 ::= Expr8 "[" Expr "]" ;
+ENew.      Expr8 ::= "new" Type ;
+ENewArr.   Expr8 ::= "new" Type "[" Expr "]" ;
+ELitInt.   Expr7 ::= Integer ;
+ELitStr.   Expr7 ::= String ;
+ELitTrue.  Expr7 ::= "true" ;
+ELitFalse. Expr7 ::= "false" ;
+ENull.     Expr7 ::= "null" ;
+Neg.       Expr6 ::= "-" Expr6 ;
+Not.       Expr6 ::= "!" Expr6 ;
+ECast.     Expr5 ::= "(" Ident ")" Expr6 ;
 EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
 EAdd.      Expr3 ::= Expr3 AddOp Expr4 ;
 ERel.      Expr2 ::= Expr2 RelOp Expr3 ;
 EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 EOr.       Expr ::= Expr1 "||" Expr ;
-coercions  Expr 6 ;
+coercions  Expr 11 ;
 separator  Expr "," ;
 
--- operators -----------------------------------------------
+-- Classes -------------------------------------------------
+CBVar.     ClBody ::= Type Ident ";" ;
+CBFnDef.   ClBody ::= Type Ident "(" [Arg] ")" Block ;
+separator nonempty ClBody "" ;
+
+CNone.     ClProps ::= ;
+CExtends.  ClProps ::= "extends" Ident ;
+
+-- Operators -----------------------------------------------
 Plus.      AddOp ::= "+" ;
 Minus.     AddOp ::= "-" ;
 Times.     MulOp ::= "*" ;
@@ -66,7 +80,7 @@ GE.        RelOp ::= ">=" ;
 EQU.       RelOp ::= "==" ;
 NE.        RelOp ::= "!=" ;
 
--- comments ------------------------------------------------
+-- Comments ------------------------------------------------
 comment    "#" ;
 comment    "//" ;
 comment    "/*" "*/" ;

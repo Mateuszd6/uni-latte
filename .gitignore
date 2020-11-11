@@ -4,3 +4,5 @@ examples/**
 main
 latc
 foo*
+# TODO: Revive tests??
+tests/**

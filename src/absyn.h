@@ -20,10 +20,10 @@ struct ListStmt_;
 typedef struct ListStmt_* ListStmt;
 struct ListItem_;
 typedef struct ListItem_* ListItem;
-struct ListType_;
-typedef struct ListType_* ListType;
 struct ListExpr_;
 typedef struct ListExpr_* ListExpr;
+struct ListClBody_;
+typedef struct ListClBody_* ListClBody;
 struct Program_;
 typedef struct Program_* Program;
 struct TopDef_;
@@ -40,6 +40,10 @@ struct Type_;
 typedef struct Type_* Type;
 struct Expr_;
 typedef struct Expr_* Expr;
+struct ClBody_;
+typedef struct ClBody_* ClBody;
+struct ClProps_;
+typedef struct ClProps_* ClProps;
 struct AddOp_;
 typedef struct AddOp_* AddOp;
 struct MulOp_;
@@ -71,7 +75,8 @@ struct TopDef_
 {
     enum
     {
-        is_FnDef
+        is_FnDef,
+        is_ClDef
     } kind;
     union
     {
@@ -82,11 +87,19 @@ struct TopDef_
             ListArg listarg_;
             Type type_;
         } fndef_;
+        struct
+        {
+            ClProps clprops_;
+            Ident ident_;
+            ListClBody listclbody_;
+        } cldef_;
     } u;
 };
 
 TopDef
 make_FnDef(Type p0, Ident p1, ListArg p2, Block p3);
+TopDef
+make_ClDef(Ident p0, ClProps p1, ListClBody p2);
 
 struct ListTopDef_
 {
@@ -164,6 +177,7 @@ struct Stmt_
         is_Cond,
         is_CondElse,
         is_While,
+        is_For,
         is_SExp
     } kind;
     union
@@ -179,16 +193,15 @@ struct Stmt_
         } decl_;
         struct
         {
-            Expr expr_;
-            Ident ident_;
+            Expr expr_1, expr_2;
         } ass_;
         struct
         {
-            Ident ident_;
+            Expr expr_;
         } incr_;
         struct
         {
-            Ident ident_;
+            Expr expr_;
         } decr_;
         struct
         {
@@ -212,6 +225,12 @@ struct Stmt_
         struct
         {
             Expr expr_;
+            Ident ident_1, ident_2;
+            Stmt stmt_;
+        } for_;
+        struct
+        {
+            Expr expr_;
         } sexp_;
     } u;
 };
@@ -223,11 +242,11 @@ make_BStmt(Block p0);
 Stmt
 make_Decl(Type p0, ListItem p1);
 Stmt
-make_Ass(Ident p0, Expr p1);
+make_Ass(Expr p0, Expr p1);
 Stmt
-make_Incr(Ident p0);
+make_Incr(Expr p0);
 Stmt
-make_Decr(Ident p0);
+make_Decr(Expr p0);
 Stmt
 make_Ret(Expr p0);
 Stmt
@@ -238,6 +257,8 @@ Stmt
 make_CondElse(Expr p0, Stmt p1, Stmt p2);
 Stmt
 make_While(Expr p0, Stmt p1);
+Stmt
+make_For(Ident p0, Ident p1, Expr p2, Stmt p3);
 Stmt
 make_SExp(Expr p0);
 
@@ -279,53 +300,45 @@ struct Type_
 {
     enum
     {
-        is_Int,
-        is_Str,
-        is_Bool,
-        is_Void,
-        is_Fun
+        is_TCls,
+        is_TArr
     } kind;
     union
     {
         struct
         {
-            ListType listtype_;
-            Type type_;
-        } fun_;
+            Ident ident_;
+        } tcls_;
+        struct
+        {
+            Ident ident_;
+        } tarr_;
     } u;
 };
 
 Type
-make_Int(void);
+make_TCls(Ident p0);
 Type
-make_Str(void);
-Type
-make_Bool(void);
-Type
-make_Void(void);
-Type
-make_Fun(Type p0, ListType p1);
+make_TArr(Ident p0);
 
-struct ListType_
-{
-    Type type_;
-    ListType listtype_;
-};
-
-ListType
-make_ListType(Type p1, ListType p2);
 struct Expr_
 {
     enum
     {
         is_EVar,
+        is_EApp,
+        is_EClMem,
+        is_EArrApp,
+        is_ENew,
+        is_ENewArr,
         is_ELitInt,
+        is_ELitStr,
         is_ELitTrue,
         is_ELitFalse,
-        is_EApp,
-        is_EString,
+        is_ENull,
         is_Neg,
         is_Not,
+        is_ECast,
         is_EMul,
         is_EAdd,
         is_ERel,
@@ -340,17 +353,35 @@ struct Expr_
         } evar_;
         struct
         {
-            Integer integer_;
-        } elitint_;
-        struct
-        {
-            Ident ident_;
+            Expr expr_;
             ListExpr listexpr_;
         } eapp_;
         struct
         {
+            Expr expr_;
+            Ident ident_;
+        } eclmem_;
+        struct
+        {
+            Expr expr_1, expr_2;
+        } earrapp_;
+        struct
+        {
+            Type type_;
+        } enew_;
+        struct
+        {
+            Expr expr_;
+            Type type_;
+        } enewarr_;
+        struct
+        {
+            Integer integer_;
+        } elitint_;
+        struct
+        {
             String string_;
-        } estring_;
+        } elitstr_;
         struct
         {
             Expr expr_;
@@ -359,6 +390,11 @@ struct Expr_
         {
             Expr expr_;
         } not_;
+        struct
+        {
+            Expr expr_;
+            Ident ident_;
+        } ecast_;
         struct
         {
             Expr expr_1, expr_2;
@@ -388,19 +424,31 @@ struct Expr_
 Expr
 make_EVar(Ident p0);
 Expr
+make_EApp(Expr p0, ListExpr p1);
+Expr
+make_EClMem(Expr p0, Ident p1);
+Expr
+make_EArrApp(Expr p0, Expr p1);
+Expr
+make_ENew(Type p0);
+Expr
+make_ENewArr(Type p0, Expr p1);
+Expr
 make_ELitInt(Integer p0);
+Expr
+make_ELitStr(String p0);
 Expr
 make_ELitTrue(void);
 Expr
 make_ELitFalse(void);
 Expr
-make_EApp(Ident p0, ListExpr p1);
-Expr
-make_EString(String p0);
+make_ENull(void);
 Expr
 make_Neg(Expr p0);
 Expr
 make_Not(Expr p0);
+Expr
+make_ECast(Ident p0, Expr p1);
 Expr
 make_EMul(Expr p0, MulOp p1, Expr p2);
 Expr
@@ -420,6 +468,64 @@ struct ListExpr_
 
 ListExpr
 make_ListExpr(Expr p1, ListExpr p2);
+struct ClBody_
+{
+    enum
+    {
+        is_CBVar,
+        is_CBFnDef
+    } kind;
+    union
+    {
+        struct
+        {
+            Ident ident_;
+            Type type_;
+        } cbvar_;
+        struct
+        {
+            Block block_;
+            Ident ident_;
+            ListArg listarg_;
+            Type type_;
+        } cbfndef_;
+    } u;
+};
+
+ClBody
+make_CBVar(Type p0, Ident p1);
+ClBody
+make_CBFnDef(Type p0, Ident p1, ListArg p2, Block p3);
+
+struct ListClBody_
+{
+    ClBody clbody_;
+    ListClBody listclbody_;
+};
+
+ListClBody
+make_ListClBody(ClBody p1, ListClBody p2);
+struct ClProps_
+{
+    enum
+    {
+        is_CNone,
+        is_CExtends
+    } kind;
+    union
+    {
+        struct
+        {
+            Ident ident_;
+        } cextends_;
+    } u;
+};
+
+ClProps
+make_CNone(void);
+ClProps
+make_CExtends(Ident p0);
+
 struct AddOp_
 {
     enum
