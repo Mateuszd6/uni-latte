@@ -1,77 +1,89 @@
 // Common definitions, type aliases and utility functions
 
-#include <stddef.h>
-#include <stdint.h>
+#include "misc.h"
 
-typedef int8_t i8;
-typedef uint8_t u8;
-typedef int16_t i16;
-typedef uint16_t u16;
-typedef int32_t i32;
-typedef uint32_t u32;
-typedef int64_t i64;
-typedef uint64_t u64;
-typedef float f32;
-typedef double f64;
-typedef size_t umm;
-typedef ptrdiff_t mm;
-typedef i8 b8;
-typedef i32 b32;
+static i32 error_reported = 0;
 
-#define MIN(LHS, RHS) (((LHS) < (RHS)) ? (LHS) : (RHS))
-#define MAX(LHS, RHS) (((LHS) > (RHS)) ? (LHS) : (RHS))
-#define SWAP(LHS, RHS)                                                         \
-    do                                                                         \
-    {                                                                          \
-        __typeof(LHS) LHS_ = LHS;                                              \
-        __typeof(RHS) RHS_ = RHS;                                              \
-        (LHS) = RHS_;                                                          \
-        (RHS) = LHS_;                                                          \
-    } while (0)
+extern void
+accept_input(void)
+{
+    fflush(stdout);
+    fprintf(stderr, "OK\n");
+}
 
-#if 0
-#include <stdarg.h>
-static void
-cerror(char* fmt, ...)
+extern void
+fatal(char* err)
+{
+    fflush(stdout);
+
+    if (!error_reported)
+    {
+        fprintf(stderr, "ERROR\n");
+        error_reported = 1;
+    }
+
+    fputs("fatal: ", stderr);
+    fputs(err, stderr);
+    fprintf(stderr, "\n");
+
+    exit(2);
+}
+
+PRINTF_FUNC(2, 3)
+extern void
+error(mm line, char* fmt, ...)
 {
     va_list args;
-
     fflush(stdout);
-    fprintf(stderr, "error: ");
+
+    if (!error_reported)
+    {
+        fprintf(stderr, "ERROR\n");
+        error_reported = 1;
+    }
+
+    fprintf(stderr, "%s:%ld: error: ", "test.lat", line);
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);
     va_end(args);
     fprintf(stderr, "\n");
-
-    exit(1);
 }
 
-static int
-qsort_strcmp(void const* lhs_p, void const* rhs_p)
-{
-    char const* lhs = *(char const* const*)(lhs_p);
-    char const* rhs = *(char const* const*)(rhs_p);
+// Line numbers:
 
-    return strcmp(lhs, rhs);
-}
+extern int yy_mylinenumber; // Defined by Bison parser / Flex lexer
 
-typedef struct ctx ctx;
-struct ctx
+typedef struct node_lnum node_lnum;
+struct node_lnum
 {
-    FILE* out;
-    char** vars;
+    umm ptr_val;
+    mm lnum;
 };
 
-static mm
-ctx_var_idx(ctx c, char* var_name)
-{
-    // It would be sagnificantly faster to user a fullscan here, because bsearch
-    // is kind of slow, but there is a formal requirement that compilation must
-    // be nlogn, so here we go:
-    char** found = bsearch(&var_name, c.vars, (umm)array_size(c.vars),
-                           sizeof(char*), qsort_strcmp);
+static node_lnum* node_lnums = NULL;
 
-    if (!found) found = c.vars; // Should not hit, unless there is a bug
-    return found - c.vars;
+extern void*
+alloc_ast_node(size_t size)
+{
+    void* mem = malloc(size);
+    if (!mem) fatal("Out of memory");
+
+    node_lnum toadd = { .ptr_val = (umm)mem, .lnum = yy_mylinenumber + 1 };
+    array_push(node_lnums, toadd);
+    return mem;
 }
-#endif
+
+extern mm // TODO extern?
+get_lnum(void* ast_node)
+{
+    umm val = (umm)ast_node;
+    mm nnode_lnums = array_size(node_lnums);
+    mm i = 0;
+    for (; i < nnode_lnums; ++i)
+    {
+        if (node_lnums[i].ptr_val == val)
+            return node_lnums[i].lnum;
+    }
+
+    return -1; // TODO: Should not reach, but check it!
+}

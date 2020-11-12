@@ -1,7 +1,6 @@
 /*** BNFC-Generated Pretty Printer and Abstract Syntax Viewer ***/
 
 #include "printer.h"
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,9 +11,6 @@ int _n_;
 char* buf_;
 int cur_;
 int buf_size;
-
-extern ptrdiff_t
-get_lnum(void* ast_node);
 
 /* You may wish to change the renderC functions */
 void

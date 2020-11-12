@@ -1,0 +1,16 @@
+Mateusz Dudzinski
+Latte Compiler MRJP 2020Z
+
+Compilation:
+  Project is build exclusively by running 'make'. The project is compiled using
+  gcc, but will work with any compliant C99 (or higher) compiler (I've tested
+  with like 4 of them). All BNFC/Bison/Flex files are already generated, but
+  user can regenerate them using 'make grammar' and they should work just fine.
+
+Libraries:
+  TODO: Libraries. Except that, the only thing the project relies on is a C99
+  standard library.
+
+Catalogues:
+  Source code (bnfc files included) is in 'src' directory, object files are
+  compiled into 'obj'.

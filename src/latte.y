@@ -12,7 +12,7 @@ extern int initialize_lexer(FILE * inp);
 void yyerror(const char *str)
 {
   extern char *lattetext;
-  fprintf(stderr,"ERROR\ntest.lat:%d: %s at \"%s\"\n", // TODO: filename
+  fprintf(stderr,"ERROR\n%s:%d: error: %s at %s\n", "TODO.lat",
     yy_mylinenumber + 1, str, lattetext);
 }
 
@@ -470,26 +470,26 @@ ListClBody reverseListClBody(ListClBody l)
 
 %start Program
 %%
-Program : ListTopDef { $$ = make_Prog($1); YY_RESULT_Program_= $$; }
+Program : ListTopDef { $$ = make_Prog($1); YY_RESULT_Program_= $$; } 
 ;
-TopDef : Type _IDENT_ _SYMB_0 ListArg _SYMB_1 Block { $$ = make_FnDef($1, $2, $4, $6);  }
+TopDef : Type _IDENT_ _SYMB_0 ListArg _SYMB_1 Block { $$ = make_FnDef($1, $2, $4, $6);  } 
   | _SYMB_28 _IDENT_ ClProps _SYMB_2 ListClBody _SYMB_3 { $$ = make_ClDef($2, $3, $5);  }
 ;
-ListTopDef : TopDef { $$ = make_ListTopDef($1, 0);  }
+ListTopDef : TopDef { $$ = make_ListTopDef($1, 0);  } 
   | TopDef ListTopDef { $$ = make_ListTopDef($1, $2);  }
 ;
-Arg : Type _IDENT_ { $$ = make_Ar($1, $2);  }
+Arg : Type _IDENT_ { $$ = make_Ar($1, $2);  } 
 ;
-ListArg : /* empty */ { $$ = 0;  }
+ListArg : /* empty */ { $$ = 0;  } 
   | Arg { $$ = make_ListArg($1, 0);  }
   | Arg _SYMB_4 ListArg { $$ = make_ListArg($1, $3);  }
 ;
-Block : _SYMB_2 ListStmt _SYMB_3 { $$ = make_Blk(reverseListStmt($2));  }
+Block : _SYMB_2 ListStmt _SYMB_3 { $$ = make_Blk(reverseListStmt($2));  } 
 ;
-ListStmt : /* empty */ { $$ = 0;  }
+ListStmt : /* empty */ { $$ = 0;  } 
   | ListStmt Stmt { $$ = make_ListStmt($2, $1);  }
 ;
-Stmt : _SYMB_5 { $$ = make_Empty();  }
+Stmt : _SYMB_5 { $$ = make_Empty();  } 
   | Block { $$ = make_BStmt($1);  }
   | Type ListItem _SYMB_5 { $$ = make_Decl($1, $2);  }
   | Expr _SYMB_6 Expr _SYMB_5 { $$ = make_Ass($1, $3);  }
@@ -503,82 +503,83 @@ Stmt : _SYMB_5 { $$ = make_Empty();  }
   | _SYMB_32 _SYMB_0 _IDENT_ _IDENT_ _SYMB_9 Expr _SYMB_1 Stmt { $$ = make_For($3, $4, $6, $8);  }
   | Expr _SYMB_5 { $$ = make_SExp($1);  }
 ;
-Item : _IDENT_ { $$ = make_NoInit($1);  }
+Item : _IDENT_ { $$ = make_NoInit($1);  } 
   | _IDENT_ _SYMB_6 Expr { $$ = make_Init($1, $3);  }
 ;
-ListItem : Item { $$ = make_ListItem($1, 0);  }
+ListItem : Item { $$ = make_ListItem($1, 0);  } 
   | Item _SYMB_4 ListItem { $$ = make_ListItem($1, $3);  }
 ;
-Type : _IDENT_ { $$ = make_TCls($1);  }
+Type : _IDENT_ { $$ = make_TCls($1);  } 
   | _IDENT_ _SYMB_10 { $$ = make_TArr($1);  }
 ;
-Expr11 : _IDENT_ { $$ = make_EVar($1);  }
+Expr11 : _IDENT_ { $$ = make_EVar($1);  } 
   | Expr10 _SYMB_0 ListExpr _SYMB_1 { $$ = make_EApp($1, $3);  }
   | _SYMB_0 Expr _SYMB_1 { $$ = $2;  }
 ;
-Expr10 : Expr9 _SYMB_11 _IDENT_ { $$ = make_EClMem($1, $3);  }
+Expr10 : Expr9 _SYMB_11 _IDENT_ { $$ = make_EClMem($1, $3);  } 
   | Expr11 { $$ = $1;  }
 ;
-Expr9 : Expr8 _SYMB_12 Expr _SYMB_13 { $$ = make_EArrApp($1, $3);  }
+Expr9 : Expr8 _SYMB_12 Expr _SYMB_13 { $$ = make_EArrApp($1, $3);  } 
   | Expr10 { $$ = $1;  }
 ;
-Expr8 : _SYMB_34 Type { $$ = make_ENew($2);  }
+Expr8 : _SYMB_34 Type { $$ = make_ENew($2);  } 
   | _SYMB_34 Type _SYMB_12 Expr _SYMB_13 { $$ = make_ENewArr($2, $4);  }
   | Expr9 { $$ = $1;  }
 ;
-Expr7 : _INTEGER_ { $$ = make_ELitInt($1);  }
+Expr7 : _INTEGER_ { $$ = make_ELitInt($1);  } 
   | _STRING_ { $$ = make_ELitStr($1);  }
   | _SYMB_37 { $$ = make_ELitTrue();  }
   | _SYMB_31 { $$ = make_ELitFalse();  }
   | _SYMB_35 { $$ = make_ENull();  }
   | Expr8 { $$ = $1;  }
 ;
-Expr6 : _SYMB_14 Expr6 { $$ = make_Neg($2);  }
+Expr6 : _SYMB_14 Expr6 { $$ = make_Neg($2);  } 
   | _SYMB_15 Expr6 { $$ = make_Not($2);  }
   | Expr7 { $$ = $1;  }
 ;
-Expr5 : _SYMB_0 _IDENT_ _SYMB_1 Expr6 { $$ = make_ECast($2, $4);  }
+Expr5 : _SYMB_0 _IDENT_ _SYMB_1 Expr6 { $$ = make_ECast($2, $4);  } 
   | Expr6 { $$ = $1;  }
 ;
-Expr4 : Expr4 MulOp Expr5 { $$ = make_EMul($1, $2, $3);  }
+Expr4 : Expr4 MulOp Expr5 { $$ = make_EMul($1, $2, $3);  } 
   | Expr5 { $$ = $1;  }
 ;
-Expr3 : Expr3 AddOp Expr4 { $$ = make_EAdd($1, $2, $3);  }
+Expr3 : Expr3 AddOp Expr4 { $$ = make_EAdd($1, $2, $3);  } 
   | Expr4 { $$ = $1;  }
 ;
-Expr2 : Expr2 RelOp Expr3 { $$ = make_ERel($1, $2, $3);  }
+Expr2 : Expr2 RelOp Expr3 { $$ = make_ERel($1, $2, $3);  } 
   | Expr3 { $$ = $1;  }
 ;
-Expr1 : Expr2 _SYMB_16 Expr1 { $$ = make_EAnd($1, $3);  }
+Expr1 : Expr2 _SYMB_16 Expr1 { $$ = make_EAnd($1, $3);  } 
   | Expr2 { $$ = $1;  }
 ;
-Expr : Expr1 _SYMB_17 Expr { $$ = make_EOr($1, $3);  }
+Expr : Expr1 _SYMB_17 Expr { $$ = make_EOr($1, $3);  } 
   | Expr1 { $$ = $1;  }
 ;
-ListExpr : /* empty */ { $$ = 0;  }
+ListExpr : /* empty */ { $$ = 0;  } 
   | Expr { $$ = make_ListExpr($1, 0);  }
   | Expr _SYMB_4 ListExpr { $$ = make_ListExpr($1, $3);  }
 ;
-ClBody : Type _IDENT_ _SYMB_5 { $$ = make_CBVar($1, $2);  }
+ClBody : Type _IDENT_ _SYMB_5 { $$ = make_CBVar($1, $2);  } 
   | Type _IDENT_ _SYMB_0 ListArg _SYMB_1 Block { $$ = make_CBFnDef($1, $2, $4, $6);  }
 ;
-ListClBody : ClBody { $$ = make_ListClBody($1, 0);  }
+ListClBody : ClBody { $$ = make_ListClBody($1, 0);  } 
   | ClBody ListClBody { $$ = make_ListClBody($1, $2);  }
 ;
-ClProps : /* empty */ { $$ = make_CNone();  }
+ClProps : /* empty */ { $$ = make_CNone();  } 
   | _SYMB_30 _IDENT_ { $$ = make_CExtends($2);  }
 ;
-AddOp : _SYMB_18 { $$ = make_Plus();  }
+AddOp : _SYMB_18 { $$ = make_Plus();  } 
   | _SYMB_14 { $$ = make_Minus();  }
 ;
-MulOp : _SYMB_19 { $$ = make_Times();  }
+MulOp : _SYMB_19 { $$ = make_Times();  } 
   | _SYMB_20 { $$ = make_Div();  }
   | _SYMB_21 { $$ = make_Mod();  }
 ;
-RelOp : _SYMB_22 { $$ = make_LTH();  }
+RelOp : _SYMB_22 { $$ = make_LTH();  } 
   | _SYMB_23 { $$ = make_LE();  }
   | _SYMB_24 { $$ = make_GTH();  }
   | _SYMB_25 { $$ = make_GE();  }
   | _SYMB_26 { $$ = make_EQU();  }
   | _SYMB_27 { $$ = make_NE();  }
 ;
+
