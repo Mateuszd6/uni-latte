@@ -4,7 +4,7 @@ CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function -Weverything -Wno-padded
 CSANITIZERS = -fsanitize=address,undefined
 CFORMAT = clang-format -style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
 
-BNFC = /home/mateusz/work/latte-bnfc/bnfc # TODO: /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
+BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
 BNFC_FLAGS = --c
 
 FLEX = flex

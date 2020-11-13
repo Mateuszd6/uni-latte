@@ -34,20 +34,20 @@ main(void /*int argc, char** argv*/)
     Program parse_tree = pProgram(input);
     if (parse_tree)
     {
-        printf("\nParse Succesful!\n");
+        /* printf("\nParse Succesful!\n");
         printf("\n[Abstract Syntax]\n");
         printf("%s\n\n", showProgram(parse_tree));
         printf("[Linearized Tree]\n");
         printf("%s\n\n", printProgram(parse_tree));
-        return 0;
+        return 0; */
 
         accept_input();
         LIST_FOREACH(it, parse_tree->u.prog_.listtopdef_, listtopdef_)
         {
             TopDef t = it->topdef_;
             assert(t->kind == is_FnDef);
-            // printf("There is a declared function called: \"%s\"\n",
-                   // t->u.fndef_.ident_);
+            printf("There is a declared function called: \"%s\"\n",
+                   t->u.fndef_.ident_);
         }
 
         return 0;
