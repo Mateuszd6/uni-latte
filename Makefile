@@ -2,6 +2,7 @@ CC = clang
 CCFLAGS = -std=c99 -O0 -ggdb
 CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro -Wno-missing-noreturn
 CSANITIZERS = -fsanitize=address,undefined
+CPLATFORM = -D_POSIX_C_SOURCE=200809L
 CFORMAT = clang-format -style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
 
 BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
@@ -23,11 +24,11 @@ clean:
 	@-rm -rf ./outs ./obj latc
 
 latc: ${OBJS} src/*.c
-	${CC} ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${OBJS} ./src/main.c -o latc
+	${CC} ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${CPLATFORM} ${OBJS} ./src/main.c -o latc
 
 obj/%.o: src/%.c
 	@-mkdir -p obj
-	${CC} -c ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} $< -o $@
+	${CC} -c ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${CPLATFORM} $< -o $@
 
 src/lexer.c: src/latte.l
 	${FLEX} ${FLEX_FLAGS} -osrc/lexer.c src/latte.l
