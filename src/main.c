@@ -12,7 +12,6 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include "absyn.h"
 #include "array.h"
 #include "parser.h"
-#include "printer.h"
 #include "symtab.h"
 #include "misc.h"
 #include "symtab.h"

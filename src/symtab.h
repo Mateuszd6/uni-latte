@@ -12,7 +12,7 @@ enum symbol_t
 {
     S_VAR,
     S_FUN,
-    S_CLS,
+    S_CLASS,
 };
 
 typedef struct symbol symbol;
@@ -21,6 +21,28 @@ struct symbol
     void* ptr;
     symbol_t type;
     i32 id;
+};
+
+typedef struct d_var d_var;
+struct d_var
+{
+    i32 lnum;
+    i32 type_id;
+};
+
+typedef struct d_func d_func;
+struct d_func
+{
+    i32 lnum;
+    i32 ret_type_id;
+    i32 num_args;
+    // TODO: List of arguments.
+};
+
+typedef struct d_class d_class;
+struct d_class
+{
+    i32 lnum;
 };
 
 typedef struct symbol_stack symbol_stack;

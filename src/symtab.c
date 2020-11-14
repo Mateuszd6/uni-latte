@@ -1,5 +1,9 @@
 #include "symtab.h"
 
+static d_var* def_vars = 0;
+static d_func* def_functions = 0;
+static d_class* def_classes = 0;
+
 #define HASHMAP_IMPLEMENTATION
 #define HASHMAP_STATIC
 #include "hashmap.h"

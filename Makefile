@@ -5,7 +5,7 @@ CSANITIZERS = -fsanitize=address,undefined
 CPLATFORM = -D_POSIX_C_SOURCE=200809L
 CFORMAT = clang-format -style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
 
-BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
+BNFC = /home/mateusz/work/latte-bnfc/bnfc # /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
 BNFC_FLAGS = --c
 
 FLEX = flex
@@ -14,7 +14,7 @@ FLEX_FLAGS = -Platte
 BISON = bison
 BISON_FLAGS = -t -platte
 
-OBJS = ./obj/absyn.o ./obj/lexer.o ./obj/parser.o ./obj/printer.o # TODO: Kill printer
+OBJS = ./obj/absyn.o ./obj/lexer.o ./obj/parser.o
 
 .PHONY: all clean grammar validate
 
@@ -43,16 +43,14 @@ grammar:
 	@-mv -f ./src/Absyn.h ./src/absyn.h
 	@-mv -f ./src/Absyn.c ./src/absyn.c
 	@-mv -f ./src/Parser.h ./src/parser.h
-	@-mv -f ./src/Printer.c ./src/printer.c
-	@-mv -f ./src/Printer.h ./src/printer.h
+	@-rm -f ./src/Printer.c
+	@-rm -f ./src/Printer.h
 	@-rm -f ./src/Skeleton.c
 	@-rm -f ./src/Skeleton.h
 	@-rm -f ./src/Test.c
 	@-rm -f ./src/*.bak # just.dont.do.it
 	@-sed -i 's/\#include ".*/\L&/' ./src/absyn.h
 	@-sed -i 's/\#include ".*/\L&/' ./src/absyn.c
-	@-sed -i 's/\#include ".*/\L&/' ./src/printer.h
-	@-sed -i 's/\#include ".*/\L&/' ./src/printer.c
 	@-sed -i 's/\#include ".*/\L&/' ./src/parser.h
 	@-sed -i 's/\#include ".*/\L&/' ./src/latte.y
 	@-sed -i 's/\#include ".*/\L&/' ./src/latte.l
@@ -65,8 +63,6 @@ grammar:
 	${CFORMAT} ./src/parser.h
 	${CFORMAT} ./src/absyn.c
 	${CFORMAT} ./src/absyn.h
-	${CFORMAT} ./src/printer.h
-	${CFORMAT} ./src/printer.c
 
 validate: latc
 	@-./validate.sh 2> /dev/null

@@ -9,7 +9,7 @@ main()
     {
         int n = 10;
         int r = 1;
-        while(n > 0)
+        while (n > 0)
         {
             r = r * n;
             n--;
@@ -31,7 +31,7 @@ fac(int a)
 
     r = 1;
     n = a;
-    while(n > 0)
+    while (n > 0)
     {
         r = r * n;
         n = n - 1;
@@ -42,7 +42,7 @@ fac(int a)
 int
 rfac(int n)
 {
-    if(n == 0)
+    if (n == 0)
         return 1;
     else
         return n * rfac(n - 1);
@@ -51,7 +51,7 @@ rfac(int n)
 int
 mfac(int n)
 {
-    if(n == 0)
+    if (n == 0)
         return 1;
     else
         return n * nfac(n - 1);
@@ -60,7 +60,7 @@ mfac(int n)
 int
 nfac(int n)
 {
-    if(n != 0)
+    if (n != 0)
         return mfac(n - 1) * n;
     else
         return 1;
@@ -75,9 +75,9 @@ ifac(int n)
 int
 ifac2f(int l, int h)
 {
-    if(l == h)
+    if (l == h)
         return l;
-    if(l > h)
+    if (l > h)
         return 1;
 
     int m;
@@ -90,7 +90,7 @@ repStr(string s, int n)
 {
     string r = "";
     int i = 0;
-    while(i < n)
+    while (i < n)
     {
         r = r + s;
         i++;

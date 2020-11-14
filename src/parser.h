@@ -3,7 +3,8 @@
 
 #include "absyn.h"
 
-typedef union {
+typedef union
+{
     int int_;
     char char_;
     double double_;
