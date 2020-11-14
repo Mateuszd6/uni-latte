@@ -75,6 +75,7 @@
 /* First part of user prologue.  */
 #line 2 "src/latte.y" /* yacc.c:337  */
 
+#include "misc.h"
 #include "absyn.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -93,7 +94,7 @@ yyerror(const char* str)
     extern char* lattetext;
     fprintf(stderr,
             "ERROR\n%s:%d: error: %s at %s\n",
-            "TODO.lat",
+            myfilename,
             yy_mylinenumber + 1,
             str,
             lattetext);

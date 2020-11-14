@@ -1,60 +1,72 @@
+// TODO: Temprary.
+extern char const* __asan_default_options(void);
+extern char const* __asan_default_options() { return "detect_leaks=0"; }
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#define ARRAY_STATIC
 #include "absyn.h"
+#include "array.h"
 #include "parser.h"
 #include "printer.h"
+#include "symtab.h"
 #include "misc.h"
+#include "symtab.h"
 
 #define ARRAY_IMPLEMENTATION
-#define ARRAY_STATIC
 #include "array.h"
 
+#include "symtab.c"
 #include "misc.c"
+
+char* myfilename = NULL;
+static Program
+parse_file(char* fname)
+{
+    char* in_name = fname;
+    myfilename = in_name;
+
+    FILE* input = fopen(in_name, "r");
+    if (!input)
+        fatal("Could not open file %s for reading.", in_name);
+
+    array_reserve(node_lnums, 1024);
+    Program parse_tree = pProgram(input);
+    fclose(input);
+    if (!parse_tree) // TODO? Error _ALWAYS_ reported in the pProgram func?
+        exit(1);
+
+    return parse_tree;
+}
 
 static void
 usage(char* argv0)
 {
-    printf("Usage: %s [FILE]\n", argv0);
+    printf("Usage: %s FILE\n", argv0);
     exit(1);
 }
 
 int
-main(void /*int argc, char** argv*/)
+main(int argc, char** argv)
 {
-    FILE* input = stdin;
-    array_reserve(node_lnums, 1024);
+    if (argc != 2)
+        usage(argv[0]);
 
-    // if (argc != 1)
-    // usage(argv[0]);
+    Program parse_tree = parse_file(argv[1]);
+    accept_input();
 
-    Program parse_tree = pProgram(input);
-    if (parse_tree)
+    LIST_FOREACH(it, parse_tree->u.prog_, listtopdef_)
     {
-        /* printf("\nParse Succesful!\n");
-        printf("\n[Abstract Syntax]\n");
-        printf("%s\n\n", showProgram(parse_tree));
-        printf("[Linearized Tree]\n");
-        printf("%s\n\n", printProgram(parse_tree));
-        return 0; */
-
-        accept_input();
-        LIST_FOREACH(it, parse_tree->u.prog_.listtopdef_, listtopdef_)
-        {
-            TopDef t = it->topdef_;
-            assert(t->kind == is_FnDef);
-            printf("There is a declared function called: \"%s\"\n",
-                   t->u.fndef_.ident_);
-        }
-
-        return 0;
+        TopDef t = it->topdef_;
+        assert(t->kind == is_FnDef);
+        warn(get_lnum(t->u.fndef_.type_),
+             "There is a declared function called: \"%s\"",
+             t->u.fndef_.ident_);
     }
 
-
-    // TODO: If don't trust bnfc, then possbibly write ERROR here also?
-    // Can't lose?
-    return 1;
+    return 0;
 }

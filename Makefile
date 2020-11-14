@@ -1,6 +1,6 @@
 CC = clang
 CCFLAGS = -std=c99 -O0 -ggdb
-CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro -Wno-missing-noreturn
+CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro -Wno-missing-noreturn -Wno-pedantic
 CSANITIZERS = -fsanitize=address,undefined
 CPLATFORM = -D_POSIX_C_SOURCE=200809L
 CFORMAT = clang-format -style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
@@ -23,7 +23,7 @@ all: latc
 clean:
 	@-rm -rf ./outs ./obj latc
 
-latc: ${OBJS} src/*.c
+latc: ${OBJS} src/*.c src/*.h
 	${CC} ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${CPLATFORM} ${OBJS} ./src/main.c -o latc
 
 obj/%.o: src/%.c

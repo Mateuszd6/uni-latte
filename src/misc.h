@@ -40,16 +40,19 @@ typedef i32 b32;
     } while (0)
 
 #define LIST_FOREACH(ITER, HEAD, NEXT_FIELD)                                   \
-    for (__typeof(HEAD) ITER = (HEAD);                                         \
+    for (__typeof((HEAD) . NEXT_FIELD) ITER = (HEAD) . NEXT_FIELD;             \
          (ITER);                                                               \
-         (ITER) = (ITER)-> NEXT_FIELD)
+         (ITER) = (ITER) -> NEXT_FIELD)
 
 extern void accept_input(void);
-extern void fatal(char* err);
+extern void fatal(char* fmt, ...);
 extern void error(mm line, char* fmt, ...);
+extern void warn(mm line, char* fmt, ...);
 
-// Line numbers:
+// Line numbers & filename:
+extern char* myfilename; // There is always one file in a single run
 extern void* alloc_ast_node(size_t size);
-extern mm get_lnum(void* ast_node);
+extern mm get_lnum(void* ast_node); // TODO: Extern?
+
 
 #endif // MISC_H_

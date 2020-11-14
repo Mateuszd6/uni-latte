@@ -11,27 +11,9 @@ accept_input(void)
     fprintf(stderr, "OK\n");
 }
 
+PRINTF_FUNC(1, 2)
 extern void
-fatal(char* err)
-{
-    fflush(stdout);
-
-    if (!error_reported)
-    {
-        fprintf(stderr, "ERROR\n");
-        error_reported = 1;
-    }
-
-    fputs("fatal: ", stderr);
-    fputs(err, stderr);
-    fprintf(stderr, "\n");
-
-    exit(2);
-}
-
-PRINTF_FUNC(2, 3)
-extern void
-error(mm line, char* fmt, ...)
+fatal(char* fmt, ...)
 {
     va_list args;
     fflush(stdout);
@@ -42,14 +24,61 @@ error(mm line, char* fmt, ...)
         error_reported = 1;
     }
 
-    fprintf(stderr, "%s:%ld: error: ", "test.lat", line);
+    fputs("fatal: ", stderr);
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+
+    exit(2);
+}
+
+PRINTF_FUNC(2, 3)
+extern void
+error(mm line, char* fmt, ...) // line = 0 means skip line number (generic error)
+{
+    va_list args;
+    fflush(stdout);
+
+    if (!error_reported)
+    {
+        fprintf(stderr, "ERROR\n");
+        error_reported = 1;
+    }
+
+    if (line > 0)
+        fprintf(stderr, "%s:%ld: error: ", myfilename, line);
+    else
+        fprintf(stderr, "%s: error: ", myfilename);
+
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);
     va_end(args);
     fprintf(stderr, "\n");
 }
 
+
+PRINTF_FUNC(2, 3)
+extern void
+warn(mm line, char* fmt, ...) // line = 0 means skip line number (generic warning)
+{
+    va_list args;
+    fflush(stdout);
+
+    if (line > 0)
+        fprintf(stderr, "%s:%ld: warning: ", myfilename, line);
+    else
+        fprintf(stderr, "%s: warning: ", myfilename);
+
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+}
+
+//
 // Line numbers:
+//
 
 extern int yy_mylinenumber; // Defined by Bison parser / Flex lexer
 
