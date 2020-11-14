@@ -1,0 +1,7 @@
+void int() {
+     printInt(1);
+}
+
+int main() {
+    printInt(1);
+}

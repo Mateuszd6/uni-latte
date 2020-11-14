@@ -23,6 +23,7 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include "misc.c"
 
 char* myfilename = NULL;
+
 static Program
 parse_file(char* fname)
 {
@@ -54,7 +55,7 @@ main(int argc, char** argv)
         usage(argv[0]);
 
     Program parse_tree = parse_file(argv[1]);
-    if (!parse_tree) no_recover(); // Error reported in the parser code
+    if (!parse_tree) no_recover(); // TODO: "ERROR" is printed in the parser code
 
     add_primitive_types();
     add_classes(parse_tree);

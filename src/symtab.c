@@ -23,12 +23,16 @@ str_hash(void const* key, ptrdiff_t len)
 
 HASHMAP_DEFINE(symboltab, char*, symbol_stack, str_cmp, str_hash);
 
+//
+// TODO: Move some stuff to frontend?
+//
+
 static symboltab_kvp* g_symtab = 0;
 static d_var* g_vars = 0;
 static d_func* g_funcs = 0;
 static d_type* g_types = 0;
 
-static inline void
+static void
 add_primitive_types(void) // TODO: Rename add -> define?
 {
     assert(array_size(g_symtab) == 0); // Primitive types are first that we add
@@ -46,7 +50,7 @@ add_primitive_types(void) // TODO: Rename add -> define?
     }
 }
 
-static inline void
+static void
 add_classes(Program p)
 {
     LIST_FOREACH(it, p->u.prog_, listtopdef_)
@@ -67,22 +71,36 @@ add_classes(Program p)
             .id = (i32)(array_size(g_types) - 1)
         };
 
+        // TODO: Handle the case when class name shadows a builtin type name,
+        //       like "class int { }"
         b32 shadows = symbol_push(t->u.cldef_.ident_, s);
-        if (shadows)
+        if (UNLIKELY(shadows))
         {
-            // There are two global functions with the same name, not allowed
-            error(new_class.lnum, "Redefinition of class \"%s\"",
-                  t->u.cldef_.ident_);
-            // TODO: "note: previously defined here."
+            // TODO: Make sure there are no symbols for func/vars yet!
+            symbol prev_sym = get_shadowed_symbol(t->u.cldef_.ident_);
+            assert(prev_sym.type == S_TYPE);
+
+            d_type type = g_types[prev_sym.id];
+            if (!type.is_primitive)
+            {
+                error(new_class.lnum, "Redefinition of class \"%s\"", t->u.cldef_.ident_);
+                note(type.lnum, "Previously defined here");
+            }
+            else
+            {
+                error(new_class.lnum, "Cannot name a class after a builtin type \"%s\"",
+                      t->u.cldef_.ident_);
+
+                // TODO: Pop this from the stack, to avoid hardcore issues
+            }
         }
     }
 }
 
-static inline void
+static void
 add_global_funcs(Program p)
 {
-    assert(array_size(g_funcs) == 0); // // Global funcs are first that we add
-
+    assert(array_size(g_funcs) == 0); // Global funcs are first that we add
     LIST_FOREACH(it, p->u.prog_, listtopdef_)
     {
         TopDef t = it->topdef_;
@@ -99,12 +117,35 @@ add_global_funcs(Program p)
         };
 
         b32 shadows = symbol_push(t->u.fndef_.ident_, s);
-        if (shadows)
+        if (UNLIKELY(shadows))
         {
-            // There are two global functions with the same name, not allowed
-            error(f.lnum, "Redefinition of global function \"%s\"",
-                  t->u.fndef_.ident_);
-            // TODO: "note: previously defined here."
+            symbol prev_sym = get_shadowed_symbol(t->u.fndef_.ident_);
+            assert(prev_sym.type == S_FUN || prev_sym.type == S_TYPE);
+
+            if (prev_sym.type == S_FUN)
+            {
+                d_func prev_f = g_funcs[prev_sym.id];
+                error(f.lnum, "Redefinition of global function \"%s\"", t->u.fndef_.ident_);
+                note(prev_f.lnum, "Previosuly defined here");
+            }
+            else
+            {
+                d_type type = g_types[prev_sym.id];
+                if (!type.is_primitive)
+                {
+                    error(f.lnum, "Function \"%s\" cannot be named same as a class", t->u.fndef_.ident_);
+                    note(type.lnum, "Class \"%s\" defined here", t->u.fndef_.ident_);
+
+                    // TODO: Pop this from the stack?
+                }
+                else
+                {
+                    error(f.lnum, "Cannot name a function after a builtin type \"%s\"",
+                          t->u.fndef_.ident_);
+
+                    // TODO: Pop this from the stack, to avoid hardcore issues
+                }
+            }
         }
     }
 }
@@ -124,17 +165,29 @@ make_func(TopDef fun_def)
     return 0;
 }
 
+// Assumes that there is a shadows symbol (stack is of size at least 2)
+static inline symbol
+get_shadowed_symbol(char* name)
+{
+    symbol* all_symbols = symboltab_findp(g_symtab, name)->symbols;
+    assert(array_size(all_symbols) >= 2);
+
+    symbol prev_sym = all_symbols[array_size(all_symbols) - 2];
+    return prev_sym;
+
+}
+
 static inline symbol
 symbol_get(char* name)
 {
-    symbol_stack* qptr = symboltab_findp(g_symtab, name);
-    if (!qptr)
+    symbol_stack* stack = symboltab_findp(g_symtab, name);
+    if (!stack)
     {
         // TODO: Error gently (could not find symbol).
         error(0, "use of undeclared identifier \"%s\".", name);
     }
 
-    symbol* symbols = qptr->symbols;
+    symbol* symbols = stack->symbols;
     assert(symbols); // If there are no symbols, entire node should be deleted
 
     return symbols[array_size(symbols) - 1];
@@ -144,8 +197,8 @@ symbol_get(char* name)
 static inline b32
 symbol_push(char* name, symbol s)
 {
-    symbol_stack* qptr = symboltab_findp(g_symtab, name);
-    if (!qptr)
+    symbol_stack* stack = symboltab_findp(g_symtab, name);
+    if (!stack)
     {
         symbol_stack q;
         q.symbols = 0;
@@ -156,7 +209,7 @@ symbol_push(char* name, symbol s)
     }
     else // Shadowing an existing symbol
     {
-        array_push(qptr->symbols, s);
+        array_push(stack->symbols, s);
         return 1;
     }
 }
@@ -165,10 +218,10 @@ symbol_push(char* name, symbol s)
 static inline void
 symbol_pop(char* name)
 {
-    symbol_stack* qptr = symboltab_findp(g_symtab, name);
-    assert(qptr);
+    symbol_stack* stack = symboltab_findp(g_symtab, name);
+    assert(stack);
 
-    array_pop(qptr->symbols);
+    array_pop(stack->symbols);
 
     // TODO: remove if empty array!
 }

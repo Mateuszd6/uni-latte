@@ -1,0 +1,18 @@
+class int {
+    int foo;
+    int bar;
+}
+
+class bool {
+    int foo;
+    int bar;
+}
+
+class string {
+    int foo;
+    int bar;
+}
+
+int main() {
+    printInt(1);
+}

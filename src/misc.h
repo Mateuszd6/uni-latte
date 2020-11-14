@@ -21,6 +21,24 @@ typedef ptrdiff_t mm;
 typedef i8 b8;
 typedef i32 b32;
 
+// Some commonly used compiler builtins and attributes and utility macros:
+
+#if (defined(__GNUC__) || defined(__clang__))
+#  define LIKELY(EXPR) __builtin_expect((EXPR), 1)
+#  define UNLIKELY(EXPR) __builtin_expect((EXPR), 0)
+#else
+#  define LIKELY(EXPR) (EXPR)
+#  define UNLIKELY(EXPR) (EXPR)
+#endif // (defined(__GNUC__) || defined(__clang__))
+
+#if (defined(__GNUC__) || defined(__clang__))
+#  define NOINLINE __attribute__((noinline))
+#elif (defined(_MSC_VER))
+#  define NOINLINE __declspec(noinline)
+#else
+#  define NOINLINE
+#endif
+
 // Let compiler know if the function wraps printf
 #if (defined(__GNUC__) || defined(__clang__))
 #  define PRINTF_FUNC(N, M) __attribute__ ((format (printf, N, M)))
@@ -46,13 +64,17 @@ typedef i32 b32;
          (ITER);                                                               \
          (ITER) = (ITER) -> NEXT_FIELD)
 
+// Error handling:
+
 extern void accept_input(void);
 extern void fatal(char* fmt, ...);
 extern void error(mm line, char* fmt, ...);
 extern void warn(mm line, char* fmt, ...);
+extern void note(mm line, char* fmt, ...);
 extern void no_recover(void);
 
 // Line numbers & filename:
+
 extern char* myfilename; // There is always one file in a single run
 extern void* alloc_ast_node(size_t size);
 extern mm get_lnum(void* ast_node); // TODO: Extern?

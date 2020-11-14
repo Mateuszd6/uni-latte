@@ -59,6 +59,7 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define symboltab_reserve(HM, N) symboltab_reserve_((void**)&(HM), N)
 
 static symbol symbol_get(char* name);
+static symbol get_shadowed_symbol(char* name);
 static b32 symbol_push(char* name, symbol s);
 static void symbol_pop(char* name);
 

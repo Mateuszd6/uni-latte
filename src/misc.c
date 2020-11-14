@@ -11,7 +11,7 @@ accept_input(void)
     fprintf(stderr, "OK\n");
 }
 
-PRINTF_FUNC(1, 2)
+NOINLINE PRINTF_FUNC(1, 2)
 extern void
 fatal(char* fmt, ...)
 {
@@ -33,7 +33,7 @@ fatal(char* fmt, ...)
     exit(2);
 }
 
-PRINTF_FUNC(2, 3)
+NOINLINE PRINTF_FUNC(2, 3)
 extern void
 error(mm line, char* fmt, ...) // line = 0 means skip line number (generic error)
 {
@@ -57,7 +57,7 @@ error(mm line, char* fmt, ...) // line = 0 means skip line number (generic error
     fprintf(stderr, "\n");
 }
 
-PRINTF_FUNC(2, 3)
+NOINLINE PRINTF_FUNC(2, 3)
 extern void
 warn(mm line, char* fmt, ...) // line = 0 means skip line number (generic warning)
 {
@@ -68,6 +68,24 @@ warn(mm line, char* fmt, ...) // line = 0 means skip line number (generic warnin
         fprintf(stderr, "%s:%ld: warning: ", myfilename, line);
     else
         fprintf(stderr, "%s: warning: ", myfilename);
+
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+}
+
+NOINLINE PRINTF_FUNC(2, 3)
+extern void
+note(mm line, char* fmt, ...) // line = 0 means skip line number (generic note)
+{
+    va_list args;
+    fflush(stdout);
+
+    if (line > 0)
+        fprintf(stderr, "%s:%ld: note: ", myfilename, line);
+    else
+        fprintf(stderr, "%s: note: ", myfilename);
 
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);

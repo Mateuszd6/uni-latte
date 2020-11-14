@@ -1,0 +1,22 @@
+void foo() {
+    return;
+}
+
+int
+main() {
+    printInt(0);
+    return 0;
+}
+
+class foo {
+    int this;
+    int test;
+    int might;
+    int not;
+}
+
+class bar {
+    int work;
+    int foor;
+    int everybody;
+}
