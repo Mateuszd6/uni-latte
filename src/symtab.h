@@ -12,7 +12,7 @@ enum symbol_t
 {
     S_VAR,
     S_FUN,
-    S_CLASS,
+    S_TYPE,
 };
 
 typedef struct symbol symbol;
@@ -22,6 +22,8 @@ struct symbol
     symbol_t type;
     i32 id;
 };
+
+// TODO: replace d_* -> ?
 
 typedef struct d_var d_var;
 struct d_var
@@ -39,10 +41,11 @@ struct d_func
     // TODO: List of arguments.
 };
 
-typedef struct d_class d_class;
-struct d_class
+typedef struct d_type d_type;
+struct d_type
 {
     i32 lnum;
+    b32 is_primitive;
 };
 
 typedef struct symbol_stack symbol_stack;
@@ -55,13 +58,11 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define symboltab_insert(HM, K, V) symboltab_insert_((void**)&(HM), K, V)
 #define symboltab_reserve(HM, N) symboltab_reserve_((void**)&(HM), N)
 
-extern symboltab_kvp* g_symtab;
-
 static symbol symbol_get(char* name);
-static void symbol_push(char* name, symbol s);
+static b32 symbol_push(char* name, symbol s);
 static void symbol_pop(char* name);
 
-// TODO: Possibly make other functions, like get func / get class / get var
+// TODO: Possibly make other functions, like get func / get type / get var
 //       that fail when not found or type missmatch
 
 #endif // SYMTAB_H_

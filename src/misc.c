@@ -2,7 +2,7 @@
 
 #include "misc.h"
 
-static i32 error_reported = 0;
+static i32 has_error = 0;
 
 extern void
 accept_input(void)
@@ -18,10 +18,10 @@ fatal(char* fmt, ...)
     va_list args;
     fflush(stdout);
 
-    if (!error_reported)
+    if (!has_error)
     {
         fprintf(stderr, "ERROR\n");
-        error_reported = 1;
+        has_error = 1;
     }
 
     fputs("fatal: ", stderr);
@@ -40,10 +40,10 @@ error(mm line, char* fmt, ...) // line = 0 means skip line number (generic error
     va_list args;
     fflush(stdout);
 
-    if (!error_reported)
+    if (!has_error)
     {
         fprintf(stderr, "ERROR\n");
-        error_reported = 1;
+        has_error = 1;
     }
 
     if (line > 0)
@@ -56,7 +56,6 @@ error(mm line, char* fmt, ...) // line = 0 means skip line number (generic error
     va_end(args);
     fprintf(stderr, "\n");
 }
-
 
 PRINTF_FUNC(2, 3)
 extern void
@@ -74,6 +73,19 @@ warn(mm line, char* fmt, ...) // line = 0 means skip line number (generic warnin
     vfprintf(stderr, fmt, args);
     va_end(args);
     fprintf(stderr, "\n");
+}
+
+extern void
+no_recover(void)
+{
+    // Should be called after reporting an error(), but just in case:
+    if (!has_error)
+    {
+        fprintf(stderr, "ERROR\n");
+        has_error = 1;
+    }
+
+    exit(1);
 }
 
 //

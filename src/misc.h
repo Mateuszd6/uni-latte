@@ -28,6 +28,8 @@ typedef i32 b32;
 #  define PRINTF_FUNC(N, M)
 #endif
 
+#define COUNT_OF(ARRAY) ((mm)(sizeof(ARRAY) / sizeof(ARRAY[0])))
+
 #define MIN(LHS, RHS) (((LHS) < (RHS)) ? (LHS) : (RHS))
 #define MAX(LHS, RHS) (((LHS) > (RHS)) ? (LHS) : (RHS))
 #define SWAP(LHS, RHS)                                                         \
@@ -48,11 +50,11 @@ extern void accept_input(void);
 extern void fatal(char* fmt, ...);
 extern void error(mm line, char* fmt, ...);
 extern void warn(mm line, char* fmt, ...);
+extern void no_recover(void);
 
 // Line numbers & filename:
 extern char* myfilename; // There is always one file in a single run
 extern void* alloc_ast_node(size_t size);
 extern mm get_lnum(void* ast_node); // TODO: Extern?
-
 
 #endif // MISC_H_

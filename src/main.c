@@ -36,8 +36,6 @@ parse_file(char* fname)
     array_reserve(node_lnums, 1024);
     Program parse_tree = pProgram(input);
     fclose(input);
-    if (!parse_tree) // TODO? Error _ALWAYS_ reported in the pProgram func?
-        exit(1);
 
     return parse_tree;
 }
@@ -56,16 +54,14 @@ main(int argc, char** argv)
         usage(argv[0]);
 
     Program parse_tree = parse_file(argv[1]);
-    accept_input();
+    if (!parse_tree) no_recover(); // Error reported in the parser code
 
-    LIST_FOREACH(it, parse_tree->u.prog_, listtopdef_)
-    {
-        TopDef t = it->topdef_;
-        assert(t->kind == is_FnDef);
-        warn(get_lnum(t->u.fndef_.type_),
-             "There is a declared function called: \"%s\"",
-             t->u.fndef_.ident_);
-    }
+    add_primitive_types();
+    add_global_funcs(parse_tree);
 
+    if (has_error)
+        no_recover();
+
+    accept_input(); // TODO: Resurrect
     return 0;
 }
