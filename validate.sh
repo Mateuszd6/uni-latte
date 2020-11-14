@@ -10,7 +10,7 @@ echo -n "" > failed-tests.out
 
 echo "Running \"good\" tests."
 for f in $(ls ./tests/good/*.lat ./tests/good/**/*.lat 2> /dev/null); do
-    ./latc < $f > /dev/null 2> temp.out
+    ./latc $f > /dev/null 2> temp.out
     ECODE=$?
     if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ]; then
         let "PASSED_TESTS += 1";
@@ -24,7 +24,7 @@ done
 
 echo "Running \"bad\" tests."
 for f in $(ls ./tests/bad/*.lat ./tests/bad/**/*.lat 2> /dev/null); do
-    ./latc < $f > /dev/null 2> temp.out
+    ./latc $f > /dev/null 2> temp.out
     ECODE=$?
     if [ "ERROR" == "`head -n1 temp.out`" ] && [ $ECODE -ne 0 ]; then
         let "PASSED_TESTS += 1";
@@ -38,7 +38,7 @@ done
 
 echo "Running \"extension\" tests."
 for f in $(ls ./tests/extensions/*.lat ./tests/extensions/**/*.lat 2> /dev/null); do
-    ./latc < $f > /dev/null 2> temp.out
+    ./latc $f > /dev/null 2> temp.out
     ECODE=$?
     if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ]; then
         let "PASSED_TESTS += 1";

@@ -47,6 +47,38 @@ add_primitive_types(void) // TODO: Rename add -> define?
 }
 
 static inline void
+add_classes(Program p)
+{
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_ClDef)
+            continue;
+
+        d_type new_class = {
+            .lnum = (i32)get_lnum(t->u.cldef_.clprops_),
+            .is_primitive = 0
+        };
+        array_push(g_types, new_class);
+
+        symbol s = {
+            .ptr = t,
+            .type = S_TYPE,
+            .id = (i32)(array_size(g_types) - 1)
+        };
+
+        b32 shadows = symbol_push(t->u.cldef_.ident_, s);
+        if (shadows)
+        {
+            // There are two global functions with the same name, not allowed
+            error(new_class.lnum, "Redefinition of class \"%s\"",
+                  t->u.cldef_.ident_);
+            // TODO: "note: previously defined here."
+        }
+    }
+}
+
+static inline void
 add_global_funcs(Program p)
 {
     assert(array_size(g_funcs) == 0); // // Global funcs are first that we add
@@ -54,18 +86,24 @@ add_global_funcs(Program p)
     LIST_FOREACH(it, p->u.prog_, listtopdef_)
     {
         TopDef t = it->topdef_;
-        assert(t->kind == is_FnDef);
+        if (t->kind != is_FnDef)
+            continue;
 
         d_func f = { .lnum = (i32)get_lnum(t->u.fndef_.type_), 0, 0 /* TODO: */ };
         array_push(g_funcs, f);
 
-        symbol s = { .ptr = t, .type = S_FUN, .id = (i32)(array_size(g_funcs) - 1) };
+        symbol s = {
+            .ptr = t,
+            .type = S_FUN,
+            .id = (i32)(array_size(g_funcs) - 1)
+        };
+
         b32 shadows = symbol_push(t->u.fndef_.ident_, s);
         if (shadows)
         {
             // There are two global functions with the same name, not allowed
-            error(f.lnum, "Redefinition of global function \"%s\"", t->u.fndef_.ident_);
-
+            error(f.lnum, "Redefinition of global function \"%s\"",
+                  t->u.fndef_.ident_);
             // TODO: "note: previously defined here."
         }
     }
@@ -131,4 +169,6 @@ symbol_pop(char* name)
     assert(qptr);
 
     array_pop(qptr->symbols);
+
+    // TODO: remove if empty array!
 }

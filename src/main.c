@@ -57,6 +57,7 @@ main(int argc, char** argv)
     if (!parse_tree) no_recover(); // Error reported in the parser code
 
     add_primitive_types();
+    add_classes(parse_tree);
     add_global_funcs(parse_tree);
 
     if (has_error)
