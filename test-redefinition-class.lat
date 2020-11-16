@@ -1,20 +1,24 @@
-class list {
+class list
+{
     int elem;
     list next;
 }
 
-int head (list xs) {
+int head(list xs)
+{
     return xs.elem;
 }
 
-int main() {
+int main()
+{
     printInt(length(fromTo(1, 50)));
     printInt(length2(fromTo(1, 100)));
     return 0;
 }
 
 // Refefinition of the class
-class list {
+class list
+{
     int elem;
     list next;
 }

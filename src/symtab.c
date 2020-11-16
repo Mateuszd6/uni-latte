@@ -42,7 +42,7 @@ add_primitive_types(void) // TODO: Rename add -> define?
     array_push(g_types, builtin_type);
     array_push(g_types, builtin_type);
 
-    char* names[] = {"int", "bool", "string"};
+    char* names[] = {"void", "int", "boolean", "string"};
     for (mm i = 0; i < COUNT_OF(names); ++i)
     {
         symbol s = { .ptr = 0, .type = S_TYPE, .id = (i32)i };
@@ -71,8 +71,6 @@ add_classes(Program p)
             .id = (i32)(array_size(g_types) - 1)
         };
 
-        // TODO: Handle the case when class name shadows a builtin type name,
-        //       like "class int { }"
         b32 shadows = symbol_push(t->u.cldef_.ident_, s);
         if (UNLIKELY(shadows))
         {
@@ -107,7 +105,34 @@ add_global_funcs(Program p)
         if (t->kind != is_FnDef)
             continue;
 
-        d_func f = { .lnum = (i32)get_lnum(t->u.fndef_.type_), 0, 0 /* TODO: */ };
+        Type retval_type = t->u.fndef_.type_;
+        assert(retval_type->kind == is_TCls && "Array return types are not supported"); // TODO
+
+        i32 type_id = symbol_resolve_type(retval_type->u.tcls_.ident_, retval_type);
+        i32* arg_type_ids = 0;
+        LIST_FOREACH(arg_it, t->u.fndef_, listarg_)
+        {
+            Arg a = arg_it->arg_;
+            assert(a->kind == is_Ar);
+
+            Ident aname = a->u.ar_.ident_;
+            Type atype = a->u.ar_.type_;
+
+            assert(atype->kind == is_TCls && "Array func params are not supported"); // TODO
+            // note((i32)get_lnum(a), "There is an arg: \"%s\"", aname); // TODO
+            i32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, atype);
+            if (arg_type_id == TYPEID_NOTFOUND)
+                arg_type_id = TYPEID_INT;
+            array_push(arg_type_ids, arg_type_id);
+        }
+
+        d_func f = {
+            .lnum = (i32)get_lnum(t->u.fndef_.type_),
+            .ret_type_id = type_id,
+            .num_args = (i32)array_size(arg_type_ids),
+            .arg_type_ids = arg_type_ids,
+        };
+
         array_push(g_funcs, f);
 
         symbol s = {
@@ -165,7 +190,7 @@ make_func(TopDef fun_def)
     return 0;
 }
 
-// Assumes that there is a shadows symbol (stack is of size at least 2)
+// Assumes that there is a shadowed symbol (stack is of size at least 2)
 static inline symbol
 get_shadowed_symbol(char* name)
 {
@@ -178,19 +203,54 @@ get_shadowed_symbol(char* name)
 }
 
 static inline symbol
-symbol_get(char* name)
+symbol_get(char* name, void* node)
 {
     symbol_stack* stack = symboltab_findp(g_symtab, name);
     if (!stack)
     {
-        // TODO: Error gently (could not find symbol).
-        error(0, "use of undeclared identifier \"%s\".", name);
+        error(get_lnum(node), "use of undeclared identifier \"%s\"", name); // TODO: LNUM
+        symbol dummy_sym = { .type = S_NONE };
+        return dummy_sym;
     }
 
     symbol* symbols = stack->symbols;
     assert(symbols); // If there are no symbols, entire node should be deleted
 
     return symbols[array_size(symbols) - 1];
+}
+
+static inline i32
+symbol_resolve_type(char* name, void* node)
+{
+    symbol sym = symbol_get(name, node);
+    if (LIKELY(sym.type == S_TYPE))
+    {
+        return sym.id;
+    }
+    else
+    {
+        // TODO: Think about it, b/c maybe it is ok for var/func name to
+        //       coexists with a type name.
+        switch (sym.type) {
+        case S_FUN:
+        {
+            error(get_lnum(node), "\"%s\" resolved to a function, when type was expected", name);
+            note(g_funcs[sym.id].lnum, "Function \"%s\" defined here", name);
+        } break;
+        case S_VAR:
+        {
+            error(get_lnum(node), "\"%s\" resolved to a function, when type was expected", name);
+            note(g_funcs[sym.id].lnum, "Function \"%s\" defined here", name);
+        } break;
+
+        case  S_TYPE:
+        case S_NONE:
+        {
+        } break;
+        }
+    }
+
+    return TYPEID_NOTFOUND;
 }
 
 // Return 1 if symbol shadows an existing symbol, 0 otherwise

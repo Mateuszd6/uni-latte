@@ -10,6 +10,7 @@
 typedef enum symbol_t symbol_t;
 enum symbol_t
 {
+    S_NONE, // Means there is no symbol
     S_VAR,
     S_FUN,
     S_TYPE,
@@ -35,10 +36,10 @@ struct d_var
 typedef struct d_func d_func;
 struct d_func
 {
+    i32* arg_type_ids;
     i32 lnum;
     i32 ret_type_id;
     i32 num_args;
-    // TODO: List of arguments.
 };
 
 typedef struct d_type d_type;
@@ -58,10 +59,18 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define symboltab_insert(HM, K, V) symboltab_insert_((void**)&(HM), K, V)
 #define symboltab_reserve(HM, N) symboltab_reserve_((void**)&(HM), N)
 
-static symbol symbol_get(char* name);
+#define TYPEID_NOTFOUND (-1)
+#define TYPEID_VOID (0)
+#define TYPEID_INT (1)
+#define TYPEID_BOOL (2)
+#define TYPEID_STRING (3)
+
+static symbol symbol_get(char* name, void* node);
 static symbol get_shadowed_symbol(char* name);
 static b32 symbol_push(char* name, symbol s);
 static void symbol_pop(char* name);
+
+static i32 symbol_resolve_type(char* name, void* node);
 
 // TODO: Possibly make other functions, like get func / get type / get var
 //       that fail when not found or type missmatch
