@@ -41,6 +41,7 @@ add_primitive_types(void) // TODO: Rename add -> define?
     array_push(g_types, builtin_type);
     array_push(g_types, builtin_type);
     array_push(g_types, builtin_type);
+    array_push(g_types, builtin_type);
 
     char* names[] = {"void", "int", "boolean", "string"};
     for (mm i = 0; i < COUNT_OF(names); ++i)
@@ -89,7 +90,7 @@ add_classes(Program p)
                 error(new_class.lnum, "Cannot name a class after a builtin type \"%s\"",
                       t->u.cldef_.ident_);
 
-                // TODO: Pop this from the stack, to avoid hardcore issues
+                symbol_pop(t->u.cldef_.ident_);
             }
         }
     }
@@ -109,21 +110,23 @@ add_global_funcs(Program p)
         assert(retval_type->kind == is_TCls && "Array return types are not supported"); // TODO
 
         i32 type_id = symbol_resolve_type(retval_type->u.tcls_.ident_, retval_type);
-        i32* arg_type_ids = 0;
+        if (type_id == TYPEID_NOTFOUND)
+            type_id = TYPEID_INT;
+
+        d_func_arg* arg_type_ids = 0;
         LIST_FOREACH(arg_it, t->u.fndef_, listarg_)
         {
             Arg a = arg_it->arg_;
-            assert(a->kind == is_Ar);
-
             Ident aname = a->u.ar_.ident_;
             Type atype = a->u.ar_.type_;
 
+            assert(a->kind == is_Ar);
             assert(atype->kind == is_TCls && "Array func params are not supported"); // TODO
-            // note((i32)get_lnum(a), "There is an arg: \"%s\"", aname); // TODO
             i32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, atype);
-            if (arg_type_id == TYPEID_NOTFOUND)
                 arg_type_id = TYPEID_INT;
-            array_push(arg_type_ids, arg_type_id);
+
+            d_func_arg arg = { .name = aname, .type_id = arg_type_id };
+            array_push(arg_type_ids, arg);
         }
 
         d_func f = {
@@ -161,33 +164,17 @@ add_global_funcs(Program p)
                     error(f.lnum, "Function \"%s\" cannot be named same as a class", t->u.fndef_.ident_);
                     note(type.lnum, "Class \"%s\" defined here", t->u.fndef_.ident_);
 
-                    // TODO: Pop this from the stack?
+                    symbol_pop(t->u.fndef_.ident_);
                 }
                 else
                 {
-                    error(f.lnum, "Cannot name a function after a builtin type \"%s\"",
-                          t->u.fndef_.ident_);
+                    error(f.lnum, "Cannot name a function after a builtin type \"%s\"", t->u.fndef_.ident_);
 
-                    // TODO: Pop this from the stack, to avoid hardcore issues
+                    symbol_pop(t->u.fndef_.ident_);
                 }
             }
         }
     }
-}
-
-static inline i32
-make_func(TopDef fun_def)
-{
-    assert(fun_def->kind == is_FnDef);
-
-    d_func f;
-    f.lnum = (i32)get_lnum(fun_def->u.fndef_.type_);
-    f.ret_type_id = 0; // TODO
-    f.num_args = 0; // TODO
-
-    array_push(g_funcs, f);
-
-    return 0;
 }
 
 // Assumes that there is a shadowed symbol (stack is of size at least 2)
@@ -208,7 +195,7 @@ symbol_get(char* name, void* node)
     symbol_stack* stack = symboltab_findp(g_symtab, name);
     if (!stack)
     {
-        error(get_lnum(node), "use of undeclared identifier \"%s\"", name); // TODO: LNUM
+        error(get_lnum(node), "use of undeclared identifier \"%s\"", name);
         symbol dummy_sym = { .type = S_NONE };
         return dummy_sym;
     }
@@ -243,7 +230,7 @@ symbol_resolve_type(char* name, void* node)
             note(g_funcs[sym.id].lnum, "Function \"%s\" defined here", name);
         } break;
 
-        case  S_TYPE:
+        case S_TYPE:
         case S_NONE:
         {
         } break;
@@ -282,6 +269,8 @@ symbol_pop(char* name)
     assert(stack);
 
     array_pop(stack->symbols);
-
-    // TODO: remove if empty array!
+    if (array_size(stack->symbols) == 0)
+    {
+        symboltab_delete(g_symtab, name);
+    }
 }

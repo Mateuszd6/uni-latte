@@ -1,3 +1,8 @@
+// TODO:
+// * Support array params by setting up highest bit
+// * make a frontend.h/c file
+// * typecheck actual code
+
 // TODO: Temprary.
 extern char const* __asan_default_options(void);
 extern char const* __asan_default_options() { return "detect_leaks=0"; }

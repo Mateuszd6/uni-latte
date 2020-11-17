@@ -3,7 +3,7 @@ class int {
     int bar;
 }
 
-class bool {
+class boolean {
     int foo;
     int bar;
 }
@@ -14,5 +14,8 @@ class string {
 }
 
 int main() {
+    int i = 0;
+    string s = "";
+    boolean b = false;
     printInt(1);
 }

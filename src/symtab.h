@@ -33,10 +33,17 @@ struct d_var
     i32 type_id;
 };
 
+typedef struct d_func_arg d_func_arg;
+struct d_func_arg
+{
+    char* name;
+    i32 type_id;
+};
+
 typedef struct d_func d_func;
 struct d_func
 {
-    i32* arg_type_ids;
+    d_func_arg* arg_type_ids;
     i32 lnum;
     i32 ret_type_id;
     i32 num_args;
