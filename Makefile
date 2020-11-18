@@ -1,5 +1,5 @@
 CC = clang
-CCFLAGS = -std=c99 -O0 -ggdb
+CCFLAGS = -std=c99 -O0 -ggdb -DDEBUG
 CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro -Wno-missing-noreturn -Wno-pedantic
 CSANITIZERS = -fsanitize=address,undefined
 CPLATFORM = -D_POSIX_C_SOURCE=200809L

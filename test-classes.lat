@@ -1,0 +1,20 @@
+class foobar
+{
+    int a;
+    int b;
+}
+
+foobar
+make_foobar(int a_, int b_)
+{
+    foobar retval = new foobar;
+    retval.a = a_;
+    retval.b = b_;
+
+    return retval;
+}
+
+int main()
+{
+
+}

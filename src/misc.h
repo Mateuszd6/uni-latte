@@ -3,6 +3,18 @@
 #ifndef MISC_H_
 #define MISC_H_
 
+#ifdef DEBUG
+#  undef DEBUG
+#  undef RELEASE
+#  define DEBUG 1
+#  define RELEASE 0
+#else
+#  undef DEBUG
+#  undef RELEASE
+#  define DEBUG 0
+#  define RELEASE 1
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -37,6 +49,14 @@ typedef i32 b32;
 #  define NOINLINE __declspec(noinline)
 #else
 #  define NOINLINE
+#endif
+
+#if (defined(__GNUC__) || defined(__clang__))
+#  define NOTREACHED __builtin_unreachable()
+#elif (defined(_MSC_VER))
+#  define NOTREACHED __assume(0)
+#else
+#  define NOTREACHED ((void)0)
 #endif
 
 // Let compiler know if the function wraps printf

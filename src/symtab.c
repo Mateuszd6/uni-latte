@@ -107,9 +107,24 @@ add_global_funcs(Program p)
             continue;
 
         Type retval_type = t->u.fndef_.type_;
-        assert(retval_type->kind == is_TCls && "Array return types are not supported"); // TODO
+        Ident type_name;
+        b32 is_array;
+        switch (retval_type->kind) {
+        case is_TCls:
+        {
+            type_name = retval_type->u.tcls_.ident_;
+            is_array = 0;
+        } break;
+        case is_TArr:
+        {
+            type_name = retval_type->u.tarr_.ident_;
+            is_array = 1;
+        } break;
+        default:
+            NOTREACHED;
+        }
 
-        i32 type_id = symbol_resolve_type(retval_type->u.tcls_.ident_, retval_type);
+        u32 type_id = symbol_resolve_type(type_name, is_array, retval_type);
         if (type_id == TYPEID_NOTFOUND)
             type_id = TYPEID_INT;
 
@@ -119,10 +134,26 @@ add_global_funcs(Program p)
             Arg a = arg_it->arg_;
             Ident aname = a->u.ar_.ident_;
             Type atype = a->u.ar_.type_;
+            Ident arg_type_name;
+            b32 arg_is_array;
+            switch (atype->kind) {
+            case is_TCls:
+            {
+                arg_type_name = atype->u.tcls_.ident_;
+                arg_is_array = 0;
+            } break;
+            case is_TArr:
+            {
+                arg_type_name = atype->u.tarr_.ident_;
+                arg_is_array = 1;
+            } break;
+            default:
+                NOTREACHED;
+            }
 
             assert(a->kind == is_Ar);
-            assert(atype->kind == is_TCls && "Array func params are not supported"); // TODO
-            i32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, atype);
+            u32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, arg_is_array, atype);
+            if (arg_type_id == TYPEID_NOTFOUND)
                 arg_type_id = TYPEID_INT;
 
             d_func_arg arg = { .name = aname, .type_id = arg_type_id };
@@ -206,13 +237,13 @@ symbol_get(char* name, void* node)
     return symbols[array_size(symbols) - 1];
 }
 
-static inline i32
-symbol_resolve_type(char* name, void* node)
+static inline u32
+symbol_resolve_type(char* name, b32 is_array, void* node)
 {
     symbol sym = symbol_get(name, node);
     if (LIKELY(sym.type == S_TYPE))
     {
-        return sym.id;
+        return (u32)sym.id | (is_array ? TYPEID_FLAG_ARRAY : 0);
     }
     else
     {

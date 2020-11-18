@@ -70,5 +70,31 @@ main(int argc, char** argv)
         no_recover();
 
     accept_input(); // TODO: Resurrect
+
+#if DEBUG
+    printf("Types:\n");
+    for (mm i = 0; i < array_size(g_types); ++i)
+    {
+        note(g_types[i].lnum, "(%ld)", i);
+    }
+
+    printf("\nFunctions:\n");
+    for (mm i = 0; i < array_size(g_funcs); ++i)
+    {
+        note(g_funcs[i].lnum, "(%ld)", i);
+        printf("    Return type: %u%s\n",
+               g_funcs[i].ret_type_id & TYPEID_MASK,
+               g_funcs[i].ret_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+        for (mm j = 0; j < array_size(g_funcs[i].arg_type_ids); ++j)
+        {
+            d_func_arg a = g_funcs[i].arg_type_ids[j];
+            printf("    Param: %d%s\n",
+                   a.type_id & TYPEID_MASK,
+                   a.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+        }
+    }
+#endif
+
     return 0;
 }
