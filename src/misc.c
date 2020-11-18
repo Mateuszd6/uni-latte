@@ -132,7 +132,7 @@ alloc_ast_node(size_t size)
     return mem;
 }
 
-extern mm // TODO extern?
+extern i32 // TODO extern?
 get_lnum(void* ast_node)
 {
     umm val = (umm)ast_node;
@@ -141,7 +141,7 @@ get_lnum(void* ast_node)
     for (; i < nnode_lnums; ++i)
     {
         if (node_lnums[i].ptr_val == val)
-            return node_lnums[i].lnum;
+            return (i32)node_lnums[i].lnum;
     }
 
     return -1; // TODO: Should not reach, but check it!

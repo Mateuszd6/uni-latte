@@ -51,12 +51,16 @@ typedef i32 b32;
 #  define NOINLINE
 #endif
 
-#if (defined(__GNUC__) || defined(__clang__))
-#  define NOTREACHED __builtin_unreachable()
-#elif (defined(_MSC_VER))
-#  define NOTREACHED __assume(0)
+#if DEBUG
+#    define NOTREACHED assert(!(mm)(void*)"Unreachable code reached!")
 #else
-#  define NOTREACHED ((void)0)
+#  if (defined(__GNUC__) || defined(__clang__))
+#    define NOTREACHED __builtin_unreachable()
+#  elif (defined(_MSC_VER))
+#    define NOTREACHED __assume(0)
+#  else
+#    define NOTREACHED ((void)0)
+#  endif
 #endif
 
 // Let compiler know if the function wraps printf
@@ -97,6 +101,6 @@ extern void no_recover(void);
 
 extern char* myfilename; // There is always one file in a single run
 extern void* alloc_ast_node(size_t size);
-extern mm get_lnum(void* ast_node); // TODO: Extern?
+extern i32 get_lnum(void* ast_node); // TODO: Extern?
 
 #endif // MISC_H_

@@ -1,8 +1,7 @@
 #include "symtab.h"
 
 #define HASHMAP_IMPLEMENTATION
-#define HASHMAP_STATIC
-#include "hashmap.h"
+#include "hashmap.h" // As implementation
 
 static inline int
 str_cmp(void const* lhs, void const* rhs)
@@ -46,7 +45,7 @@ add_primitive_types(void) // TODO: Rename add -> define?
     char* names[] = {"void", "int", "boolean", "string"};
     for (mm i = 0; i < COUNT_OF(names); ++i)
     {
-        symbol s = { .ptr = 0, .type = S_TYPE, .id = (i32)i };
+        symbol s = { .type = S_TYPE, .id = (i32)i };
         symbol_push(names[i], s);
     }
 }
@@ -61,13 +60,12 @@ add_classes(Program p)
             continue;
 
         d_type new_class = {
-            .lnum = (i32)get_lnum(t->u.cldef_.clprops_),
+            .lnum = get_lnum(t->u.cldef_.clprops_),
             .is_primitive = 0
         };
         array_push(g_types, new_class);
 
         symbol s = {
-            .ptr = t,
             .type = S_TYPE,
             .id = (i32)(array_size(g_types) - 1)
         };
@@ -120,8 +118,6 @@ add_global_funcs(Program p)
             type_name = retval_type->u.tarr_.ident_;
             is_array = 1;
         } break;
-        default:
-            NOTREACHED;
         }
 
         u32 type_id = symbol_resolve_type(type_name, is_array, retval_type);
@@ -147,8 +143,6 @@ add_global_funcs(Program p)
                 arg_type_name = atype->u.tarr_.ident_;
                 arg_is_array = 1;
             } break;
-            default:
-                NOTREACHED;
             }
 
             assert(a->kind == is_Ar);
@@ -161,7 +155,7 @@ add_global_funcs(Program p)
         }
 
         d_func f = {
-            .lnum = (i32)get_lnum(t->u.fndef_.type_),
+            .lnum = get_lnum(t->u.fndef_.type_),
             .ret_type_id = type_id,
             .num_args = (i32)array_size(arg_type_ids),
             .arg_type_ids = arg_type_ids,
@@ -170,7 +164,6 @@ add_global_funcs(Program p)
         array_push(g_funcs, f);
 
         symbol s = {
-            .ptr = t,
             .type = S_FUN,
             .id = (i32)(array_size(g_funcs) - 1)
         };
@@ -264,6 +257,7 @@ symbol_resolve_type(char* name, b32 is_array, void* node)
         case S_TYPE:
         case S_NONE:
         {
+            NOTREACHED;
         } break;
         }
     }
@@ -305,3 +299,9 @@ symbol_pop(char* name)
         symboltab_delete(g_symtab, name);
     }
 }
+
+//
+// Expression validating:
+//
+
+// TODO

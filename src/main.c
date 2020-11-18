@@ -1,5 +1,4 @@
 // TODO:
-// * Support array params by setting up highest bit
 // * make a frontend.h/c file
 // * typecheck actual code
 
@@ -13,21 +12,19 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include <stdlib.h>
 #include <string.h>
 
-#define ARRAY_STATIC
 #include "absyn.h"
+#define ARRAY_STATIC
 #include "array.h"
-#include "parser.h"
-#include "symtab.h"
 #include "misc.h"
+#include "parser.h"
 #include "symtab.h"
 
 #define ARRAY_IMPLEMENTATION
-#include "array.h"
-
-#include "symtab.c"
+#include "array.h" // As implementation
 #include "misc.c"
+#include "symtab.c"
 
-char* myfilename = NULL;
+char* myfilename = 0;
 
 static Program
 parse_file(char* fname)
@@ -95,6 +92,33 @@ main(int argc, char** argv)
         }
     }
 #endif
+
+    Block blk = parse_tree->u.prog_.listtopdef_->topdef_->u.fndef_.block_;
+    LIST_FOREACH(it, blk->u.blk_, liststmt_)
+    {
+        Stmt s = it->stmt_;
+        printf("stmt type: %d\n", s->kind);
+
+        switch (s->kind) {
+        case is_SExp: {
+        } break;
+
+        case is_Empty:
+        case is_BStmt:
+        case is_Decl:
+        case is_Ass:
+        case is_Incr:
+        case is_Decr:
+        case is_Ret:
+        case is_VRet:
+        case is_Cond:
+        case is_CondElse:
+        case is_While:
+        case is_For:
+        {
+        } NOTREACHED;
+        }
+    }
 
     return 0;
 }

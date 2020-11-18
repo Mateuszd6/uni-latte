@@ -19,7 +19,6 @@ enum symbol_t
 typedef struct symbol symbol;
 struct symbol
 {
-    void* ptr;
     symbol_t type;
     i32 id;
 };

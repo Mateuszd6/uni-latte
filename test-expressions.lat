@@ -1,0 +1,39 @@
+int main()
+{
+    // TODO: EClMem
+    // TODO: EArrApp
+    // TODO: ENew
+    // TODO: ENewArr
+
+    5123; // ELitInt
+    "foobar"; // ELitString
+
+    true;
+    false;
+    null;
+
+    -443; // ENeg
+    !712; // ENot
+    (boolean)(123); // ECase
+    12 * 34; // EMul
+    44 / 4; // EMul
+    19 % 6; // EMul
+    11 + 22; // EAdd
+    71 - 9; // EAdd
+
+    (1 < 3 || 5 > 9) && (2 < 4 || 6 > 10 || 7 < 11 || 99 != 100) && true;
+
+    fooz(23 + 7 + 88 / 4); // EApp
+    foos("www" + "qq", (1 + 2) * 3 * 4 % 2);
+    foobar; // EVar
+}
+
+int fooi(int i)
+{
+    return i * 8 - 3;
+}
+
+string foos(string s, int i)
+{
+    return s + "q";
+}
