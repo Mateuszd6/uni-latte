@@ -54,6 +54,7 @@ ECast.     Expr5 ::= "(" Ident ")" Expr6 ;
 EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
 EAdd.      Expr3 ::= Expr3 AddOp Expr4 ;
 ERel.      Expr2 ::= Expr2 RelOp Expr3 ;
+EEq.       Expr2 ::= Expr2 EqOp Expr3 ;
 EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 EOr.       Expr ::= Expr1 "||" Expr ;
 coercions  Expr 11 ;
@@ -77,8 +78,8 @@ LTH.       RelOp ::= "<" ;
 LE.        RelOp ::= "<=" ;
 GTH.       RelOp ::= ">" ;
 GE.        RelOp ::= ">=" ;
-EQU.       RelOp ::= "==" ;
-NE.        RelOp ::= "!=" ;
+NE.        EqOp ::= "!=" ;
+EQU.       EqOp ::= "==" ;
 
 -- Comments ------------------------------------------------
 comment    "#" ;

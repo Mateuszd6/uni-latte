@@ -50,6 +50,8 @@ struct MulOp_;
 typedef struct MulOp_* MulOp;
 struct RelOp_;
 typedef struct RelOp_* RelOp;
+struct EqOp_;
+typedef struct EqOp_* EqOp;
 
 /********************   Abstract Syntax Classes    ********************/
 
@@ -342,6 +344,7 @@ struct Expr_
         is_EMul,
         is_EAdd,
         is_ERel,
+        is_EEq,
         is_EAnd,
         is_EOr
     } kind;
@@ -412,6 +415,11 @@ struct Expr_
         } erel_;
         struct
         {
+            EqOp eqop_;
+            Expr expr_1, expr_2;
+        } eeq_;
+        struct
+        {
             Expr expr_1, expr_2;
         } eand_;
         struct
@@ -455,6 +463,8 @@ Expr
 make_EAdd(Expr p0, AddOp p1, Expr p2);
 Expr
 make_ERel(Expr p0, RelOp p1, Expr p2);
+Expr
+make_EEq(Expr p0, EqOp p1, Expr p2);
 Expr
 make_EAnd(Expr p0, Expr p1);
 Expr
@@ -570,9 +580,7 @@ struct RelOp_
         is_LTH,
         is_LE,
         is_GTH,
-        is_GE,
-        is_EQU,
-        is_NE
+        is_GE
     } kind;
     union
     {
@@ -587,9 +595,22 @@ RelOp
 make_GTH(void);
 RelOp
 make_GE(void);
-RelOp
-make_EQU(void);
-RelOp
+
+struct EqOp_
+{
+    enum
+    {
+        is_NE,
+        is_EQU
+    } kind;
+    union
+    {
+    } u;
+};
+
+EqOp
 make_NE(void);
+EqOp
+make_EQU(void);
 
 #endif

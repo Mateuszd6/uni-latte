@@ -256,9 +256,7 @@ symbol_resolve_type(char* name, b32 is_array, void* node)
 
         case S_TYPE:
         case S_NONE:
-        {
             NOTREACHED;
-        } break;
         }
     }
 

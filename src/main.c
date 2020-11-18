@@ -1,4 +1,5 @@
 // TODO:
+// * regenerate parser on students, b/c current have different bison version
 // * make a frontend.h/c file
 // * typecheck actual code
 
@@ -49,6 +50,169 @@ usage(char* argv0)
     printf("Usage: %s FILE\n", argv0);
     exit(1);
 }
+
+typedef enum evaled_expr_t evaled_expr_t; // TODO: Move
+enum evaled_expr_t
+{
+    EET_COMPUTE,
+    EET_CONSTANT,
+};
+
+typedef enum binary_int_op_t binary_int_op_t;
+enum binary_int_op_t
+{
+    BIOP_ADD,
+    BIOP_SUB,
+    BIOP_MUL,
+    BIOP_DIV,
+    BIOP_MOD,
+    BIOP_LTH,
+    BIOP_LE,
+    BIOP_GTH,
+    BIOP_GE,
+};
+
+typedef struct evaled_expr evaled_expr;
+struct evaled_expr
+{
+    u32 type_id;
+    evaled_expr_t kind;
+    union
+    {
+        struct
+        {
+        } cmpt;
+        struct
+        {
+            i64 numeric_val; // int or boolean
+            char* str_val; // string // TODO: make it reasonable
+        } cnst;
+    } u;
+};
+
+static evaled_expr
+eval_expr(Expr e)
+{
+    evaled_expr retval;
+    Expr binarg1; // To be set for binary expressions
+    Expr binarg2;
+    binary_int_op_t binintop;
+
+    switch (e->kind) {
+    case is_ELitTrue:
+    case is_ELitFalse:
+    {
+        retval.kind = EET_CONSTANT;
+        retval.u.cnst.numeric_val = (e->kind == is_ELitTrue); // true/false
+        return retval;
+    }
+
+    case is_ELitInt:
+    {
+        retval.kind = EET_CONSTANT;
+        retval.u.cnst.numeric_val = (i64)e->u.elitint_.integer_;
+        return retval;
+    }
+
+    case is_Not:
+    {
+        evaled_expr e1 = eval_expr(e->u.not_.expr_);
+        // TODO: Validate type
+        if (UNLIKELY(e1.kind == EET_CONSTANT))
+        {
+            e1.u.cnst.numeric_val = !e1.u.cnst.numeric_val;
+            return e1;
+        }
+
+        retval.kind = EET_COMPUTE;
+        return retval; // TODO
+    }
+
+    case is_Neg:
+    {
+        evaled_expr e1 = eval_expr(e->u.not_.expr_);
+        // TODO: Validate type
+        if (UNLIKELY(e1.kind == EET_CONSTANT))
+        {
+            // TODO: Check overflow of -2kkk to positive value!!
+            e1.u.cnst.numeric_val = -e1.u.cnst.numeric_val;
+            return e1;
+        }
+
+        retval.kind = EET_COMPUTE;
+        return retval; // TODO
+    }
+
+    case is_EMul:
+    {
+        binarg1 = e->u.emul_.expr_1;
+        binarg2 = e->u.emul_.expr_2;
+        switch (e->u.emul_.mulop_->kind) {
+        case is_Times: binintop = BIOP_MOD; break;
+        case is_Div: binintop = BIOP_DIV; break;
+        case is_Mod: binintop = BIOP_MOD; break;
+        }
+    } goto binary_integer_expr;
+
+    case is_EAdd:
+    {
+        binarg1 = e->u.eadd_.expr_1;
+        binarg2 = e->u.eadd_.expr_2;
+        switch (e->u.eadd_.addop_->kind) {
+        case is_Plus: binintop = BIOP_ADD; break;
+        case is_Minus: binintop = BIOP_SUB; break;
+        }
+    } goto binary_integer_expr;
+
+    case is_ERel: // "==" is different expr (EEq), this one is for ints only
+    {
+        binarg1 = e->u.eadd_.expr_1;
+        binarg2 = e->u.eadd_.expr_2;
+        switch (e->u.erel_.relop_->kind) {
+        case is_LTH: binintop = BIOP_LTH; break;
+        case is_GTH: binintop = BIOP_GTH; break;
+        case is_LE: binintop = BIOP_LE; break;
+        case is_GE: binintop = BIOP_GE; break;
+        }
+    } goto binary_integer_expr;
+
+    binary_integer_expr:
+    {
+        evaled_expr e1 = eval_expr(binarg1);
+        evaled_expr e2 = eval_expr(binarg2);
+        if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
+        {
+            // TODO(NEXT): Caluclate new integer value and return as constant.
+        }
+
+        retval.kind = EET_COMPUTE;
+        return retval; // TODO
+    }
+
+    case is_EEq:
+    {
+    } break;
+
+    case is_EAnd:
+    case is_EOr:
+    {
+    } break;
+
+    case is_EVar:
+    case is_EApp:
+
+    case is_ECast:
+    case is_ELitStr:
+    case is_EClMem:
+    case is_EArrApp:
+    case is_ENew:
+    case is_ENewArr:
+    case is_ENull:
+        NOTREACHED;
+    }
+
+    NOTREACHED;
+};
 
 int
 main(int argc, char** argv)
@@ -101,6 +265,7 @@ main(int argc, char** argv)
 
         switch (s->kind) {
         case is_SExp: {
+            evaled_expr ee = eval_expr(s->u.sexp_.expr_);
         } break;
 
         case is_Empty:
@@ -115,8 +280,7 @@ main(int argc, char** argv)
         case is_CondElse:
         case is_While:
         case is_For:
-        {
-        } NOTREACHED;
+            NOTREACHED;
         }
     }
 

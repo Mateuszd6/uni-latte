@@ -57,8 +57,8 @@ IDENT [a-zA-Z0-9'_]
 <YYINITIAL>"<="      	 return _SYMB_23;
 <YYINITIAL>">"      	 return _SYMB_24;
 <YYINITIAL>">="      	 return _SYMB_25;
-<YYINITIAL>"=="      	 return _SYMB_26;
-<YYINITIAL>"!="      	 return _SYMB_27;
+<YYINITIAL>"!="      	 return _SYMB_26;
+<YYINITIAL>"=="      	 return _SYMB_27;
 <YYINITIAL>"class"      	 return _SYMB_28;
 <YYINITIAL>"else"      	 return _SYMB_29;
 <YYINITIAL>"extends"      	 return _SYMB_30;

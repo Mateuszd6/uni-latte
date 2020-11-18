@@ -403,6 +403,17 @@ make_ERel(Expr p1, RelOp p2, Expr p3)
     tmp->u.erel_.expr_2 = p3;
     return tmp;
 }
+/********************   EEq    ********************/
+Expr
+make_EEq(Expr p1, EqOp p2, Expr p3)
+{
+    Expr tmp = (Expr)alloc_ast_node(sizeof(*tmp));
+    tmp->kind = is_EEq;
+    tmp->u.eeq_.expr_1 = p1;
+    tmp->u.eeq_.eqop_ = p2;
+    tmp->u.eeq_.expr_2 = p3;
+    return tmp;
+}
 /********************   EAnd    ********************/
 Expr
 make_EAnd(Expr p1, Expr p2)
@@ -544,20 +555,19 @@ make_GE()
     RelOp tmp = (RelOp)alloc_ast_node(sizeof(*tmp));
     tmp->kind = is_GE;
     return tmp;
-}
-/********************   EQU    ********************/
-RelOp
-make_EQU()
-{
-    RelOp tmp = (RelOp)alloc_ast_node(sizeof(*tmp));
-    tmp->kind = is_EQU;
-    return tmp;
-}
-/********************   NE    ********************/
-RelOp
+} /********************   NE    ********************/
+EqOp
 make_NE()
 {
-    RelOp tmp = (RelOp)alloc_ast_node(sizeof(*tmp));
+    EqOp tmp = (EqOp)alloc_ast_node(sizeof(*tmp));
     tmp->kind = is_NE;
+    return tmp;
+}
+/********************   EQU    ********************/
+EqOp
+make_EQU()
+{
+    EqOp tmp = (EqOp)alloc_ast_node(sizeof(*tmp));
+    tmp->kind = is_EQU;
     return tmp;
 }

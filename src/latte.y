@@ -282,6 +282,20 @@ RelOp pRelOp(FILE *inp)
   }
 }
 
+EqOp YY_RESULT_EqOp_ = 0;
+EqOp pEqOp(FILE *inp)
+{
+  initialize_lexer(inp);
+  if (yyparse())
+  { /* Failure */
+    return 0;
+  }
+  else
+  { /* Success */
+    return YY_RESULT_EqOp_;
+  }
+}
+
 
 ListTopDef reverseListTopDef(ListTopDef l)
 {
@@ -389,6 +403,7 @@ ListClBody reverseListClBody(ListClBody l)
   AddOp addop_;
   MulOp mulop_;
   RelOp relop_;
+  EqOp eqop_;
 
 }
 
@@ -419,8 +434,8 @@ ListClBody reverseListClBody(ListClBody l)
 %token _SYMB_23    /*   <=   */
 %token _SYMB_24    /*   >   */
 %token _SYMB_25    /*   >=   */
-%token _SYMB_26    /*   ==   */
-%token _SYMB_27    /*   !=   */
+%token _SYMB_26    /*   !=   */
+%token _SYMB_27    /*   ==   */
 %token _SYMB_28    /*   class   */
 %token _SYMB_29    /*   else   */
 %token _SYMB_30    /*   extends   */
@@ -463,6 +478,7 @@ ListClBody reverseListClBody(ListClBody l)
 %type <addop_> AddOp
 %type <mulop_> MulOp
 %type <relop_> RelOp
+%type <eqop_> EqOp
 
 %token<string_> _STRING_
 %token<int_> _INTEGER_
@@ -547,6 +563,7 @@ Expr3 : Expr3 AddOp Expr4 { $$ = make_EAdd($1, $2, $3);  }
   | Expr4 { $$ = $1;  }
 ;
 Expr2 : Expr2 RelOp Expr3 { $$ = make_ERel($1, $2, $3);  } 
+  | Expr2 EqOp Expr3 { $$ = make_EEq($1, $2, $3);  }
   | Expr3 { $$ = $1;  }
 ;
 Expr1 : Expr2 _SYMB_16 Expr1 { $$ = make_EAnd($1, $3);  } 
@@ -579,7 +596,8 @@ RelOp : _SYMB_22 { $$ = make_LTH();  }
   | _SYMB_23 { $$ = make_LE();  }
   | _SYMB_24 { $$ = make_GTH();  }
   | _SYMB_25 { $$ = make_GE();  }
-  | _SYMB_26 { $$ = make_EQU();  }
-  | _SYMB_27 { $$ = make_NE();  }
+;
+EqOp : _SYMB_26 { $$ = make_NE();  } 
+  | _SYMB_27 { $$ = make_EQU();  }
 ;
 

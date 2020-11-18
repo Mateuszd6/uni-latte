@@ -28,6 +28,7 @@ typedef union
     AddOp addop_;
     MulOp mulop_;
     RelOp relop_;
+    EqOp eqop_;
 } YYSTYPE;
 
 #define _ERROR_ 258
