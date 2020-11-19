@@ -2,6 +2,8 @@
 
 #include "misc.h"
 
+#include <limits.h>
+
 static i32 has_error = 0;
 
 extern void
@@ -145,4 +147,17 @@ get_lnum(void* ast_node)
     }
 
     return -1; // TODO: Should not reach, but check it!
+}
+
+//
+// Other
+//
+
+extern int
+overflows_32bit(mm val)
+{
+    mm i32_min = (mm)INT_MIN;
+    mm i32_max = (mm)INT_MAX;
+
+    return !(i32_min <= val && val <= i32_max);
 }

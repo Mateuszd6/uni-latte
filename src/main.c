@@ -51,6 +51,15 @@ usage(char* argv0)
     exit(1);
 }
 
+typedef struct string_const string_const;
+struct string_const
+{
+    char* data;
+    mm len;
+};
+
+static string_const* g_str_consts = 0;
+
 typedef enum evaled_expr_t evaled_expr_t; // TODO: Move
 enum evaled_expr_t
 {
@@ -72,23 +81,76 @@ enum binary_int_op_t
     BIOP_GE,
 };
 
+typedef enum binary_bool_op_t binary_bool_op_t;
+enum binary_bool_op_t
+{
+    BBOP_AND,
+    BBOP_OR,
+};
+
 typedef struct evaled_expr evaled_expr;
 struct evaled_expr
 {
     u32 type_id;
     evaled_expr_t kind;
+    b32 is_lvalue;
     union
     {
         struct
         {
         } cmpt;
-        struct
+        union
         {
             i64 numeric_val; // int or boolean
-            char* str_val; // string // TODO: make it reasonable
+            mm str_const_id; // string constant
         } cnst;
     } u;
 };
+
+static evaled_expr
+compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op)
+{
+    evaled_expr retval;
+    retval.type_id = TYPEID_BOOL;
+    retval.kind = EET_CONSTANT;
+    retval.is_lvalue = 0;
+    switch (op) {
+    case BBOP_AND: retval.u.cnst.numeric_val = !!(v1) && !!(v2); break;
+    case BBOP_OR: retval.u.cnst.numeric_val = !!(v1) || !!(v2); break;
+    }
+
+    return retval;
+}
+
+static evaled_expr
+compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op)
+{
+    evaled_expr retval;
+    retval.type_id = TYPEID_INT;
+    retval.kind = EET_CONSTANT;
+    retval.is_lvalue = 0;
+    switch (op) {
+    case BIOP_ADD: retval.u.cnst.numeric_val = v1 + v2; break;
+    case BIOP_SUB: retval.u.cnst.numeric_val = v1 - v2; break;
+    case BIOP_MUL: retval.u.cnst.numeric_val = v1 * v2; break;
+    case BIOP_DIV: retval.u.cnst.numeric_val = v1 / v2; break;
+    case BIOP_MOD: retval.u.cnst.numeric_val = v1 % v2; break;
+    case BIOP_LTH: retval.u.cnst.numeric_val = (v1 < v2); retval.type_id = TYPEID_BOOL; break;
+    case BIOP_LE: retval.u.cnst.numeric_val = (v1 <= v2); retval.type_id = TYPEID_BOOL; break;
+    case BIOP_GTH: retval.u.cnst.numeric_val = (v1 > v2); retval.type_id = TYPEID_BOOL; break;
+    case BIOP_GE: retval.u.cnst.numeric_val = (v1 >= v2); retval.type_id = TYPEID_BOOL; break;
+    }
+
+    // Safe for booleans becasue they never overflow
+    if (UNLIKELY(overflows_32bit(retval.u.cnst.numeric_val)))
+    {
+        // TODO: Handle overflow - return constnat expression of 0? Or
+        //       computable expression?
+        fatal("Constant integer overflow");
+    }
+
+    return retval;
+}
 
 static evaled_expr
 eval_expr(Expr e)
@@ -97,20 +159,40 @@ eval_expr(Expr e)
     Expr binarg1; // To be set for binary expressions
     Expr binarg2;
     binary_int_op_t binintop;
+    binary_bool_op_t binboolop;
 
     switch (e->kind) {
     case is_ELitTrue:
     case is_ELitFalse:
     {
+        retval.type_id = TYPEID_BOOL;
         retval.kind = EET_CONSTANT;
+        retval.is_lvalue = 0;
         retval.u.cnst.numeric_val = (e->kind == is_ELitTrue); // true/false
         return retval;
     }
 
     case is_ELitInt:
     {
+        retval.type_id = TYPEID_INT;
         retval.kind = EET_CONSTANT;
+        retval.is_lvalue = 0;
         retval.u.cnst.numeric_val = (i64)e->u.elitint_.integer_;
+        return retval;
+    }
+
+    case is_ELitStr:
+    {
+        retval.type_id = TYPEID_STRING;
+        retval.kind = EET_CONSTANT;
+        retval.is_lvalue = 0;
+
+        char* data = e->u.elitstr_.string_;
+        string_const c = { .data = data, .len = (mm)strlen(data) };
+        mm idx = array_size(g_str_consts);
+        array_push(g_str_consts, c);
+
+        retval.u.cnst.str_const_id = idx;
         return retval;
     }
 
@@ -120,11 +202,13 @@ eval_expr(Expr e)
         // TODO: Validate type
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
+            assert(!e1.is_lvalue); // Already an lvalue
             e1.u.cnst.numeric_val = !e1.u.cnst.numeric_val;
             return e1;
         }
 
         retval.kind = EET_COMPUTE;
+        retval.is_lvalue = 0;
         return retval; // TODO
     }
 
@@ -135,11 +219,13 @@ eval_expr(Expr e)
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
             // TODO: Check overflow of -2kkk to positive value!!
+            assert(!e1.is_lvalue);
             e1.u.cnst.numeric_val = -e1.u.cnst.numeric_val;
             return e1;
         }
 
         retval.kind = EET_COMPUTE;
+        retval.is_lvalue = 0;
         return retval; // TODO
     }
 
@@ -148,11 +234,13 @@ eval_expr(Expr e)
         binarg1 = e->u.emul_.expr_1;
         binarg2 = e->u.emul_.expr_2;
         switch (e->u.emul_.mulop_->kind) {
-        case is_Times: binintop = BIOP_MOD; break;
+        case is_Times: binintop = BIOP_MUL; break;
         case is_Div: binintop = BIOP_DIV; break;
         case is_Mod: binintop = BIOP_MOD; break;
         }
-    } goto binary_integer_expr;
+
+        goto binary_integer_expr;
+    }
 
     case is_EAdd:
     {
@@ -162,47 +250,88 @@ eval_expr(Expr e)
         case is_Plus: binintop = BIOP_ADD; break;
         case is_Minus: binintop = BIOP_SUB; break;
         }
-    } goto binary_integer_expr;
+
+        // TODO: If both args are strings and op is "+" jump to string addition
+
+        goto binary_integer_expr;
+    }
 
     case is_ERel: // "==" is different expr (EEq), this one is for ints only
     {
-        binarg1 = e->u.eadd_.expr_1;
-        binarg2 = e->u.eadd_.expr_2;
+        binarg1 = e->u.erel_.expr_1;
+        binarg2 = e->u.erel_.expr_2;
         switch (e->u.erel_.relop_->kind) {
         case is_LTH: binintop = BIOP_LTH; break;
         case is_GTH: binintop = BIOP_GTH; break;
         case is_LE: binintop = BIOP_LE; break;
         case is_GE: binintop = BIOP_GE; break;
         }
-    } goto binary_integer_expr;
+
+        goto binary_integer_expr;
+    }
+
+    case is_EAnd:
+    {
+        binarg1 = e->u.eand_.expr_1;
+        binarg2 = e->u.eand_.expr_2;
+        binboolop = BBOP_AND;
+
+        goto binary_boolean_expr;
+    }
+
+    case is_EOr:
+    {
+        binarg1 = e->u.eor_.expr_1;
+        binarg2 = e->u.eor_.expr_2;
+        binboolop = BBOP_OR;
+
+        goto binary_boolean_expr;
+    }
+
+    binary_boolean_expr:
+    {
+        evaled_expr e1 = eval_expr(binarg1);
+        evaled_expr e2 = eval_expr(binarg2);
+        // TODO: Validate type
+        if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
+        {
+            assert(!e1.is_lvalue);
+            assert(!e2.is_lvalue);
+
+            mm v1 = e1.u.cnst.numeric_val;
+            mm v2 = e2.u.cnst.numeric_val;
+            return compute_binary_boolean_expr(v1, v2, binboolop);
+        }
+
+        retval.kind = EET_COMPUTE;
+        retval.is_lvalue = 0;
+        return retval; // TODO
+    }
 
     binary_integer_expr:
     {
         evaled_expr e1 = eval_expr(binarg1);
         evaled_expr e2 = eval_expr(binarg2);
+        // TODO: Validate type
         if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
         {
-            // TODO(NEXT): Caluclate new integer value and return as constant.
+            assert(!e1.is_lvalue);
+            assert(!e2.is_lvalue);
+
+            mm v1 = e1.u.cnst.numeric_val;
+            mm v2 = e2.u.cnst.numeric_val;
+            return compute_binary_integer_expr(v1, v2, binintop);
         }
 
         retval.kind = EET_COMPUTE;
+        retval.is_lvalue = 0;
         return retval; // TODO
     }
 
     case is_EEq:
-    {
-    } break;
-
-    case is_EAnd:
-    case is_EOr:
-    {
-    } break;
-
     case is_EVar:
     case is_EApp:
-
     case is_ECast:
-    case is_ELitStr:
     case is_EClMem:
     case is_EArrApp:
     case is_ENew:
@@ -257,15 +386,50 @@ main(int argc, char** argv)
     }
 #endif
 
+    printf("\n");
     Block blk = parse_tree->u.prog_.listtopdef_->topdef_->u.fndef_.block_;
     LIST_FOREACH(it, blk->u.blk_, liststmt_)
     {
         Stmt s = it->stmt_;
-        printf("stmt type: %d\n", s->kind);
+        printf("Statement (type: %d)\n", s->kind);
 
         switch (s->kind) {
-        case is_SExp: {
+        case is_SExp:
+        {
             evaled_expr ee = eval_expr(s->u.sexp_.expr_);
+            printf("    Expression %s constant\n", ee.kind == EET_CONSTANT ? "IS" : "IS NOT");
+            printf("    Typed to %u (%s)\n",
+                   ee.type_id,
+                   (ee.type_id == 0
+                    ? "void"
+                    : (ee.type_id == 1
+                       ? "int"
+                       : (ee.type_id == 2
+                          ? "boolean"
+                          : (ee.type_id == 3 ? "string" : "reference")))));
+
+            if (ee.kind == EET_CONSTANT)
+            {
+                switch (ee.type_id) {
+                case TYPEID_INT:
+                case TYPEID_BOOL:
+                {
+                    printf("    Evaluated to: %ld\n", ee.u.cnst.numeric_val);
+                } break;
+
+                case TYPEID_STRING:
+                {
+                    printf("    Evaluated to: \"%s\"\n",
+                           g_str_consts[ee.u.cnst.str_const_id].data);
+                } break;
+
+                default:
+                {
+                } break;
+                }
+            }
+
+            printf("\n");
         } break;
 
         case is_Empty:

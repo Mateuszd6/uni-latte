@@ -103,4 +103,6 @@ extern char* myfilename; // There is always one file in a single run
 extern void* alloc_ast_node(size_t size);
 extern i32 get_lnum(void* ast_node); // TODO: Extern?
 
+extern int overflows_32bit(mm val);
+
 #endif // MISC_H_
