@@ -51,6 +51,7 @@ struct d_func
 typedef struct d_type d_type;
 struct d_type
 {
+    char* name;
     i32 lnum;
     b32 is_primitive;
 };

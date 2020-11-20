@@ -1,6 +1,7 @@
 // TODO:
 // * regenerate parser on students, b/c current have different bison version
 // * make a frontend.h/c file
+// * check if type error work fine for classes
 // * typecheck actual code
 
 // TODO: Temprary.
@@ -91,6 +92,7 @@ enum binary_bool_op_t
 typedef struct evaled_expr evaled_expr;
 struct evaled_expr
 {
+    void* node; // For lnum in case of error reporting
     u32 type_id;
     evaled_expr_t kind;
     b32 is_lvalue;
@@ -108,12 +110,13 @@ struct evaled_expr
 };
 
 static evaled_expr
-compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op)
+compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
 {
     evaled_expr retval;
     retval.type_id = TYPEID_BOOL;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.node = node;
     switch (op) {
     case BBOP_AND: retval.u.cnst.numeric_val = !!(v1) && !!(v2); break;
     case BBOP_OR: retval.u.cnst.numeric_val = !!(v1) || !!(v2); break;
@@ -123,12 +126,13 @@ compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op)
 }
 
 static evaled_expr
-compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op)
+compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
 {
     evaled_expr retval;
     retval.type_id = TYPEID_INT;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.node = node;
     switch (op) {
     case BIOP_ADD: retval.u.cnst.numeric_val = v1 + v2; break;
     case BIOP_SUB: retval.u.cnst.numeric_val = v1 - v2; break;
@@ -152,6 +156,24 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op)
     return retval;
 }
 
+static void
+enforce_type(evaled_expr* e, u32 type_id)
+{
+    if (UNLIKELY(e->type_id != type_id))
+    {
+        d_type t_expected = g_types[type_id];
+        d_type t_got = g_types[e->type_id];
+
+        // TODO: lnum
+        error(get_lnum(e->node),
+              "expected type \"%s\" but got incompatible type \"%s\"",
+              t_expected.name, t_got.name);
+
+        // TODO: Set COMPUTE to true and add some fake value so that we carry on
+        //       with a compilation
+    }
+}
+
 static evaled_expr
 eval_expr(Expr e)
 {
@@ -161,6 +183,7 @@ eval_expr(Expr e)
     binary_int_op_t binintop;
     binary_bool_op_t binboolop;
 
+    retval.node = e;
     switch (e->kind) {
     case is_ELitTrue:
     case is_ELitFalse:
@@ -199,7 +222,8 @@ eval_expr(Expr e)
     case is_Not:
     {
         evaled_expr e1 = eval_expr(e->u.not_.expr_);
-        // TODO: Validate type
+        enforce_type(&e1, TYPEID_BOOL);
+
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue); // Already an lvalue
@@ -215,7 +239,8 @@ eval_expr(Expr e)
     case is_Neg:
     {
         evaled_expr e1 = eval_expr(e->u.not_.expr_);
-        // TODO: Validate type
+        enforce_type(&e1, TYPEID_INT);
+
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
             // TODO: Check overflow of -2kkk to positive value!!
@@ -292,7 +317,8 @@ eval_expr(Expr e)
     {
         evaled_expr e1 = eval_expr(binarg1);
         evaled_expr e2 = eval_expr(binarg2);
-        // TODO: Validate type
+        enforce_type(&e1, TYPEID_BOOL);
+        enforce_type(&e2, TYPEID_BOOL);
         if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
@@ -300,7 +326,7 @@ eval_expr(Expr e)
 
             mm v1 = e1.u.cnst.numeric_val;
             mm v2 = e2.u.cnst.numeric_val;
-            return compute_binary_boolean_expr(v1, v2, binboolop);
+            return compute_binary_boolean_expr(v1, v2, binboolop, e1.node);
         }
 
         retval.kind = EET_COMPUTE;
@@ -312,7 +338,8 @@ eval_expr(Expr e)
     {
         evaled_expr e1 = eval_expr(binarg1);
         evaled_expr e2 = eval_expr(binarg2);
-        // TODO: Validate type
+        enforce_type(&e1, TYPEID_INT);
+        enforce_type(&e2, TYPEID_INT);
         if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
@@ -320,7 +347,7 @@ eval_expr(Expr e)
 
             mm v1 = e1.u.cnst.numeric_val;
             mm v2 = e2.u.cnst.numeric_val;
-            return compute_binary_integer_expr(v1, v2, binintop);
+            return compute_binary_integer_expr(v1, v2, binintop, e1.node);
         }
 
         retval.kind = EET_COMPUTE;

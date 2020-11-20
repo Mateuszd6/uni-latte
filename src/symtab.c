@@ -36,13 +36,16 @@ add_primitive_types(void) // TODO: Rename add -> define?
 {
     assert(array_size(g_symtab) == 0); // Primitive types are first that we add
 
-    d_type builtin_type = { .lnum = 0, .is_primitive = 1 };
-    array_push(g_types, builtin_type);
-    array_push(g_types, builtin_type);
-    array_push(g_types, builtin_type);
-    array_push(g_types, builtin_type);
-
     char* names[] = {"void", "int", "boolean", "string"};
+    d_type builtin_types[COUNT_OF(names)];
+
+    for (mm i = 0; i < COUNT_OF(names); ++i)
+    {
+        d_type t = {.name = names[i], .lnum = 0, .is_primitive = 1};
+        builtin_types[i] = t;
+    }
+
+    array_pushn(g_types, builtin_types, 4);
     for (mm i = 0; i < COUNT_OF(names); ++i)
     {
         symbol s = { .type = S_TYPE, .id = (i32)i };
@@ -60,6 +63,7 @@ add_classes(Program p)
             continue;
 
         d_type new_class = {
+            .name = t->u.cldef_.ident_,
             .lnum = get_lnum(t->u.cldef_.clprops_),
             .is_primitive = 0
         };
