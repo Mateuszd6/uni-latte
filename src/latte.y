@@ -8,12 +8,13 @@
 extern int yyparse(void);
 extern int yylex(void);
 int yy_mylinenumber;
+extern void error(long line, char* fmt, ...);
 extern int initialize_lexer(FILE * inp);
 void yyerror(const char *str)
 {
   extern char *lattetext;
-  fprintf(stderr,"ERROR\n%s:%d: error: %s at %s\n", "TODO.lat",
-    yy_mylinenumber + 1, str, lattetext);
+  error(yy_mylinenumber + 1, "%s at %s",
+    str, lattetext);
 }
 
 Program YY_RESULT_Program_ = 0;

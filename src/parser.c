@@ -85,18 +85,15 @@ yyparse(void);
 extern int
 yylex(void);
 int yy_mylinenumber;
+extern void
+error(long line, char* fmt, ...);
 extern int
 initialize_lexer(FILE* inp);
 void
 yyerror(const char* str)
 {
     extern char* lattetext;
-    fprintf(stderr,
-            "ERROR\n%s:%d: error: %s at %s\n",
-            "TODO.lat",
-            yy_mylinenumber + 1,
-            str,
-            lattetext);
+    error(yy_mylinenumber + 1, "%s at %s", str, lattetext);
 }
 
 Program YY_RESULT_Program_ = 0;
@@ -484,7 +481,7 @@ reverseListClBody(ListClBody l)
     return prev;
 }
 
-#line 457 "src/parser.c"
+#line 458 "src/parser.c"
 
 #ifndef YY_CAST
 #ifdef __cplusplus
@@ -575,7 +572,7 @@ typedef enum yytokentype yytoken_kind_t;
 #if !defined YYSTYPE && !defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 382 "src/latte.y"
+#line 383 "src/latte.y"
 
     int int_;
     char char_;
@@ -602,7 +599,7 @@ union YYSTYPE
     RelOp relop_;
     EqOp eqop_;
 
-#line 577 "src/parser.c"
+#line 578 "src/parser.c"
 };
 typedef union YYSTYPE YYSTYPE;
 #define YYSTYPE_IS_TRIVIAL 1
@@ -1043,12 +1040,12 @@ static const yytype_int8 yytranslate[] = {
 #if YYDEBUG
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] = {
-    0,   489, 489, 491, 492, 494, 495, 497, 499, 500, 501, 503, 505, 506, 508,
-    509, 510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 520, 522, 523, 525,
-    526, 528, 529, 531, 532, 533, 535, 536, 538, 539, 541, 542, 543, 545, 546,
-    547, 548, 549, 550, 552, 553, 554, 556, 557, 559, 560, 562, 563, 565, 566,
-    567, 569, 570, 572, 573, 575, 576, 577, 579, 580, 582, 583, 585, 586, 588,
-    589, 591, 592, 593, 595, 596, 597, 598, 600, 601
+    0,   490, 490, 492, 493, 495, 496, 498, 500, 501, 502, 504, 506, 507, 509,
+    510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 520, 521, 523, 524, 526,
+    527, 529, 530, 532, 533, 534, 536, 537, 539, 540, 542, 543, 544, 546, 547,
+    548, 549, 550, 551, 553, 554, 555, 557, 558, 560, 561, 563, 564, 566, 567,
+    568, 570, 571, 573, 574, 576, 577, 578, 580, 581, 583, 584, 586, 587, 589,
+    590, 592, 593, 594, 596, 597, 598, 599, 601, 602
 };
 #endif
 
@@ -1741,694 +1738,694 @@ yyreduce:
     switch (yyn)
     {
         case 2:
-#line 489 "src/latte.y"
+#line 490 "src/latte.y"
         {
             (yyval.program_) = make_Prog((yyvsp[0].listtopdef_));
             YY_RESULT_Program_ = (yyval.program_);
         }
-#line 1757 "src/parser.c"
+#line 1758 "src/parser.c"
         break;
 
         case 3:
-#line 491 "src/latte.y"
+#line 492 "src/latte.y"
         {
             (yyval.topdef_) = make_FnDef((yyvsp[-5].type_),
                                          (yyvsp[-4].string_),
                                          (yyvsp[-2].listarg_),
                                          (yyvsp[0].block_));
         }
-#line 1763 "src/parser.c"
+#line 1764 "src/parser.c"
         break;
 
         case 4:
-#line 492 "src/latte.y"
+#line 493 "src/latte.y"
         {
             (yyval.topdef_) = make_ClDef((yyvsp[-4].string_),
                                          (yyvsp[-3].clprops_),
                                          (yyvsp[-1].listclbody_));
         }
-#line 1769 "src/parser.c"
+#line 1770 "src/parser.c"
         break;
 
         case 5:
-#line 494 "src/latte.y"
+#line 495 "src/latte.y"
         {
             (yyval.listtopdef_) = make_ListTopDef((yyvsp[0].topdef_), 0);
         }
-#line 1775 "src/parser.c"
+#line 1776 "src/parser.c"
         break;
 
         case 6:
-#line 495 "src/latte.y"
+#line 496 "src/latte.y"
         {
             (yyval.listtopdef_) =
               make_ListTopDef((yyvsp[-1].topdef_), (yyvsp[0].listtopdef_));
         }
-#line 1781 "src/parser.c"
+#line 1782 "src/parser.c"
         break;
 
         case 7:
-#line 497 "src/latte.y"
+#line 498 "src/latte.y"
         {
             (yyval.arg_) = make_Ar((yyvsp[-1].type_), (yyvsp[0].string_));
         }
-#line 1787 "src/parser.c"
+#line 1788 "src/parser.c"
         break;
 
         case 8:
-#line 499 "src/latte.y"
+#line 500 "src/latte.y"
         {
             (yyval.listarg_) = 0;
         }
-#line 1793 "src/parser.c"
+#line 1794 "src/parser.c"
         break;
 
         case 9:
-#line 500 "src/latte.y"
+#line 501 "src/latte.y"
         {
             (yyval.listarg_) = make_ListArg((yyvsp[0].arg_), 0);
         }
-#line 1799 "src/parser.c"
+#line 1800 "src/parser.c"
         break;
 
         case 10:
-#line 501 "src/latte.y"
+#line 502 "src/latte.y"
         {
             (yyval.listarg_) =
               make_ListArg((yyvsp[-2].arg_), (yyvsp[0].listarg_));
         }
-#line 1805 "src/parser.c"
+#line 1806 "src/parser.c"
         break;
 
         case 11:
-#line 503 "src/latte.y"
+#line 504 "src/latte.y"
         {
             (yyval.block_) = make_Blk(reverseListStmt((yyvsp[-1].liststmt_)));
         }
-#line 1811 "src/parser.c"
+#line 1812 "src/parser.c"
         break;
 
         case 12:
-#line 505 "src/latte.y"
+#line 506 "src/latte.y"
         {
             (yyval.liststmt_) = 0;
         }
-#line 1817 "src/parser.c"
+#line 1818 "src/parser.c"
         break;
 
         case 13:
-#line 506 "src/latte.y"
+#line 507 "src/latte.y"
         {
             (yyval.liststmt_) =
               make_ListStmt((yyvsp[0].stmt_), (yyvsp[-1].liststmt_));
         }
-#line 1823 "src/parser.c"
+#line 1824 "src/parser.c"
         break;
 
         case 14:
-#line 508 "src/latte.y"
+#line 509 "src/latte.y"
         {
             (yyval.stmt_) = make_Empty();
         }
-#line 1829 "src/parser.c"
+#line 1830 "src/parser.c"
         break;
 
         case 15:
-#line 509 "src/latte.y"
+#line 510 "src/latte.y"
         {
             (yyval.stmt_) = make_BStmt((yyvsp[0].block_));
         }
-#line 1835 "src/parser.c"
+#line 1836 "src/parser.c"
         break;
 
         case 16:
-#line 510 "src/latte.y"
+#line 511 "src/latte.y"
         {
             (yyval.stmt_) = make_Decl((yyvsp[-2].type_), (yyvsp[-1].listitem_));
         }
-#line 1841 "src/parser.c"
+#line 1842 "src/parser.c"
         break;
 
         case 17:
-#line 511 "src/latte.y"
+#line 512 "src/latte.y"
         {
             (yyval.stmt_) = make_Ass((yyvsp[-3].expr_), (yyvsp[-1].expr_));
         }
-#line 1847 "src/parser.c"
+#line 1848 "src/parser.c"
         break;
 
         case 18:
-#line 512 "src/latte.y"
+#line 513 "src/latte.y"
         {
             (yyval.stmt_) = make_Incr((yyvsp[-2].expr_));
         }
-#line 1853 "src/parser.c"
+#line 1854 "src/parser.c"
         break;
 
         case 19:
-#line 513 "src/latte.y"
+#line 514 "src/latte.y"
         {
             (yyval.stmt_) = make_Decr((yyvsp[-2].expr_));
         }
-#line 1859 "src/parser.c"
+#line 1860 "src/parser.c"
         break;
 
         case 20:
-#line 514 "src/latte.y"
+#line 515 "src/latte.y"
         {
             (yyval.stmt_) = make_Ret((yyvsp[-1].expr_));
         }
-#line 1865 "src/parser.c"
+#line 1866 "src/parser.c"
         break;
 
         case 21:
-#line 515 "src/latte.y"
+#line 516 "src/latte.y"
         {
             (yyval.stmt_) = make_VRet();
         }
-#line 1871 "src/parser.c"
+#line 1872 "src/parser.c"
         break;
 
         case 22:
-#line 516 "src/latte.y"
+#line 517 "src/latte.y"
         {
             (yyval.stmt_) = make_Cond((yyvsp[-2].expr_), (yyvsp[0].stmt_));
         }
-#line 1877 "src/parser.c"
+#line 1878 "src/parser.c"
         break;
 
         case 23:
-#line 517 "src/latte.y"
+#line 518 "src/latte.y"
         {
             (yyval.stmt_) = make_CondElse(
               (yyvsp[-4].expr_), (yyvsp[-2].stmt_), (yyvsp[0].stmt_));
         }
-#line 1883 "src/parser.c"
+#line 1884 "src/parser.c"
         break;
 
         case 24:
-#line 518 "src/latte.y"
+#line 519 "src/latte.y"
         {
             (yyval.stmt_) = make_While((yyvsp[-2].expr_), (yyvsp[0].stmt_));
         }
-#line 1889 "src/parser.c"
+#line 1890 "src/parser.c"
         break;
 
         case 25:
-#line 519 "src/latte.y"
+#line 520 "src/latte.y"
         {
             (yyval.stmt_) = make_For((yyvsp[-5].string_),
                                      (yyvsp[-4].string_),
                                      (yyvsp[-2].expr_),
                                      (yyvsp[0].stmt_));
         }
-#line 1895 "src/parser.c"
+#line 1896 "src/parser.c"
         break;
 
         case 26:
-#line 520 "src/latte.y"
+#line 521 "src/latte.y"
         {
             (yyval.stmt_) = make_SExp((yyvsp[-1].expr_));
         }
-#line 1901 "src/parser.c"
+#line 1902 "src/parser.c"
         break;
 
         case 27:
-#line 522 "src/latte.y"
+#line 523 "src/latte.y"
         {
             (yyval.item_) = make_NoInit((yyvsp[0].string_));
         }
-#line 1907 "src/parser.c"
+#line 1908 "src/parser.c"
         break;
 
         case 28:
-#line 523 "src/latte.y"
+#line 524 "src/latte.y"
         {
             (yyval.item_) = make_Init((yyvsp[-2].string_), (yyvsp[0].expr_));
         }
-#line 1913 "src/parser.c"
+#line 1914 "src/parser.c"
         break;
 
         case 29:
-#line 525 "src/latte.y"
+#line 526 "src/latte.y"
         {
             (yyval.listitem_) = make_ListItem((yyvsp[0].item_), 0);
         }
-#line 1919 "src/parser.c"
+#line 1920 "src/parser.c"
         break;
 
         case 30:
-#line 526 "src/latte.y"
+#line 527 "src/latte.y"
         {
             (yyval.listitem_) =
               make_ListItem((yyvsp[-2].item_), (yyvsp[0].listitem_));
         }
-#line 1925 "src/parser.c"
+#line 1926 "src/parser.c"
         break;
 
         case 31:
-#line 528 "src/latte.y"
+#line 529 "src/latte.y"
         {
             (yyval.type_) = make_TCls((yyvsp[0].string_));
         }
-#line 1931 "src/parser.c"
+#line 1932 "src/parser.c"
         break;
 
         case 32:
-#line 529 "src/latte.y"
+#line 530 "src/latte.y"
         {
             (yyval.type_) = make_TArr((yyvsp[-1].string_));
         }
-#line 1937 "src/parser.c"
+#line 1938 "src/parser.c"
         break;
 
         case 33:
-#line 531 "src/latte.y"
+#line 532 "src/latte.y"
         {
             (yyval.expr_) = make_EVar((yyvsp[0].string_));
         }
-#line 1943 "src/parser.c"
+#line 1944 "src/parser.c"
         break;
 
         case 34:
-#line 532 "src/latte.y"
+#line 533 "src/latte.y"
         {
             (yyval.expr_) = make_EApp((yyvsp[-3].expr_), (yyvsp[-1].listexpr_));
         }
-#line 1949 "src/parser.c"
+#line 1950 "src/parser.c"
         break;
 
         case 35:
-#line 533 "src/latte.y"
+#line 534 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[-1].expr_);
         }
-#line 1955 "src/parser.c"
+#line 1956 "src/parser.c"
         break;
 
         case 36:
-#line 535 "src/latte.y"
+#line 536 "src/latte.y"
         {
             (yyval.expr_) = make_EClMem((yyvsp[-2].expr_), (yyvsp[0].string_));
         }
-#line 1961 "src/parser.c"
+#line 1962 "src/parser.c"
         break;
 
         case 37:
-#line 536 "src/latte.y"
+#line 537 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 1967 "src/parser.c"
+#line 1968 "src/parser.c"
         break;
 
         case 38:
-#line 538 "src/latte.y"
+#line 539 "src/latte.y"
         {
             (yyval.expr_) = make_EArrApp((yyvsp[-3].expr_), (yyvsp[-1].expr_));
         }
-#line 1973 "src/parser.c"
+#line 1974 "src/parser.c"
         break;
 
         case 39:
-#line 539 "src/latte.y"
+#line 540 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 1979 "src/parser.c"
+#line 1980 "src/parser.c"
         break;
 
         case 40:
-#line 541 "src/latte.y"
+#line 542 "src/latte.y"
         {
             (yyval.expr_) = make_ENew((yyvsp[0].type_));
         }
-#line 1985 "src/parser.c"
+#line 1986 "src/parser.c"
         break;
 
         case 41:
-#line 542 "src/latte.y"
+#line 543 "src/latte.y"
         {
             (yyval.expr_) = make_ENewArr((yyvsp[-3].type_), (yyvsp[-1].expr_));
         }
-#line 1991 "src/parser.c"
+#line 1992 "src/parser.c"
         break;
 
         case 42:
-#line 543 "src/latte.y"
+#line 544 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 1997 "src/parser.c"
+#line 1998 "src/parser.c"
         break;
 
         case 43:
-#line 545 "src/latte.y"
+#line 546 "src/latte.y"
         {
             (yyval.expr_) = make_ELitInt((yyvsp[0].int_));
         }
-#line 2003 "src/parser.c"
+#line 2004 "src/parser.c"
         break;
 
         case 44:
-#line 546 "src/latte.y"
+#line 547 "src/latte.y"
         {
             (yyval.expr_) = make_ELitStr((yyvsp[0].string_));
         }
-#line 2009 "src/parser.c"
+#line 2010 "src/parser.c"
         break;
 
         case 45:
-#line 547 "src/latte.y"
+#line 548 "src/latte.y"
         {
             (yyval.expr_) = make_ELitTrue();
         }
-#line 2015 "src/parser.c"
+#line 2016 "src/parser.c"
         break;
 
         case 46:
-#line 548 "src/latte.y"
+#line 549 "src/latte.y"
         {
             (yyval.expr_) = make_ELitFalse();
         }
-#line 2021 "src/parser.c"
+#line 2022 "src/parser.c"
         break;
 
         case 47:
-#line 549 "src/latte.y"
+#line 550 "src/latte.y"
         {
             (yyval.expr_) = make_ENull();
         }
-#line 2027 "src/parser.c"
+#line 2028 "src/parser.c"
         break;
 
         case 48:
-#line 550 "src/latte.y"
+#line 551 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2033 "src/parser.c"
+#line 2034 "src/parser.c"
         break;
 
         case 49:
-#line 552 "src/latte.y"
+#line 553 "src/latte.y"
         {
             (yyval.expr_) = make_Neg((yyvsp[0].expr_));
         }
-#line 2039 "src/parser.c"
+#line 2040 "src/parser.c"
         break;
 
         case 50:
-#line 553 "src/latte.y"
+#line 554 "src/latte.y"
         {
             (yyval.expr_) = make_Not((yyvsp[0].expr_));
         }
-#line 2045 "src/parser.c"
+#line 2046 "src/parser.c"
         break;
 
         case 51:
-#line 554 "src/latte.y"
+#line 555 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2051 "src/parser.c"
+#line 2052 "src/parser.c"
         break;
 
         case 52:
-#line 556 "src/latte.y"
+#line 557 "src/latte.y"
         {
             (yyval.expr_) = make_ECast((yyvsp[-2].string_), (yyvsp[0].expr_));
         }
-#line 2057 "src/parser.c"
+#line 2058 "src/parser.c"
         break;
 
         case 53:
-#line 557 "src/latte.y"
+#line 558 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2063 "src/parser.c"
+#line 2064 "src/parser.c"
         break;
 
         case 54:
-#line 559 "src/latte.y"
+#line 560 "src/latte.y"
         {
             (yyval.expr_) = make_EMul(
               (yyvsp[-2].expr_), (yyvsp[-1].mulop_), (yyvsp[0].expr_));
         }
-#line 2069 "src/parser.c"
+#line 2070 "src/parser.c"
         break;
 
         case 55:
-#line 560 "src/latte.y"
+#line 561 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2075 "src/parser.c"
+#line 2076 "src/parser.c"
         break;
 
         case 56:
-#line 562 "src/latte.y"
+#line 563 "src/latte.y"
         {
             (yyval.expr_) = make_EAdd(
               (yyvsp[-2].expr_), (yyvsp[-1].addop_), (yyvsp[0].expr_));
         }
-#line 2081 "src/parser.c"
+#line 2082 "src/parser.c"
         break;
 
         case 57:
-#line 563 "src/latte.y"
+#line 564 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2087 "src/parser.c"
+#line 2088 "src/parser.c"
         break;
 
         case 58:
-#line 565 "src/latte.y"
+#line 566 "src/latte.y"
         {
             (yyval.expr_) = make_ERel(
               (yyvsp[-2].expr_), (yyvsp[-1].relop_), (yyvsp[0].expr_));
         }
-#line 2093 "src/parser.c"
+#line 2094 "src/parser.c"
         break;
 
         case 59:
-#line 566 "src/latte.y"
+#line 567 "src/latte.y"
         {
             (yyval.expr_) =
               make_EEq((yyvsp[-2].expr_), (yyvsp[-1].eqop_), (yyvsp[0].expr_));
         }
-#line 2099 "src/parser.c"
+#line 2100 "src/parser.c"
         break;
 
         case 60:
-#line 567 "src/latte.y"
+#line 568 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2105 "src/parser.c"
+#line 2106 "src/parser.c"
         break;
 
         case 61:
-#line 569 "src/latte.y"
+#line 570 "src/latte.y"
         {
             (yyval.expr_) = make_EAnd((yyvsp[-2].expr_), (yyvsp[0].expr_));
         }
-#line 2111 "src/parser.c"
+#line 2112 "src/parser.c"
         break;
 
         case 62:
-#line 570 "src/latte.y"
+#line 571 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2117 "src/parser.c"
+#line 2118 "src/parser.c"
         break;
 
         case 63:
-#line 572 "src/latte.y"
+#line 573 "src/latte.y"
         {
             (yyval.expr_) = make_EOr((yyvsp[-2].expr_), (yyvsp[0].expr_));
         }
-#line 2123 "src/parser.c"
+#line 2124 "src/parser.c"
         break;
 
         case 64:
-#line 573 "src/latte.y"
+#line 574 "src/latte.y"
         {
             (yyval.expr_) = (yyvsp[0].expr_);
         }
-#line 2129 "src/parser.c"
+#line 2130 "src/parser.c"
         break;
 
         case 65:
-#line 575 "src/latte.y"
+#line 576 "src/latte.y"
         {
             (yyval.listexpr_) = 0;
         }
-#line 2135 "src/parser.c"
+#line 2136 "src/parser.c"
         break;
 
         case 66:
-#line 576 "src/latte.y"
+#line 577 "src/latte.y"
         {
             (yyval.listexpr_) = make_ListExpr((yyvsp[0].expr_), 0);
         }
-#line 2141 "src/parser.c"
+#line 2142 "src/parser.c"
         break;
 
         case 67:
-#line 577 "src/latte.y"
+#line 578 "src/latte.y"
         {
             (yyval.listexpr_) =
               make_ListExpr((yyvsp[-2].expr_), (yyvsp[0].listexpr_));
         }
-#line 2147 "src/parser.c"
+#line 2148 "src/parser.c"
         break;
 
         case 68:
-#line 579 "src/latte.y"
+#line 580 "src/latte.y"
         {
             (yyval.clbody_) =
               make_CBVar((yyvsp[-2].type_), (yyvsp[-1].string_));
         }
-#line 2153 "src/parser.c"
+#line 2154 "src/parser.c"
         break;
 
         case 69:
-#line 580 "src/latte.y"
+#line 581 "src/latte.y"
         {
             (yyval.clbody_) = make_CBFnDef((yyvsp[-5].type_),
                                            (yyvsp[-4].string_),
                                            (yyvsp[-2].listarg_),
                                            (yyvsp[0].block_));
         }
-#line 2159 "src/parser.c"
+#line 2160 "src/parser.c"
         break;
 
         case 70:
-#line 582 "src/latte.y"
+#line 583 "src/latte.y"
         {
             (yyval.listclbody_) = make_ListClBody((yyvsp[0].clbody_), 0);
         }
-#line 2165 "src/parser.c"
+#line 2166 "src/parser.c"
         break;
 
         case 71:
-#line 583 "src/latte.y"
+#line 584 "src/latte.y"
         {
             (yyval.listclbody_) =
               make_ListClBody((yyvsp[-1].clbody_), (yyvsp[0].listclbody_));
         }
-#line 2171 "src/parser.c"
+#line 2172 "src/parser.c"
         break;
 
         case 72:
-#line 585 "src/latte.y"
+#line 586 "src/latte.y"
         {
             (yyval.clprops_) = make_CNone();
         }
-#line 2177 "src/parser.c"
+#line 2178 "src/parser.c"
         break;
 
         case 73:
-#line 586 "src/latte.y"
+#line 587 "src/latte.y"
         {
             (yyval.clprops_) = make_CExtends((yyvsp[0].string_));
         }
-#line 2183 "src/parser.c"
+#line 2184 "src/parser.c"
         break;
 
         case 74:
-#line 588 "src/latte.y"
+#line 589 "src/latte.y"
         {
             (yyval.addop_) = make_Plus();
         }
-#line 2189 "src/parser.c"
+#line 2190 "src/parser.c"
         break;
 
         case 75:
-#line 589 "src/latte.y"
+#line 590 "src/latte.y"
         {
             (yyval.addop_) = make_Minus();
         }
-#line 2195 "src/parser.c"
+#line 2196 "src/parser.c"
         break;
 
         case 76:
-#line 591 "src/latte.y"
+#line 592 "src/latte.y"
         {
             (yyval.mulop_) = make_Times();
         }
-#line 2201 "src/parser.c"
+#line 2202 "src/parser.c"
         break;
 
         case 77:
-#line 592 "src/latte.y"
+#line 593 "src/latte.y"
         {
             (yyval.mulop_) = make_Div();
         }
-#line 2207 "src/parser.c"
+#line 2208 "src/parser.c"
         break;
 
         case 78:
-#line 593 "src/latte.y"
+#line 594 "src/latte.y"
         {
             (yyval.mulop_) = make_Mod();
         }
-#line 2213 "src/parser.c"
+#line 2214 "src/parser.c"
         break;
 
         case 79:
-#line 595 "src/latte.y"
+#line 596 "src/latte.y"
         {
             (yyval.relop_) = make_LTH();
         }
-#line 2219 "src/parser.c"
+#line 2220 "src/parser.c"
         break;
 
         case 80:
-#line 596 "src/latte.y"
+#line 597 "src/latte.y"
         {
             (yyval.relop_) = make_LE();
         }
-#line 2225 "src/parser.c"
+#line 2226 "src/parser.c"
         break;
 
         case 81:
-#line 597 "src/latte.y"
+#line 598 "src/latte.y"
         {
             (yyval.relop_) = make_GTH();
         }
-#line 2231 "src/parser.c"
+#line 2232 "src/parser.c"
         break;
 
         case 82:
-#line 598 "src/latte.y"
+#line 599 "src/latte.y"
         {
             (yyval.relop_) = make_GE();
         }
-#line 2237 "src/parser.c"
+#line 2238 "src/parser.c"
         break;
 
         case 83:
-#line 600 "src/latte.y"
+#line 601 "src/latte.y"
         {
             (yyval.eqop_) = make_NE();
         }
-#line 2243 "src/parser.c"
+#line 2244 "src/parser.c"
         break;
 
         case 84:
-#line 601 "src/latte.y"
+#line 602 "src/latte.y"
         {
             (yyval.eqop_) = make_EQU();
         }
-#line 2249 "src/parser.c"
+#line 2250 "src/parser.c"
         break;
 
-#line 2253 "src/parser.c"
+#line 2254 "src/parser.c"
 
         default:
             break;

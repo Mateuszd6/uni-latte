@@ -54,7 +54,9 @@ grammar:
 	@-sed -i 's/\#include ".*/\L&/' ./src/parser.h
 	@-sed -i 's/\#include ".*/\L&/' ./src/latte.y
 	@-sed -i 's/\#include ".*/\L&/' ./src/latte.l
-	@-sed -i 's/fprintf(stderr,"error: line %d: %s at %s\\n",/fprintf(stderr,"ERROR\\n%s:%d: error: %s at %s\\n", "TODO.lat",/g' ./src/latte.y
+	@-sed -i 's/int yy_mylinenumber;/int yy_mylinenumber;\nextern void error(long line, char* fmt, ...);/g' ./src/latte.y
+	@-sed -i 's/fprintf(stderr,"error: line %d: %s at %s\\n",/error(yy_mylinenumber + 1, "%s at %s",/g' ./src/latte.y
+	@-sed -i 's/yy_mylinenumber + 1, str, lattetext/str, lattetext/g' ./src/latte.y
 	@-sed -i '4i#include "misc.h"' ./src/absyn.c
 	@-sed -i '/fprintf/d; /exit/d' ./src/absyn.c
 	@-sed -n -i '1h;1!H;$${;g;s/[ ]*if (!tmp)\n[ ]*{\n[ ]*}\n//g;p;}' ./src/absyn.c
