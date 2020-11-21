@@ -1,8 +1,10 @@
 // TODO:
+// * handle double error on parser errors.
 // * regenerate parser on students, b/c current have different bison version
 // * make a frontend.h/c file
 // * check if type error work fine for classes
 // * typecheck actual code
+// * looks like if a constant is too large, -1 is retuend, check and implement accordingly
 
 // TODO: Temprary.
 extern char const* __asan_default_options(void);
@@ -14,8 +16,8 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include <stdlib.h>
 #include <string.h>
 
-#include "absyn.h"
 #define ARRAY_STATIC
+#include "absyn.h"
 #include "array.h"
 #include "misc.h"
 #include "parser.h"
@@ -89,6 +91,13 @@ enum binary_bool_op_t
     BBOP_OR,
 };
 
+typedef enum binary_eq_op_t binary_eq_op_t;
+enum binary_eq_op_t
+{
+    BEOP_EQ,
+    BEOP_NEQ,
+};
+
 typedef struct evaled_expr evaled_expr;
 struct evaled_expr
 {
@@ -156,6 +165,33 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
     return retval;
 }
 
+static evaled_expr
+compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, binary_eq_op_t op, void* node)
+{
+    evaled_expr retval;
+    retval.type_id = TYPEID_BOOL;
+    retval.kind = EET_CONSTANT;
+    retval.is_lvalue = 0;
+    retval.node = node;
+    retval.u.cnst.numeric_val = !((op == BEOP_EQ) ^ (v1 == v2));
+
+    return retval;
+}
+
+static evaled_expr
+compute_binary_string_equality_expr(mm str1, mm str2, binary_eq_op_t op, void* node)
+{
+    b32 compre = strcmp(g_str_consts[str1].data, g_str_consts[str2].data) == 0;
+    evaled_expr retval;
+    retval.type_id = TYPEID_BOOL;
+    retval.kind = EET_CONSTANT;
+    retval.is_lvalue = 0;
+    retval.node = node;
+    retval.u.cnst.numeric_val = !((op == BEOP_EQ) ^ compre);
+
+    return retval;
+}
+
 static void
 enforce_type(evaled_expr* e, u32 type_id)
 {
@@ -170,8 +206,34 @@ enforce_type(evaled_expr* e, u32 type_id)
               t_expected.name, t_got.name);
 
         // TODO: Set COMPUTE to true and add some fake value so that we carry on
-        //       with a compilation
+        //       with a compilation Or move it outside the func, bc/
+        //       enforce_type_of can't do it
     }
+}
+
+static void
+enforce_type_of(evaled_expr* e, u32* type_ids, mm n_type_ids)
+{
+    for (mm i = 0; i < n_type_ids; ++i)
+        if (LIKELY(e->type_id == type_ids[i]))
+            return;
+
+    char buf[4096]; // TODO: may index-out
+    d_type t_got = g_types[e->type_id];
+    buf[0] = 0;
+    for (mm i = 1; i < n_type_ids; ++i)
+    {
+        d_type t_expected = g_types[type_ids[i]];
+
+        strcat(buf, ", \"");
+        strcat(buf, t_expected.name);
+        strcat(buf, "\"");
+    }
+
+    d_type first_t_expected = g_types[type_ids[0]];
+    error(get_lnum(e->node),
+          "expected one of \"%s\"%s but got incompatible type \"%s\"",
+          first_t_expected.name, buf, t_got.name);
 }
 
 static evaled_expr
@@ -231,6 +293,7 @@ eval_expr(Expr e)
             return e1;
         }
 
+        retval.type_id = TYPEID_BOOL;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
         return retval; // TODO
@@ -249,6 +312,7 @@ eval_expr(Expr e)
             return e1;
         }
 
+        retval.type_id = TYPEID_INT;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
         return retval; // TODO
@@ -329,6 +393,7 @@ eval_expr(Expr e)
             return compute_binary_boolean_expr(v1, v2, binboolop, e1.node);
         }
 
+        retval.type_id = TYPEID_BOOL;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
         return retval; // TODO
@@ -350,12 +415,105 @@ eval_expr(Expr e)
             return compute_binary_integer_expr(v1, v2, binintop, e1.node);
         }
 
+        // TODO: un-uglify
+        if (binintop == BIOP_LTH || binintop == BIOP_LE
+            || binintop == BIOP_GTH || binintop == BIOP_GE)
+        {
+            retval.type_id = TYPEID_BOOL;
+        }
+        else
+        {
+            assert(binintop == BIOP_ADD || binintop == BIOP_SUB
+                   || binintop == BIOP_MUL || binintop == BIOP_DIV
+                   || binintop == BIOP_MOD);
+            retval.type_id = TYPEID_INT;
+        }
+
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
         return retval; // TODO
     }
 
     case is_EEq:
+    {
+        evaled_expr e1 = eval_expr(e->u.eeq_.expr_1);
+        evaled_expr e2 = eval_expr(e->u.eeq_.expr_2);
+        binary_eq_op_t bineqop;
+        switch (e->u.eeq_.eqop_->kind) {
+        case is_NE: bineqop = BEOP_NEQ; break;
+        case is_EQU: bineqop = BEOP_EQ; break;
+        }
+
+        switch (e1.type_id) {
+        case TYPEID_INT:
+        {
+            enforce_type(&e2, TYPEID_INT);
+            if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
+                goto compute_contant_equality_int_or_bool;
+
+            retval.type_id = TYPEID_BOOL;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 0;
+            return retval; // TODO
+        }
+
+        case TYPEID_BOOL:
+        {
+            enforce_type(&e2, TYPEID_BOOL);
+            if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
+                goto compute_contant_equality_int_or_bool;
+
+            retval.type_id = TYPEID_BOOL;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 0;
+            return retval; // TODO
+        }
+
+        case TYPEID_STRING:
+        {
+            enforce_type(&e2, TYPEID_STRING);
+            if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
+                goto compute_contant_equality_string;
+
+            retval.type_id = TYPEID_BOOL;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 0;
+            return retval; // TODO
+        }
+
+        compute_contant_equality_int_or_bool:
+        {
+            assert(!e1.is_lvalue);
+            assert(!e2.is_lvalue);
+
+            mm v1 = e1.u.cnst.numeric_val;
+            mm v2 = e2.u.cnst.numeric_val;
+            return compute_binary_integer_or_boolean_equality_expr(v1, v2, bineqop, e1.node);
+        }
+
+        compute_contant_equality_string:
+        {
+            assert(!e1.is_lvalue);
+            assert(!e2.is_lvalue);
+
+            mm str1 = e1.u.cnst.str_const_id;
+            mm str2 = e2.u.cnst.str_const_id;
+            return compute_binary_string_equality_expr(str1, str2, bineqop, e1.node);
+        }
+
+        default:
+        {
+            // This will produce an error msg
+            u32 allowed_types[] = { TYPEID_INT, TYPEID_BOOL, TYPEID_STRING };
+            enforce_type_of(&e1, allowed_types, COUNT_OF(allowed_types));
+
+            // TODO: return something
+        } break;
+        }
+
+    } break;
+
+
     case is_EVar:
     case is_EApp:
     case is_ECast:
@@ -413,6 +571,7 @@ main(int argc, char** argv)
     }
 #endif
 
+#if 1
     printf("\n");
     Block blk = parse_tree->u.prog_.listtopdef_->topdef_->u.fndef_.block_;
     LIST_FOREACH(it, blk->u.blk_, liststmt_)
@@ -474,6 +633,7 @@ main(int argc, char** argv)
             NOTREACHED;
         }
     }
+#endif
 
     return 0;
 }
