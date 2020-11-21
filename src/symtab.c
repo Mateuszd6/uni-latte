@@ -158,10 +158,35 @@ add_global_funcs(Program p)
             array_push(arg_type_ids, arg);
         }
 
+        // Check if all parameter names are unique
+        mm n_args = array_size(arg_type_ids);
+        if (n_args)
+        {
+            char** arg_names = 0;
+            array_reserve(arg_names, n_args);
+            for (mm i = 0; i < n_args; ++i)
+                array_push(arg_names, arg_type_ids[i].name);
+
+            qsort(arg_names, (umm)n_args, sizeof(char*), qsort_strcmp);
+            for (mm i = 0; i < n_args - 1; ++i)
+            {
+                if (UNLIKELY(strcmp(arg_names[i], arg_names[i + 1]) == 0))
+                {
+                    error(get_lnum(t->u.fndef_.listarg_),
+                          "Redefinition of parameter \"%s\"",
+                          arg_names[i]);
+
+                    break; // TODO: Report all redefinitions, not just first one
+                }
+            }
+
+            array_free(arg_names);
+        }
+
         d_func f = {
             .lnum = get_lnum(t->u.fndef_.type_),
             .ret_type_id = type_id,
-            .num_args = (i32)array_size(arg_type_ids),
+            .num_args = (i32)n_args,
             .arg_type_ids = arg_type_ids,
         };
 

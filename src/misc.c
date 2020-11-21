@@ -6,6 +6,15 @@
 
 static i32 has_error = 0;
 
+static int
+qsort_strcmp(void const* lhs_p, void const* rhs_p)
+{
+    char const* lhs = *(char const* const*)(lhs_p);
+    char const* rhs = *(char const* const*)(rhs_p);
+
+    return strcmp(lhs, rhs);
+}
+
 extern void
 accept_input(void)
 {

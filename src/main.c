@@ -166,6 +166,35 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
 }
 
 static evaled_expr
+compute_binary_string_expr(mm str1, mm str2, void* node)
+{
+    evaled_expr retval;
+    retval.type_id = TYPEID_STRING;
+    retval.kind = EET_CONSTANT;
+    retval.is_lvalue = 0;
+    retval.node = node;
+
+    string_const s1 = g_str_consts[str1];
+    string_const s2 = g_str_consts[str2];
+
+    // TODO: This is allocated differently that strings hard-coded in code, and
+    //       won't be easy to free!
+    char* new_string = malloc((umm)(s1.len + s2.len + 1));
+    new_string[0] = 0;
+    strcat(new_string, s1.data);
+    strcat(new_string, s2.data);
+
+    string_const s;
+    s.data = new_string;
+    s.len = s1.len + s2.len;
+
+    retval.u.cnst.str_const_id = array_size(g_str_consts);
+    array_push(g_str_consts, s);
+
+    return retval;
+}
+
+static evaled_expr
 compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, binary_eq_op_t op, void* node)
 {
     evaled_expr retval;
@@ -403,8 +432,31 @@ eval_expr(Expr e)
     {
         evaled_expr e1 = eval_expr(binarg1);
         evaled_expr e2 = eval_expr(binarg2);
+
+        // This is the only case when an operator other that == and != is
+        // overloaded. IMO string concatenation should have separate operator
+        // (like '@'). Since this is a unique exception, we hack around it:
+        if (e1.type_id == TYPEID_STRING && binintop == BIOP_ADD)
+        {
+            enforce_type(&e2, TYPEID_STRING);
+            if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
+            {
+                assert(!e1.is_lvalue);
+                assert(!e2.is_lvalue);
+
+                mm str1 = e1.u.cnst.str_const_id;
+                mm str2 = e2.u.cnst.str_const_id;
+                return compute_binary_string_expr(str1, str2, e1.node);
+            }
+
+            retval.type_id = TYPEID_BOOL;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 0;
+            return retval; // TODO
+        }
+
         enforce_type(&e1, TYPEID_INT);
-        enforce_type(&e2, TYPEID_INT);
+        enforce_type(&e2, TYPEID_INT); // TODO: Avoid doubled error message if both types won't work with "+"?
         if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
@@ -513,9 +565,8 @@ eval_expr(Expr e)
 
     } break;
 
-
-    case is_EVar:
-    case is_EApp:
+    case is_EVar: // TODO
+    case is_EApp: // TODO
     case is_ECast:
     case is_EClMem:
     case is_EArrApp:
@@ -528,6 +579,66 @@ eval_expr(Expr e)
     NOTREACHED;
 };
 
+static void
+eval_stmt(Stmt s)
+{
+    printf("Statement (type: %d)\n", s->kind);
+
+    switch (s->kind) {
+    case is_SExp:
+    {
+        evaled_expr ee = eval_expr(s->u.sexp_.expr_);
+        printf("    Expression %s constant\n", ee.kind == EET_CONSTANT ? "IS" : "IS NOT");
+        printf("    Typed to %u (%s)\n",
+               ee.type_id,
+               (ee.type_id == 0
+                ? "void"
+                : (ee.type_id == 1
+                   ? "int"
+                   : (ee.type_id == 2
+                      ? "boolean"
+                      : (ee.type_id == 3 ? "string" : "reference")))));
+
+        if (ee.kind == EET_CONSTANT)
+        {
+            switch (ee.type_id) {
+            case TYPEID_INT:
+            case TYPEID_BOOL:
+            {
+                printf("    Evaluated to: %ld\n", ee.u.cnst.numeric_val);
+            } break;
+
+            case TYPEID_STRING:
+            {
+                printf("    Evaluated to: \"%s\"\n",
+                       g_str_consts[ee.u.cnst.str_const_id].data);
+            } break;
+
+            default:
+            {
+            } break;
+            }
+        }
+
+        printf("\n");
+    } break;
+
+    case is_Empty:
+    case is_BStmt:
+    case is_Decl:
+    case is_Ass:
+    case is_Incr:
+    case is_Decr:
+    case is_Ret:
+    case is_VRet:
+    case is_Cond:
+    case is_CondElse:
+    case is_While:
+    case is_For:
+        NOTREACHED;
+    }
+}
+
 int
 main(int argc, char** argv)
 {
@@ -535,7 +646,8 @@ main(int argc, char** argv)
         usage(argv[0]);
 
     Program parse_tree = parse_file(argv[1]);
-    if (!parse_tree) no_recover(); // TODO: "ERROR" is printed in the parser code
+    if (!parse_tree)
+        no_recover();
 
     add_primitive_types();
     add_classes(parse_tree);
@@ -544,7 +656,7 @@ main(int argc, char** argv)
     if (has_error)
         no_recover();
 
-    accept_input(); // TODO: Resurrect
+    accept_input();
 
 #if DEBUG
     printf("Types:\n");
@@ -571,69 +683,14 @@ main(int argc, char** argv)
     }
 #endif
 
-#if 1
     printf("\n");
+
     Block blk = parse_tree->u.prog_.listtopdef_->topdef_->u.fndef_.block_;
     LIST_FOREACH(it, blk->u.blk_, liststmt_)
     {
         Stmt s = it->stmt_;
-        printf("Statement (type: %d)\n", s->kind);
-
-        switch (s->kind) {
-        case is_SExp:
-        {
-            evaled_expr ee = eval_expr(s->u.sexp_.expr_);
-            printf("    Expression %s constant\n", ee.kind == EET_CONSTANT ? "IS" : "IS NOT");
-            printf("    Typed to %u (%s)\n",
-                   ee.type_id,
-                   (ee.type_id == 0
-                    ? "void"
-                    : (ee.type_id == 1
-                       ? "int"
-                       : (ee.type_id == 2
-                          ? "boolean"
-                          : (ee.type_id == 3 ? "string" : "reference")))));
-
-            if (ee.kind == EET_CONSTANT)
-            {
-                switch (ee.type_id) {
-                case TYPEID_INT:
-                case TYPEID_BOOL:
-                {
-                    printf("    Evaluated to: %ld\n", ee.u.cnst.numeric_val);
-                } break;
-
-                case TYPEID_STRING:
-                {
-                    printf("    Evaluated to: \"%s\"\n",
-                           g_str_consts[ee.u.cnst.str_const_id].data);
-                } break;
-
-                default:
-                {
-                } break;
-                }
-            }
-
-            printf("\n");
-        } break;
-
-        case is_Empty:
-        case is_BStmt:
-        case is_Decl:
-        case is_Ass:
-        case is_Incr:
-        case is_Decr:
-        case is_Ret:
-        case is_VRet:
-        case is_Cond:
-        case is_CondElse:
-        case is_While:
-        case is_For:
-            NOTREACHED;
-        }
+        eval_stmt(s);
     }
-#endif
 
     return 0;
 }

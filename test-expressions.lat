@@ -1,6 +1,6 @@
 int main()
 {
-    "foo" != "fooo";
+    "foo" + "fooo" == "foofooo";
 
     // 1 <= 4;
 
