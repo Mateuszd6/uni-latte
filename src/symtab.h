@@ -62,6 +62,13 @@ struct symbol_stack
     symbol* symbols;
 };
 
+typedef struct string_const string_const;
+struct string_const
+{
+    char* data;
+    mm len;
+};
+
 HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define symboltab_insert(HM, K, V) symboltab_insert_((void**)&(HM), K, V)
 #define symboltab_reserve(HM, N) symboltab_reserve_((void**)&(HM), N)
@@ -72,11 +79,19 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define TYPEID_BOOL (2)
 #define TYPEID_STRING (3)
 
+#define TYPEID_LAST_BUILTIN_TYPE TYPEID_STRING
+
 #define TYPEID_MASK (((u32)1 << 31) - 1)
 #define TYPEID_FLAG_ARRAY ((u32)1 << 31)
 
+#define EMPTY_STRING_CONSTANT_ID (0)
+
+#define FUNCID_NOTFOUND ((u32)-1)
+
+#define VARID_NOTFOUND ((u32)-1)
+
 static symbol symbol_get(char* name, void* node);
-static symbol get_shadowed_symbol(char* name);
+static symbol symbol_get_shadowed(char* name);
 static b32 symbol_push(char* name, symbol s);
 static void symbol_pop(char* name);
 

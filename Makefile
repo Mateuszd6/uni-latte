@@ -40,28 +40,53 @@ src/parser.c: src/latte.y
 
 grammar:
 	${BNFC} ${BNFC_FLAGS} -o ./src/ ./src/latte.cf
-	@-mv -f ./src/Absyn.h ./src/absyn.h
-	@-mv -f ./src/Absyn.c ./src/absyn.c
-	@-mv -f ./src/Parser.h ./src/parser.h
+
+    # Remove junk files
 	@-rm -f ./src/Printer.c
 	@-rm -f ./src/Printer.h
 	@-rm -f ./src/Skeleton.c
 	@-rm -f ./src/Skeleton.h
 	@-rm -f ./src/Test.c
 	@-rm -f ./src/*.bak # just.dont.do.it
+
+    # Don't use capital letters in filenames
+	@-mv -f ./src/Absyn.h ./src/absyn.h
+	@-mv -f ./src/Absyn.c ./src/absyn.c
+	@-mv -f ./src/Parser.h ./src/parser.h
+
+    # .. and in includes
 	@-sed -i 's/\#include ".*/\L&/' ./src/absyn.h
 	@-sed -i 's/\#include ".*/\L&/' ./src/absyn.c
 	@-sed -i 's/\#include ".*/\L&/' ./src/parser.h
 	@-sed -i 's/\#include ".*/\L&/' ./src/latte.y
 	@-sed -i 's/\#include ".*/\L&/' ./src/latte.l
+
+    # Replace very poor error handling in the bison file to match the
+    # requirements in the assignment
 	@-sed -i 's/int yy_mylinenumber;/int yy_mylinenumber;\nextern void error(long line, char* fmt, ...);/g' ./src/latte.y
 	@-sed -i 's/fprintf(stderr,"error: line %d: %s at %s\\n",/error(yy_mylinenumber + 1, "%s at %s",/g' ./src/latte.y
 	@-sed -i 's/yy_mylinenumber + 1, str, lattetext/str, lattetext/g' ./src/latte.y
+
+    # Add include of our misc definitions (for line numbers)
 	@-sed -i '4i#include "misc.h"' ./src/absyn.c
 	@-sed -i '/fprintf/d; /exit/d' ./src/absyn.c
 	@-sed -n -i '1h;1!H;$${;g;s/[ ]*if (!tmp)\n[ ]*{\n[ ]*}\n//g;p;}' ./src/absyn.c
+
+    # This replaces the default node allocation function with the one that saved line numbers
 	@-sed -i 's/malloc/alloc_ast_node/g' ./src/absyn.c
 
+    # Typedef to normal lowercase letters and avoid this horrible pointer typedefing
+	@-grep -oh "^struct [A-Za-z_]*" --color=never ./src/absyn.h \
+		| cut -c8- \
+		| sort \
+		| uniq \
+		| awk '{ while (match($$0, /(.*)([a-z0-9])([A-Z])(.*)/, cap)) \
+					$$stripped = cap[1] cap[2] "_" tolower(cap[3]) cap[4]; \
+					$$0 = "typedef " $$0 " " "ast_" substr(tolower($$stripped), 1, length($$stripped) - 1) ";" ; \
+					print \
+			   }' # TODO: add these to absync.h
+
+    # Format source files. Unfortunetly clang-format cannot format .y (bison) files...
 	${CFORMAT} ./src/parser.h
 	${CFORMAT} ./src/absyn.c
 	${CFORMAT} ./src/absyn.h

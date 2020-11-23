@@ -30,9 +30,10 @@ static symboltab_kvp* g_symtab = 0;
 static d_var* g_vars = 0;
 static d_func* g_funcs = 0;
 static d_type* g_types = 0;
+static string_const* g_str_consts = 0;
 
 static void
-add_primitive_types(void) // TODO: Rename add -> define?
+add_primitive_types(void) // TODO: Rename add -> define? TODO: This also adds other things!!
 {
     assert(array_size(g_symtab) == 0); // Primitive types are first that we add
 
@@ -51,6 +52,14 @@ add_primitive_types(void) // TODO: Rename add -> define?
         symbol s = { .type = S_TYPE, .id = (i32)i };
         symbol_push(names[i], s);
     }
+
+    string_const strc;
+    strc.data = malloc(1);
+    strc.data[0] = 0;
+    strc.len = 1;
+
+    assert(array_size(g_str_consts) == EMPTY_STRING_CONSTANT_ID);
+    array_push(g_str_consts, strc);
 }
 
 static void
@@ -78,7 +87,7 @@ add_classes(Program p)
         if (UNLIKELY(shadows))
         {
             // TODO: Make sure there are no symbols for func/vars yet!
-            symbol prev_sym = get_shadowed_symbol(t->u.cldef_.ident_);
+            symbol prev_sym = symbol_get_shadowed(t->u.cldef_.ident_);
             assert(prev_sym.type == S_TYPE);
 
             d_type type = g_types[prev_sym.id];
@@ -200,7 +209,7 @@ add_global_funcs(Program p)
         b32 shadows = symbol_push(t->u.fndef_.ident_, s);
         if (UNLIKELY(shadows))
         {
-            symbol prev_sym = get_shadowed_symbol(t->u.fndef_.ident_);
+            symbol prev_sym = symbol_get_shadowed(t->u.fndef_.ident_);
             assert(prev_sym.type == S_FUN || prev_sym.type == S_TYPE);
 
             if (prev_sym.type == S_FUN)
@@ -232,7 +241,7 @@ add_global_funcs(Program p)
 
 // Assumes that there is a shadowed symbol (stack is of size at least 2)
 static inline symbol
-get_shadowed_symbol(char* name)
+symbol_get_shadowed(char* name)
 {
     symbol* all_symbols = symboltab_findp(g_symtab, name)->symbols;
     assert(array_size(all_symbols) >= 2);
@@ -279,8 +288,8 @@ symbol_resolve_type(char* name, b32 is_array, void* node)
         } break;
         case S_VAR:
         {
-            error(get_lnum(node), "\"%s\" resolved to a function, when type was expected", name);
-            note(g_funcs[sym.id].lnum, "Function \"%s\" defined here", name);
+            error(get_lnum(node), "\"%s\" resolved to a variable, when type was expected", name);
+            // note(g_funcs[sym.id].lnum, "Variable \"%s\" defined here", name); // TODO
         } break;
 
         case S_TYPE:
@@ -290,6 +299,74 @@ symbol_resolve_type(char* name, b32 is_array, void* node)
     }
 
     return TYPEID_NOTFOUND;
+}
+
+static inline u32
+symbol_resolve_func(char* name, void* node)
+{
+    symbol sym = symbol_get(name, node);
+    if (LIKELY(sym.type == S_FUN))
+    {
+        return (u32)sym.id;
+    }
+    else
+    {
+        // TODO: Think about it, b/c maybe it is ok for var/func name to
+        //       coexists with a type name.
+        switch (sym.type) {
+        case S_TYPE:
+        {
+            error(get_lnum(node), "\"%s\" resolved to a type, when function was expected", name);
+            if (sym.id > TYPEID_LAST_BUILTIN_TYPE)
+                note(g_types[sym.id].lnum, "Type \"%s\" defined here", name);
+        } break;
+        case S_VAR:
+        {
+            error(get_lnum(node), "\"%s\" resolved to a variable, when type was expected", name);
+            note(g_funcs[sym.id].lnum, "Variable \"%s\" defined here", name); // TODO
+        } break;
+
+        case S_FUN:
+        case S_NONE:
+            NOTREACHED;
+        }
+    }
+
+    return FUNCID_NOTFOUND;
+}
+
+static inline u32
+symbol_resolve_var(char* name, void* node)
+{
+    symbol sym = symbol_get(name, node);
+    if (LIKELY(sym.type == S_VAR))
+    {
+        return (u32)sym.id;
+    }
+    else
+    {
+        // TODO: Think about it, b/c maybe it is ok for var/func name to
+        //       coexists with a type name.
+        switch (sym.type) {
+        case S_FUN:
+        {
+            error(get_lnum(node), "\"%s\" resolved to a function, when variable was expected", name);
+            note(g_funcs[sym.id].lnum, "Function \"%s\" defined here", name);
+        } break;
+        case S_TYPE:
+        {
+            error(get_lnum(node), "\"%s\" resolved to a type, when variable was expected", name);
+            if (sym.id > TYPEID_LAST_BUILTIN_TYPE)
+                note(g_types[sym.id].lnum, "Type \"%s\" defined here", name);
+        } break;
+
+        case S_VAR:
+        case S_NONE:
+            NOTREACHED;
+        }
+    }
+
+    return VARID_NOTFOUND;
 }
 
 // Return 1 if symbol shadows an existing symbol, 0 otherwise

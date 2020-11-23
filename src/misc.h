@@ -41,7 +41,7 @@ typedef i32 b32;
 #else
 #  define LIKELY(EXPR) (EXPR)
 #  define UNLIKELY(EXPR) (EXPR)
-#endif // (defined(__GNUC__) || defined(__clang__))
+#endif
 
 #if (defined(__GNUC__) || defined(__clang__))
 #  define NOINLINE __attribute__((noinline))
@@ -62,6 +62,8 @@ typedef i32 b32;
 #    define NOTREACHED ((void)0)
 #  endif
 #endif
+
+#define DEFAULT_NOTREACHED default: { NOTREACHED; } break
 
 // Let compiler know if the function wraps printf
 #if (defined(__GNUC__) || defined(__clang__))

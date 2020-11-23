@@ -130,7 +130,7 @@ struct node_lnum
     mm lnum;
 };
 
-static node_lnum* node_lnums = NULL;
+static node_lnum* node_lnums = 0;
 
 extern void*
 alloc_ast_node(size_t size)

@@ -1,5 +1,4 @@
 // TODO:
-// * handle double error on parser errors.
 // * regenerate parser on students, b/c current have different bison version
 // * make a frontend.h/c file
 // * check if type error work fine for classes
@@ -53,15 +52,6 @@ usage(char* argv0)
     printf("Usage: %s FILE\n", argv0);
     exit(1);
 }
-
-typedef struct string_const string_const;
-struct string_const
-{
-    char* data;
-    mm len;
-};
-
-static string_const* g_str_consts = 0;
 
 typedef enum evaled_expr_t evaled_expr_t; // TODO: Move
 enum evaled_expr_t
@@ -117,6 +107,64 @@ struct evaled_expr
         } cnst;
     } u;
 };
+
+typedef struct evaled_stmt evaled_stmt;
+struct evaled_stmt
+{
+    b32 all_branches_return;
+};
+
+// Assumes that the type exists
+static evaled_expr
+get_default_expr_constant(u32 type_id, void* node)
+{
+    evaled_expr retval;
+    retval.node = node;
+    retval.type_id = type_id;
+    retval.kind = EET_CONSTANT;
+    retval.is_lvalue = 0;
+
+    switch (type_id) {
+    case TYPEID_VOID:
+    {
+        // TODO: Do we even need void?
+        NOTREACHED;
+    }
+    case TYPEID_INT:
+    case TYPEID_BOOL:
+    {
+        retval.u.cnst.numeric_val = 0;
+        return retval;
+    }
+    case TYPEID_STRING:
+    {
+        retval.u.cnst.str_const_id = EMPTY_STRING_CONSTANT_ID;
+        return retval;
+    }
+    default:
+    {
+        if (type_id & TYPEID_FLAG_ARRAY)
+        {
+            // TODO: Return an empty array of type
+            NOTREACHED;
+        }
+        else
+        {
+            // TODO: Return a null of apropiate class type
+            NOTREACHED;
+        }
+    } break;
+    }
+}
+
+static evaled_stmt
+create_empty_statement(void)
+{
+    evaled_stmt retval;
+    retval.all_branches_return = 0;
+
+    return retval;
+}
 
 static evaled_expr
 compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
@@ -265,6 +313,8 @@ enforce_type_of(evaled_expr* e, u32* type_ids, mm n_type_ids)
           first_t_expected.name, buf, t_got.name);
 }
 
+// TODO: Rename eval_ -> ?
+
 static evaled_expr
 eval_expr(Expr e)
 {
@@ -369,8 +419,6 @@ eval_expr(Expr e)
         case is_Minus: binintop = BIOP_SUB; break;
         }
 
-        // TODO: If both args are strings and op is "+" jump to string addition
-
         goto binary_integer_expr;
     }
 
@@ -449,7 +497,7 @@ eval_expr(Expr e)
                 return compute_binary_string_expr(str1, str2, e1.node);
             }
 
-            retval.type_id = TYPEID_BOOL;
+            retval.type_id = TYPEID_STRING;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
             return retval; // TODO
@@ -565,7 +613,25 @@ eval_expr(Expr e)
 
     } break;
 
-    case is_EVar: // TODO
+    case is_EVar:
+    {
+        Ident var_name = e->u.evar_.ident_;
+        u32 var_id = symbol_resolve_var(var_name, e);
+        if (LIKELY(var_id != VARID_NOTFOUND))
+        {
+            d_var var = g_vars[var_id];
+            retval.type_id = var.type_id;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 1;
+            return retval; // TODO
+        }
+        else
+        {
+            // TODO: Do sonething reasonable here.
+            NOTREACHED;
+        }
+    } break;
+
     case is_EApp: // TODO
     case is_ECast:
     case is_EClMem:
@@ -579,12 +645,35 @@ eval_expr(Expr e)
     NOTREACHED;
 };
 
-static void
-eval_stmt(Stmt s)
+static evaled_stmt
+eval_stmt(Stmt s, u32 return_type)
 {
+    printf("--\n");
     printf("Statement (type: %d)\n", s->kind);
 
+    evaled_stmt retval;
     switch (s->kind) {
+    case is_Empty:
+    {
+        return create_empty_statement();
+    }
+
+    case is_BStmt:
+    {
+        Block b = s->u.bstmt_.block_;
+        assert(b->kind == is_Blk);
+
+        b32 all_branches_return = 0;
+        LIST_FOREACH(it, b->u.blk_, liststmt_)
+        {
+            evaled_stmt ev_s = eval_stmt(it->stmt_, return_type);
+            all_branches_return |= ev_s.all_branches_return;
+        }
+
+        retval.all_branches_return = all_branches_return;
+        return retval;
+    }
+
     case is_SExp:
     {
         evaled_expr ee = eval_expr(s->u.sexp_.expr_);
@@ -607,36 +696,252 @@ eval_stmt(Stmt s)
             {
                 printf("    Evaluated to: %ld\n", ee.u.cnst.numeric_val);
             } break;
-
             case TYPEID_STRING:
             {
                 printf("    Evaluated to: \"%s\"\n",
                        g_str_consts[ee.u.cnst.str_const_id].data);
             } break;
-
             default:
             {
-            } break;
+            } NOTREACHED;
             }
         }
 
-        printf("\n");
-    } break;
+        retval.all_branches_return = 0;
+        return retval;
+    }
 
-    case is_Empty:
-    case is_BStmt:
     case is_Decl:
+    {
+        Type var_type = s->u.decl_.type_;
+        char* type_name;
+        b32 is_array;
+        switch (var_type->kind) { // TODO: Copypaste
+        case is_TCls:
+        {
+            type_name = var_type->u.tcls_.ident_;
+            is_array = 0;
+        } break;
+        case is_TArr:
+        {
+            type_name = var_type->u.tarr_.ident_;
+            is_array = 1;
+        } break;
+        }
+
+        u32 type_id = symbol_resolve_type(type_name, is_array, var_type);
+        switch (type_id) {
+        case TYPEID_NOTFOUND:
+        {
+            type_id = TYPEID_INT; // Default to int in order to avoid errors
+        } break;
+        case TYPEID_VOID:
+        case TYPEID_VOID | TYPEID_FLAG_ARRAY:
+        {
+            error(get_lnum(var_type), "Cannot declare a variable of type \"void%s\"",
+                  type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+            type_id = TYPEID_VOID; // If void[] change to void, to aVOID errors
+        } break;
+        default:
+        {
+        } break;
+        }
+
+        LIST_FOREACH(it, s->u.decl_, listitem_)
+        {
+            Item i = it->item_;
+            char* vname;
+            evaled_expr vval;
+            switch (i->kind) {
+            case is_NoInit:
+            {
+                vname = i->u.noinit_.ident_;
+                vval = get_default_expr_constant(type_id, i);
+            } break;
+            case is_Init:
+            {
+                vname = i->u.init_.ident_;
+                vval = eval_expr(i->u.init_.expr_);
+
+                if (type_id != vval.type_id) // TODO: Handle the case with inheritance
+                {
+                    d_type expected_t = g_types[type_id];
+                    d_type got_t = g_types[vval.type_id];
+                    error(get_lnum(i),
+                          "Expression of type \"%s\" is initialized with uncompatible type \"%s\"\n",
+                          expected_t.name, got_t.name);
+                }
+            } break;
+            }
+
+            // Regardless of whether or not inicializing errored declare the
+            // variable with a type defined on the left, to avoid error cascade.
+            mm var_id = array_size(g_vars);
+            d_var var;
+            var.lnum = get_lnum(i);
+            var.type_id = type_id;
+            array_push(g_vars, var);
+
+            symbol sym;
+            sym.type = S_VAR;
+            sym.id = (i32)var_id;
+            symbol_push(vname, sym);
+
+
+            // TODO: Check if shadows or redefined in the same block
+            printf("Declaring variable of type %u%s named \"%s\"\n",
+                   type_id & TYPEID_MASK,
+                   type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
+                   vname);
+
+#if 1 // TODO: COPYPASTE, REMOVE
+            printf("    Initialized var %s constant\n", vval.kind == EET_CONSTANT ? "IS" : "IS NOT");
+            printf("    Typed to %u (%s)\n",
+                   vval.type_id,
+                   (vval.type_id == 0
+                    ? "void"
+                    : (vval.type_id == 1
+                       ? "int"
+                       : (vval.type_id == 2
+                          ? "boolean"
+                          : (vval.type_id == 3 ? "string" : "reference")))));
+
+            if (vval.kind == EET_CONSTANT)
+            {
+                switch (vval.type_id) {
+                case TYPEID_INT:
+                case TYPEID_BOOL:
+                {
+                    printf("    Evaluated to: %ld\n", vval.u.cnst.numeric_val);
+                } break;
+                case TYPEID_STRING:
+                {
+                    printf("    Evaluated to: \"%s\"\n",
+                           g_str_consts[vval.u.cnst.str_const_id].data);
+                } break;
+                default:
+                {
+                } NOTREACHED;
+                }
+            }
+#endif
+        }
+
+        retval.all_branches_return = 0;
+        return retval;
+    }
+
     case is_Ass:
-    case is_Incr:
-    case is_Decr:
-    case is_Ret:
+    {
+        evaled_expr e1 = eval_expr(s->u.ass_.expr_1);
+        evaled_expr e2 = eval_expr(s->u.ass_.expr_2);
+        if (UNLIKELY(!e1.is_lvalue))
+        {
+            error(get_lnum(e1.node), "Left side of assingment must be an lvalue");
+        }
+        else if (UNLIKELY(e1.type_id != e2.type_id)) // TODO: Handle the case with inheritance
+        {
+            d_type expected_t = g_types[e1.type_id];
+            d_type got_t = g_types[e2.type_id];
+            error(get_lnum(e2.node),
+                  "Variable of type \"%s\" is assigned with uncompatible type \"%s\"\n",
+                  expected_t.name, got_t.name);
+        }
+
+        retval.all_branches_return = 0;
+        return retval;
+    }
+
+    case is_Ret: // TODO: Return value
     case is_VRet:
-    case is_Cond:
+    {
+        evaled_expr e;
+        if (s->kind == is_VRet)
+        {
+            e.node = s;
+            e.type_id = TYPEID_VOID;
+            e.kind = EET_CONSTANT;
+            e.is_lvalue = 0;
+        }
+        else
+        {
+            e = eval_expr(s->u.ret_.expr_);
+        }
+
+        if (UNLIKELY(e.type_id != TYPEID_INT)) // TODO: Handle the case with inheritance
+        {
+            d_type expected_t = g_types[e.type_id];
+            d_type got_t = g_types[TYPEID_INT];
+            error(get_lnum(e.node),
+                  "Returning value of type \"%s\" incompatible with type \"%s\"\n",
+                  expected_t.name, got_t.name);
+        }
+
+        retval.all_branches_return = 1;
+        return retval;
+    }
+
+    case is_Cond: // TODO: If stmt
     case is_CondElse:
-    case is_While:
+    {
+        evaled_expr condex;
+        evaled_stmt s1;
+        evaled_stmt s2;
+        if (s->kind == is_CondElse)
+        {
+            condex = eval_expr(s->u.condelse_.expr_);
+            s1 = eval_stmt(s->u.condelse_.stmt_1, return_type);
+            s2 = eval_stmt(s->u.condelse_.stmt_2, return_type);
+        }
+        else
+        {
+            condex = eval_expr(s->u.condelse_.expr_);
+            s1 = eval_stmt(s->u.condelse_.stmt_1, return_type);
+            s2 = create_empty_statement();
+        }
+
+        retval.all_branches_return =
+            ((condex.kind == EET_CONSTANT && condex.u.cnst.numeric_val == 1 && s1.all_branches_return)
+             || (condex.kind == EET_CONSTANT && condex.u.cnst.numeric_val == 0 && s2.all_branches_return)
+             || (s1.all_branches_return && s2.all_branches_return));
+
+        return retval;
+    }
+
+    case is_Incr: // TODO: Later
+    case is_Decr:
+
+    case is_While: // TODO: Loops
     case is_For:
+
         NOTREACHED;
     }
+
+    return retval; // TODO: Should not be reached
+}
+
+static void
+eval_body(TopDef fundef)
+{
+    assert(fundef->kind == is_FnDef);
+    Ident fnname = fundef->u.fndef_.ident_;
+    u32 f_id = symbol_resolve_func(fnname, fundef);
+    assert(f_id != FUNCID_NOTFOUND);
+
+    u32 f_rettype_id = g_funcs[f_id].ret_type_id;
+    Block b = fundef->u.fndef_.block_;
+    assert(b->kind == is_Blk);
+
+    b32 all_branches_return = 0;
+    LIST_FOREACH(it, b->u.blk_, liststmt_)
+    {
+        Stmt st = it->stmt_;
+        evaled_stmt ev_s = eval_stmt(st, f_rettype_id);
+        all_branches_return |= ev_s.all_branches_return;
+    }
+
+    printf("  -- In function \"%s\" %s branches returns", fnname, all_branches_return ? "ALL" : "NOT ALL");
 }
 
 int
@@ -685,11 +990,17 @@ main(int argc, char** argv)
 
     printf("\n");
 
-    Block blk = parse_tree->u.prog_.listtopdef_->topdef_->u.fndef_.block_;
-    LIST_FOREACH(it, blk->u.blk_, liststmt_)
+    LIST_FOREACH(it, parse_tree->u.prog_, listtopdef_)
     {
-        Stmt s = it->stmt_;
-        eval_stmt(s);
+        TopDef t = it->topdef_;
+        if (t->kind != is_FnDef)
+            continue;
+
+        printf("-- ----------------------------------------------------------------\n");
+        printf("-- Evaluating body of function \"%s\"\n", t->u.fndef_.ident_);
+        printf("-- ----------------------------------------------------------------\n");
+
+        eval_body(t);
     }
 
     return 0;
