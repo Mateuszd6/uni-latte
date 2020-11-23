@@ -278,9 +278,10 @@ symbol_resolve_type(char* name, b32 is_array, void* node)
     }
     else
     {
-        // TODO: Think about it, b/c maybe it is ok for var/func name to
-        //       coexists with a type name.
         switch (sym.type) {
+        case S_NONE:
+        {
+        } break;
         case S_FUN:
         {
             error(get_lnum(node), "\"%s\" resolved to a function, when type was expected", name);
@@ -289,12 +290,9 @@ symbol_resolve_type(char* name, b32 is_array, void* node)
         case S_VAR:
         {
             error(get_lnum(node), "\"%s\" resolved to a variable, when type was expected", name);
-            // note(g_funcs[sym.id].lnum, "Variable \"%s\" defined here", name); // TODO
+            note(g_vars[sym.id].lnum, "Variable \"%s\" defined here", name);
         } break;
-
-        case S_TYPE:
-        case S_NONE:
-            NOTREACHED;
+        case S_TYPE: NOTREACHED;
         }
     }
 
@@ -311,9 +309,10 @@ symbol_resolve_func(char* name, void* node)
     }
     else
     {
-        // TODO: Think about it, b/c maybe it is ok for var/func name to
-        //       coexists with a type name.
         switch (sym.type) {
+        case S_NONE:
+        {
+        } break;
         case S_TYPE:
         {
             error(get_lnum(node), "\"%s\" resolved to a type, when function was expected", name);
@@ -323,12 +322,10 @@ symbol_resolve_func(char* name, void* node)
         case S_VAR:
         {
             error(get_lnum(node), "\"%s\" resolved to a variable, when type was expected", name);
-            note(g_funcs[sym.id].lnum, "Variable \"%s\" defined here", name); // TODO
+            note(g_vars[sym.id].lnum, "Variable \"%s\" defined here", name);
         } break;
 
-        case S_FUN:
-        case S_NONE:
-            NOTREACHED;
+        case S_FUN: NOTREACHED;
         }
     }
 
@@ -345,9 +342,10 @@ symbol_resolve_var(char* name, void* node)
     }
     else
     {
-        // TODO: Think about it, b/c maybe it is ok for var/func name to
-        //       coexists with a type name.
         switch (sym.type) {
+        case S_NONE:
+        {
+        } break;
         case S_FUN:
         {
             error(get_lnum(node), "\"%s\" resolved to a function, when variable was expected", name);
@@ -359,10 +357,7 @@ symbol_resolve_var(char* name, void* node)
             if (sym.id > TYPEID_LAST_BUILTIN_TYPE)
                 note(g_types[sym.id].lnum, "Type \"%s\" defined here", name);
         } break;
-
-        case S_VAR:
-        case S_NONE:
-            NOTREACHED;
+        case S_VAR: NOTREACHED;
         }
     }
 

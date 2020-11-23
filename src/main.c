@@ -627,10 +627,13 @@ eval_expr(Expr e)
         }
         else
         {
-            // TODO: Do sonething reasonable here.
-            NOTREACHED;
+            // TODO: This might not be the best thing to do here
+            retval.type_id = TYPEID_INT;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 1;
+            return retval; // TODO
         }
-    } break;
+    }
 
     case is_EApp: // TODO
     case is_ECast:
@@ -648,8 +651,10 @@ eval_expr(Expr e)
 static evaled_stmt
 eval_stmt(Stmt s, u32 return_type)
 {
+#if 0
     printf("--\n");
     printf("Statement (type: %d)\n", s->kind);
+#endif
 
     evaled_stmt retval;
     switch (s->kind) {
@@ -941,7 +946,8 @@ eval_body(TopDef fundef)
         all_branches_return |= ev_s.all_branches_return;
     }
 
-    printf("  -- In function \"%s\" %s branches returns", fnname, all_branches_return ? "ALL" : "NOT ALL");
+    if (!all_branches_return && f_rettype_id != TYPEID_VOID)
+        error(g_funcs[f_id].lnum, "Not all paths return a value");
 }
 
 int
@@ -961,9 +967,7 @@ main(int argc, char** argv)
     if (has_error)
         no_recover();
 
-    accept_input();
-
-#if DEBUG
+#if 0 && DEBUG
     printf("Types:\n");
     for (mm i = 0; i < array_size(g_types); ++i)
     {
@@ -986,9 +990,9 @@ main(int argc, char** argv)
                    a.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
         }
     }
+    printf("\n");
 #endif
 
-    printf("\n");
 
     LIST_FOREACH(it, parse_tree->u.prog_, listtopdef_)
     {
@@ -996,12 +1000,18 @@ main(int argc, char** argv)
         if (t->kind != is_FnDef)
             continue;
 
+#if 0
         printf("-- ----------------------------------------------------------------\n");
         printf("-- Evaluating body of function \"%s\"\n", t->u.fndef_.ident_);
         printf("-- ----------------------------------------------------------------\n");
+#endif
 
         eval_body(t);
     }
 
+    if (has_error)
+        no_recover();
+
+    accept_input();
     return 0;
 }
