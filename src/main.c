@@ -4,6 +4,8 @@
 // * check if type error work fine for classes
 // * typecheck actual code
 // * looks like if a constant is too large, -1 is retuend, check and implement accordingly
+// * void[] return type / param of the function? void arguments
+// * int main() { int int; int x; } allows to redefine int to a variable...
 
 // TODO: Temprary.
 extern char const* __asan_default_options(void);
@@ -240,6 +242,29 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     array_push(g_str_consts, s);
 
     return retval;
+}
+
+static i32 next_block_id = 1;
+static i32
+push_block(void)
+{
+    array_push(g_local_symbols, 0);
+    return next_block_id++;
+}
+
+static void
+pop_block(void)
+{
+    while (1)
+    {
+        mm size = array_size(g_local_symbols);
+        assert(size > 0);
+        char* popped = array_pop(g_local_symbols);
+        if (!popped) break;
+
+        printf("Popping variable: %s\n", popped);
+        symbol_pop(popped);
+    }
 }
 
 static evaled_expr
@@ -649,7 +674,7 @@ eval_expr(Expr e)
 };
 
 static evaled_stmt
-eval_stmt(Stmt s, u32 return_type)
+eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 {
 #if 0
     printf("--\n");
@@ -669,11 +694,13 @@ eval_stmt(Stmt s, u32 return_type)
         assert(b->kind == is_Blk);
 
         b32 all_branches_return = 0;
+        i32 new_block_id = push_block();
         LIST_FOREACH(it, b->u.blk_, liststmt_)
         {
-            evaled_stmt ev_s = eval_stmt(it->stmt_, return_type);
+            evaled_stmt ev_s = eval_stmt(it->stmt_, return_type, new_block_id);
             all_branches_return |= ev_s.all_branches_return;
         }
+        pop_block();
 
         retval.all_branches_return = all_branches_return;
         return retval;
@@ -782,17 +809,12 @@ eval_stmt(Stmt s, u32 return_type)
 
             // Regardless of whether or not inicializing errored declare the
             // variable with a type defined on the left, to avoid error cascade.
-            mm var_id = array_size(g_vars);
             d_var var;
             var.lnum = get_lnum(i);
             var.type_id = type_id;
-            array_push(g_vars, var);
+            var.block_id = cur_block_id;
 
-            symbol sym;
-            sym.type = S_VAR;
-            sym.id = (i32)var_id;
-            symbol_push(vname, sym);
-
+            push_var(var, vname, i);
 
             // TODO: Check if shadows or redefined in the same block
             printf("Declaring variable of type %u%s named \"%s\"\n",
@@ -896,13 +918,19 @@ eval_stmt(Stmt s, u32 return_type)
         if (s->kind == is_CondElse)
         {
             condex = eval_expr(s->u.condelse_.expr_);
-            s1 = eval_stmt(s->u.condelse_.stmt_1, return_type);
-            s2 = eval_stmt(s->u.condelse_.stmt_2, return_type);
+            i32 blk1 = push_block();
+            s1 = eval_stmt(s->u.condelse_.stmt_1, return_type, blk1);
+            pop_block();
+            i32 blk2 = push_block();
+            s2 = eval_stmt(s->u.condelse_.stmt_2, return_type, blk2);
+            pop_block();
         }
         else
         {
             condex = eval_expr(s->u.condelse_.expr_);
-            s1 = eval_stmt(s->u.condelse_.stmt_1, return_type);
+            i32 blk = push_block();
+            s1 = eval_stmt(s->u.condelse_.stmt_1, return_type, blk);
+            pop_block();
             s2 = create_empty_statement();
         }
 
@@ -934,20 +962,57 @@ eval_body(TopDef fundef)
     u32 f_id = symbol_resolve_func(fnname, fundef);
     assert(f_id != FUNCID_NOTFOUND);
 
+    i32 param_block_id = push_block(); // block in which params get defined
+    LIST_FOREACH(arg_it, fundef->u.fndef_, listarg_)
+    {
+        // TODO: Copypaste
+        Arg a = arg_it->arg_;
+        Ident aname = a->u.ar_.ident_;
+        Type atype = a->u.ar_.type_;
+        Ident arg_type_name;
+        b32 arg_is_array;
+        switch (atype->kind) {
+        case is_TCls:
+        {
+            arg_type_name = atype->u.tcls_.ident_;
+            arg_is_array = 0;
+        } break;
+        case is_TArr:
+        {
+            arg_type_name = atype->u.tarr_.ident_;
+            arg_is_array = 1;
+        } break;
+        }
+
+        u32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, arg_is_array, atype);
+        assert(arg_type_id != TYPEID_NOTFOUND); // Already checked earlier
+
+        d_var var;
+        var.lnum = get_lnum(a);
+        var.type_id = arg_type_id;
+        var.block_id = param_block_id;
+
+        push_var(var, aname, a);
+    }
+
     u32 f_rettype_id = g_funcs[f_id].ret_type_id;
     Block b = fundef->u.fndef_.block_;
-    assert(b->kind == is_Blk);
-
     b32 all_branches_return = 0;
+    i32 body_block_id = push_block(); // block where body is parsed (so args can be shadowed)
+    assert(b->kind == is_Blk);
     LIST_FOREACH(it, b->u.blk_, liststmt_)
     {
         Stmt st = it->stmt_;
-        evaled_stmt ev_s = eval_stmt(st, f_rettype_id);
+        evaled_stmt ev_s = eval_stmt(st, f_rettype_id, body_block_id);
         all_branches_return |= ev_s.all_branches_return;
     }
 
+    // One for param_block one for body_block
+    pop_block();
+    pop_block();
+
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
-        error(g_funcs[f_id].lnum, "Not all paths return a value");
+        error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
 }
 
 int

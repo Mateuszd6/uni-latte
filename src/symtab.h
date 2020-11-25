@@ -30,6 +30,7 @@ struct d_var
 {
     i32 lnum;
     u32 type_id;
+    i32 block_id;
 };
 
 typedef struct d_func_arg d_func_arg;
@@ -90,7 +91,7 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 
 #define VARID_NOTFOUND ((u32)-1)
 
-static symbol symbol_get(char* name, void* node);
+static symbol symbol_get(char* name, void* node, b32 report_error);
 static symbol symbol_get_shadowed(char* name);
 static b32 symbol_push(char* name, symbol s);
 static void symbol_pop(char* name);

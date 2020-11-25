@@ -28,7 +28,8 @@ HASHMAP_DEFINE(symboltab, char*, symbol_stack, str_cmp, str_hash);
 
 static symboltab_kvp* g_symtab = 0;
 static d_var* g_vars = 0;
-static d_func* g_funcs = 0;
+static char** g_local_symbols = 0; // symbols to pop, when leaving a scope,
+static d_func* g_funcs = 0;        // NULL means break in the scopes
 static d_type* g_types = 0;
 static string_const* g_str_consts = 0;
 
@@ -239,6 +240,70 @@ add_global_funcs(Program p)
     }
 }
 
+static inline i32
+push_var(d_var var, char* vname, void* node)
+{
+    symbol prev_decl = symbol_get(vname, node, 0);
+    switch (prev_decl.type) {
+    case S_NONE:
+    {
+        // No shadow, nothing to do
+    } break;
+    case S_VAR:
+    {
+        d_var v = g_vars[prev_decl.id];
+        if (UNLIKELY(v.block_id) == var.block_id) // Redefinition, not just shadowing
+        {
+            error(get_lnum(node), "Variable \"%s\" redefined in the same block", vname);
+            note(v.lnum, "Variable \"%s\" declared here", vname);
+
+            // TODO: error, don't push
+        }
+        else
+        {
+            warn(get_lnum(node), "Variable \"%s\" shadows an existing variable", vname);
+            note(v.lnum, "Variable \"%s\" declared here", vname);
+        }
+    } break;
+    case S_FUN:
+    {
+        d_func f = g_funcs[prev_decl.id];
+        error(get_lnum(node), "Variable \"%s\" cannot have same name as a function", vname);
+        note(f.lnum, "Function \"%s\" declared here", vname);
+
+        // TODO: error, don't push
+    } break;
+
+    case S_TYPE:
+    {
+        if (prev_decl.id <= TYPEID_LAST_BUILTIN_TYPE)
+        {
+            error(get_lnum(node), "Variable \"%s\" cannot have same name as a builtin type", vname);
+        }
+        else
+        {
+            d_type t = g_types[prev_decl.id];
+            error(get_lnum(node), "Variable \"%s\" cannot have same name as a class", vname);
+            note(t.lnum, "Class \"%s\" declared here", vname);
+        }
+
+        // TODO: error, don't push
+    } break;
+    }
+
+    mm var_id = array_size(g_vars);
+    array_push(g_vars, var);
+
+    symbol sym;
+    sym.type = S_VAR;
+    sym.id = (i32)var_id;
+    symbol_push(vname, sym);
+
+    array_push(g_local_symbols, vname);
+
+    return (i32)var_id;
+}
+
 // Assumes that there is a shadowed symbol (stack is of size at least 2)
 static inline symbol
 symbol_get_shadowed(char* name)
@@ -252,12 +317,14 @@ symbol_get_shadowed(char* name)
 }
 
 static inline symbol
-symbol_get(char* name, void* node)
+symbol_get(char* name, void* node, b32 report_error)
 {
     symbol_stack* stack = symboltab_findp(g_symtab, name);
     if (!stack)
     {
-        error(get_lnum(node), "use of undeclared identifier \"%s\"", name);
+        if (report_error)
+            error(get_lnum(node), "use of undeclared identifier \"%s\"", name);
+
         symbol dummy_sym = { .type = S_NONE };
         return dummy_sym;
     }
@@ -271,7 +338,7 @@ symbol_get(char* name, void* node)
 static inline u32
 symbol_resolve_type(char* name, b32 is_array, void* node)
 {
-    symbol sym = symbol_get(name, node);
+    symbol sym = symbol_get(name, node, 1);
     if (LIKELY(sym.type == S_TYPE))
     {
         return (u32)sym.id | (is_array ? TYPEID_FLAG_ARRAY : 0);
@@ -302,7 +369,7 @@ symbol_resolve_type(char* name, b32 is_array, void* node)
 static inline u32
 symbol_resolve_func(char* name, void* node)
 {
-    symbol sym = symbol_get(name, node);
+    symbol sym = symbol_get(name, node, 1);
     if (LIKELY(sym.type == S_FUN))
     {
         return (u32)sym.id;
@@ -335,7 +402,7 @@ symbol_resolve_func(char* name, void* node)
 static inline u32
 symbol_resolve_var(char* name, void* node)
 {
-    symbol sym = symbol_get(name, node);
+    symbol sym = symbol_get(name, node, 1);
     if (LIKELY(sym.type == S_VAR))
     {
         return (u32)sym.id;
