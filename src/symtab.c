@@ -33,27 +33,22 @@ static d_func* g_funcs = 0;        // NULL means break in the scopes
 static d_type* g_types = 0;
 static string_const* g_str_consts = 0;
 
-static void
-add_primitive_types(void) // TODO: Rename add -> define? TODO: This also adds other things!!
+static b32
+create_func(d_func f, char* name)
 {
-    assert(array_size(g_symtab) == 0); // Primitive types are first that we add
+    symbol s = {
+        .type = S_FUN,
+        .id = (i32)array_size(g_funcs),
+    };
 
-    char* names[] = {"void", "int", "boolean", "string"};
-    d_type builtin_types[COUNT_OF(names)];
+    array_push(g_funcs, f);
+    b32 shadows = symbol_push(name, s);
+    return shadows;
+}
 
-    for (mm i = 0; i < COUNT_OF(names); ++i)
-    {
-        d_type t = {.name = names[i], .lnum = 0, .is_primitive = 1};
-        builtin_types[i] = t;
-    }
-
-    array_pushn(g_types, builtin_types, 4);
-    for (mm i = 0; i < COUNT_OF(names); ++i)
-    {
-        symbol s = { .type = S_TYPE, .id = (i32)i };
-        symbol_push(names[i], s);
-    }
-
+static void
+define_primitive_constants(void)
+{
     string_const strc;
     strc.data = malloc(1);
     strc.data[0] = 0;
@@ -61,6 +56,95 @@ add_primitive_types(void) // TODO: Rename add -> define? TODO: This also adds ot
 
     assert(array_size(g_str_consts) == EMPTY_STRING_CONSTANT_ID);
     array_push(g_str_consts, strc);
+}
+
+static void
+define_primitive_types(void)
+{
+    assert(array_size(g_symtab) == 0); // Primitive types are first that we add
+
+    char* type_names[] = {"void", "int", "boolean", "string"};
+    d_type builtin_types[COUNT_OF(type_names)];
+
+    for (mm i = 0; i < COUNT_OF(type_names); ++i)
+    {
+        d_type t = {.name = type_names[i], .lnum = 0, .is_primitive = 1};
+        builtin_types[i] = t;
+    }
+
+    array_pushn(g_types, builtin_types, 4);
+    for (mm i = 0; i < COUNT_OF(type_names); ++i)
+    {
+        symbol s = { .type = S_TYPE, .id = (i32)i };
+        symbol_push(type_names[i], s);
+    }
+}
+
+static void
+define_primitive_functions(void)
+{
+    assert(array_size(g_funcs) == 0); // Primitive funcs are first that we add
+    char* fun_names[] = { "printInt", "printString", "error", "readInt", "readString" };
+
+    d_func_arg* argsof_printInt = 0;
+    d_func_arg a1 = { .name = "_int", .type_id = TYPEID_INT };
+    array_push(argsof_printInt, a1);
+
+    d_func_arg* argsof_printString = 0;
+    d_func_arg a2 = { .name = "_string", .type_id = TYPEID_STRING };
+    array_push(argsof_printString, a2);
+
+    d_func f[] = {
+        // void printInt(int)
+        {
+            .lnum = 0,
+            .ret_type_id = TYPEID_VOID,
+            .num_args = 1,
+            .arg_type_ids = argsof_printInt,
+        },
+        // void printString(string)
+        {
+            .lnum = 0,
+            .ret_type_id = TYPEID_VOID,
+            .num_args = 1,
+            .arg_type_ids = argsof_printString,
+        },
+        // void error()
+        {
+            .lnum = 0,
+            .ret_type_id = TYPEID_VOID,
+            .num_args = 0,
+            .arg_type_ids = 0,
+        },
+        // int readInt()
+        {
+            .lnum = 0,
+            .ret_type_id = TYPEID_INT,
+            .num_args = 0,
+            .arg_type_ids = 0,
+        },
+        // string readString()
+        {
+            .lnum = 0,
+            .ret_type_id = TYPEID_STRING,
+            .num_args = 0,
+            .arg_type_ids = 0,
+        },
+    };
+
+    for (mm i = 0; i < COUNT_OF(f); ++i)
+    {
+        b32 shadows = create_func(f[i], fun_names[i]);
+        assert(!shadows);
+    }
+}
+
+static void
+define_primitives()
+{
+    define_primitive_constants();
+    define_primitive_types();
+    define_primitive_functions();
 }
 
 static void
@@ -111,7 +195,6 @@ add_classes(Program p)
 static void
 add_global_funcs(Program p)
 {
-    assert(array_size(g_funcs) == 0); // Global funcs are first that we add
     LIST_FOREACH(it, p->u.prog_, listtopdef_)
     {
         TopDef t = it->topdef_;
@@ -138,6 +221,12 @@ add_global_funcs(Program p)
         if (type_id == TYPEID_NOTFOUND)
             type_id = TYPEID_INT;
 
+        if (type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+        {
+            error(get_lnum(retval_type), "Return type void[] is not allowed");
+            type_id = TYPEID_INT;
+        }
+
         d_func_arg* arg_type_ids = 0;
         LIST_FOREACH(arg_it, t->u.fndef_, listarg_)
         {
@@ -163,6 +252,14 @@ add_global_funcs(Program p)
             u32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, arg_is_array, atype);
             if (arg_type_id == TYPEID_NOTFOUND)
                 arg_type_id = TYPEID_INT;
+
+            if (arg_type_id == TYPEID_VOID || arg_type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+            {
+                error(get_lnum(a), "Parameter type void%s is not allowed",
+                      arg_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+                arg_type_id = TYPEID_INT;
+            }
 
             d_func_arg arg = { .name = aname, .type_id = arg_type_id };
             array_push(arg_type_ids, arg);
@@ -200,14 +297,7 @@ add_global_funcs(Program p)
             .arg_type_ids = arg_type_ids,
         };
 
-        array_push(g_funcs, f);
-
-        symbol s = {
-            .type = S_FUN,
-            .id = (i32)(array_size(g_funcs) - 1)
-        };
-
-        b32 shadows = symbol_push(t->u.fndef_.ident_, s);
+        b32 shadows = create_func(f, t->u.fndef_.ident_);
         if (UNLIKELY(shadows))
         {
             symbol prev_sym = symbol_get_shadowed(t->u.fndef_.ident_);
@@ -232,7 +322,6 @@ add_global_funcs(Program p)
                 else
                 {
                     error(f.lnum, "Cannot name a function after a builtin type \"%s\"", t->u.fndef_.ident_);
-
                     symbol_pop(t->u.fndef_.ident_);
                 }
             }

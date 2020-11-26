@@ -6,6 +6,8 @@
 // * looks like if a constant is too large, -1 is retuend, check and implement accordingly
 // * void[] return type / param of the function? void arguments
 // * int main() { int int; int x; } allows to redefine int to a variable...
+// * tests: void type everywhere!
+// * tests: void[] type everywhere!
 
 // TODO: Temprary.
 extern char const* __asan_default_options(void);
@@ -248,7 +250,7 @@ static i32 next_block_id = 1;
 static i32
 push_block(void)
 {
-    array_push(g_local_symbols, 0);
+    array_push(g_local_symbols, 0); // null is used to makr that the block ends
     return next_block_id++;
 }
 
@@ -661,6 +663,62 @@ eval_expr(Expr e)
     }
 
     case is_EApp: // TODO
+    {
+        Expr invoked = e->u.eapp_.expr_;
+        d_func f;
+        switch (invoked->kind) {
+        case is_EVar:
+        {
+            u32 func_id = symbol_resolve_func(invoked->u.evar_.ident_, invoked);
+            if (func_id == FUNCID_NOTFOUND)
+                func_id = 0; // TODO: This is baaad, maybe just return something instead?
+
+            f = g_funcs[func_id];
+        } break;
+        default:
+        {
+            // TODO: This is actually a syntax error, but whatever, try to do
+            // something reasonable with it
+            NOTREACHED;
+        }
+        }
+
+        i32 n_given_args = 0;
+        LIST_FOREACH(it, e->u.eapp_, listexpr_)
+        {
+            if (LIKELY(n_given_args < f.num_args)) // if not too many args given
+            {
+                Expr argexpr = it->expr_;
+                evaled_expr argexpr_e = eval_expr(argexpr);
+                u32 expected_type_id = f.arg_type_ids[n_given_args].type_id;
+
+                if (argexpr_e.type_id != expected_type_id) // TODO: Handle inheritance
+                {
+                    d_type t_expected = g_types[expected_type_id];
+                    d_type t_provided = g_types[argexpr_e.type_id];
+
+                    error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type %s",
+                          invoked->u.evar_.ident_, n_given_args + 1, t_expected.name);
+
+                    note(get_lnum(argexpr), "Given expression of type %s, which is not assignable to type %s",
+                         t_provided.name, t_expected.name);
+                }
+            }
+
+            n_given_args++;
+        }
+
+        if (n_given_args != f.num_args)
+        {
+            error(get_lnum(invoked), "Function \"%s\" takes %d arguments, but %d were provided.",
+                  invoked->u.evar_.ident_, f.num_args, n_given_args);
+        }
+
+        retval.type_id = f.ret_type_id;
+        retval.kind = EET_COMPUTE;
+        return retval;
+    }
+
     case is_ECast:
     case is_EClMem:
     case is_EArrApp:
@@ -709,6 +767,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     case is_SExp:
     {
         evaled_expr ee = eval_expr(s->u.sexp_.expr_);
+#if 0
         printf("    Expression %s constant\n", ee.kind == EET_CONSTANT ? "IS" : "IS NOT");
         printf("    Typed to %u (%s)\n",
                ee.type_id,
@@ -719,6 +778,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                    : (ee.type_id == 2
                       ? "boolean"
                       : (ee.type_id == 3 ? "string" : "reference")))));
+#endif
 
         if (ee.kind == EET_CONSTANT)
         {
@@ -896,7 +956,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             e = eval_expr(s->u.ret_.expr_);
         }
 
-        if (UNLIKELY(e.type_id != TYPEID_INT)) // TODO: Handle the case with inheritance
+        if (UNLIKELY(e.type_id != return_type)) // TODO: Handle the case with inheritance
         {
             d_type expected_t = g_types[e.type_id];
             d_type got_t = g_types[TYPEID_INT];
@@ -942,8 +1002,20 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         return retval;
     }
 
-    case is_Incr: // TODO: Later
+    case is_Incr:
     case is_Decr:
+    {
+        Expr e = s->kind == is_Incr ? s->u.incr_.expr_ : s->u.decr_.expr_;
+        evaled_expr evaled_e = eval_expr(e);
+        if (evaled_e.type_id != TYPEID_INT || evaled_e.is_lvalue)
+        {
+            error(get_lnum(e), "Left-hand-side of %s must be an lvalue of type \"int\"",
+                  s->kind == is_Incr ? "incrementation" : "decrementation");
+        }
+
+        retval.all_branches_return = 0;
+        return retval;
+    }
 
     case is_While: // TODO: Loops
     case is_For:
@@ -1025,8 +1097,7 @@ main(int argc, char** argv)
     if (!parse_tree)
         no_recover();
 
-    add_primitive_types();
-    add_classes(parse_tree);
+    define_primitives();
     add_global_funcs(parse_tree);
 
     if (has_error)

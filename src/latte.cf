@@ -37,7 +37,7 @@ TCls.      Type ::= Ident ;
 TArr.      Type ::= Ident "[]" ;
 
 -- Expressions ---------------------------------------------
-EVar.      Expr11 ::= Ident ;
+EVar.      Expr11 ::= Ident ; -- Rename to VarOfFunc? B/c it can also be a function name
 EApp.      Expr11 ::= Expr10 "(" [Expr] ")" ;
 EClMem.    Expr10 ::= Expr9 "." Ident ;
 EArrApp.   Expr9 ::= Expr8 "[" Expr "]" ;
