@@ -1,0 +1,8 @@
+int main()
+{
+    while (1)
+    {
+        printString("Oh, cmon");
+    }
+    return 0;
+}

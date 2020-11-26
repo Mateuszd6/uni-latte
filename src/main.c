@@ -1007,7 +1007,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     {
         Expr e = s->kind == is_Incr ? s->u.incr_.expr_ : s->u.decr_.expr_;
         evaled_expr evaled_e = eval_expr(e);
-        if (evaled_e.type_id != TYPEID_INT || evaled_e.is_lvalue)
+        if (evaled_e.type_id != TYPEID_INT || !evaled_e.is_lvalue)
         {
             error(get_lnum(e), "Left-hand-side of %s must be an lvalue of type \"int\"",
                   s->kind == is_Incr ? "incrementation" : "decrementation");
@@ -1018,9 +1018,36 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     }
 
     case is_While: // TODO: Loops
-    case is_For:
+    {
+        Expr condexpr = s->u.while_.expr_;
+        evaled_expr condexpr_e = eval_expr(condexpr);
 
-        NOTREACHED;
+        i32 block_id = push_block();
+        Stmt lbody = s->u.while_.stmt_;
+        evaled_stmt lbody_e = eval_stmt(lbody, return_type, block_id);
+        pop_block();
+
+        if (condexpr_e.type_id != TYPEID_BOOL)
+        {
+            d_type t_given = g_types[condexpr_e.type_id];
+            error(get_lnum(condexpr),
+                  "Loop condition has a type %s, when boolean was expected",
+                  t_given.name);
+        }
+
+        // Don't report missing reutrn if loop condition is always true -
+        // function will never reach its end. We don't really care what returns
+        // in the body, because we may still never enter the loop itself.
+        retval.all_branches_return = (condexpr_e.kind == EET_CONSTANT
+                                      && condexpr_e.type_id == TYPEID_BOOL
+                                      && condexpr_e.u.cnst.numeric_val == 1);
+
+        return retval;
+    }
+
+
+    case is_For:
+        NOTREACHED; // TODO: Not implemented
     }
 
     return retval; // TODO: Should not be reached

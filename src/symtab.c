@@ -350,8 +350,14 @@ push_var(d_var var, char* vname, void* node)
         }
         else
         {
+            //
+            // TODO: Printing warnings to the console cause writing stuff to the
+            // stderr before "OK" is printed, which is incorrect during the spec
+            //
+#if 0
             warn(get_lnum(node), "Variable \"%s\" shadows an existing variable", vname);
             note(v.lnum, "Variable \"%s\" declared here", vname);
+#endif
         }
     } break;
     case S_FUN:
