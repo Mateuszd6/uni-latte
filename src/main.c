@@ -8,6 +8,7 @@
 // * int main() { int int; int x; } allows to redefine int to a variable...
 // * tests: void type everywhere!
 // * tests: void[] type everywhere!
+// * class foo {} does not parse!
 
 // TODO: Temprary.
 extern char const* __asan_default_options(void);
@@ -120,7 +121,7 @@ struct evaled_stmt
 
 // Assumes that the type exists
 static evaled_expr
-get_default_expr_constant(u32 type_id, void* node)
+get_default_expr(u32 type_id, void* node)
 {
     evaled_expr retval;
     retval.node = node;
@@ -147,17 +148,13 @@ get_default_expr_constant(u32 type_id, void* node)
     }
     default:
     {
-        if (type_id & TYPEID_FLAG_ARRAY)
-        {
-            // TODO: Return an empty array of type
-            NOTREACHED;
-        }
-        else
-        {
-            // TODO: Return a null of apropiate class type
-            NOTREACHED;
-        }
-    } break;
+        retval.node = node;
+        retval.type_id = type_id;
+        retval.kind = EET_COMPUTE;
+        retval.is_lvalue = 1;
+
+        return retval;
+    }
     }
 }
 
@@ -365,6 +362,14 @@ eval_expr(Expr e)
 
     case is_ELitInt:
     {
+        // Looks like BNFC (or bison (or flex?)) leaves here -1 if the number
+        // was too large. Print a reasonable warning, and treat this value as 0
+        if (e->u.elitint_.integer_ == -1)
+        {
+            error(get_lnum(e), "Integer constant is too large");
+            e->u.elitint_.integer_ = 0;
+        }
+
         retval.type_id = TYPEID_INT;
         retval.kind = EET_CONSTANT;
         retval.is_lvalue = 0;
@@ -849,7 +854,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             case is_NoInit:
             {
                 vname = i->u.noinit_.ident_;
-                vval = get_default_expr_constant(type_id, i);
+                vval = get_default_expr(type_id, i);
             } break;
             case is_Init:
             {
@@ -959,7 +964,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         if (UNLIKELY(e.type_id != return_type)) // TODO: Handle the case with inheritance
         {
             d_type expected_t = g_types[e.type_id];
-            d_type got_t = g_types[TYPEID_INT];
+            d_type got_t = g_types[return_type];
             error(get_lnum(e.node),
                   "Returning value of type \"%s\" incompatible with type \"%s\"\n",
                   expected_t.name, got_t.name);
@@ -1017,7 +1022,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         return retval;
     }
 
-    case is_While: // TODO: Loops
+    case is_While:
     {
         Expr condexpr = s->u.while_.expr_;
         evaled_expr condexpr_e = eval_expr(condexpr);
@@ -1045,9 +1050,71 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         return retval;
     }
 
-
     case is_For:
-        NOTREACHED; // TODO: Not implemented
+    {
+        char* type_name = s->u.for_.ident_1;
+        char* vname = s->u.for_.ident_2;
+        Expr e = s->u.for_.expr_;
+        evaled_expr e_expr = eval_expr(e);
+
+        if (!(e_expr.type_id & TYPEID_FLAG_ARRAY) || e_expr.type_id == TYPEID_VOID)
+        {
+            d_type t_given = g_types[e_expr.type_id];
+
+            error(get_lnum(e), "Type in the \"for\" expresion must be a non-void array");
+            note(get_lnum(e), "Given expression resolved to a type \"%s%s\"",
+                 t_given.name, e_expr.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+            // TODO: Change type to int to avoid error cascade?
+            //       For example, when RHS of the for loop is void
+        }
+
+        u32 iter_type_id = symbol_resolve_type(type_name, 0, e);
+        assert(!(iter_type_id & TYPEID_FLAG_ARRAY));
+        switch (iter_type_id) {
+        case TYPEID_NOTFOUND:
+        {
+            iter_type_id = e_expr.type_id; // Default to good iterator type anyway
+        } break;
+        case TYPEID_VOID:
+        {
+            error(get_lnum(e), "Cannot declare a variable of type \"void\" in the range loop");
+            iter_type_id = e_expr.type_id;
+        } break;
+        default:
+        {
+        } break;
+        }
+
+        if (iter_type_id != (e_expr.type_id & (~(TYPEID_FLAG_ARRAY))))
+        {
+            // TODO: Test with list of classes that inherit from the base class:
+            //       for (base b : new dervied[10])
+
+            d_type t_arr = g_types[e_expr.type_id & (~(TYPEID_FLAG_ARRAY))];
+            d_type t_iter = g_types[iter_type_id];
+            error(get_lnum(e), "Given array has a type, which is non assignable to the iterator type");
+            note(get_lnum(e), "Iterator has type \"%s\", but expression has \"%s\"",
+                 t_iter.name, t_arr.name);
+        }
+
+        i32 iter_block_id = push_block(); // For iterator variable
+        d_var var;
+        var.lnum = get_lnum(e);
+        var.type_id = iter_type_id;
+        var.block_id = iter_block_id;
+        push_var(var, vname, e);
+        i32 block_id = push_block(); // For body
+
+        Stmt lbody = s->u.for_.stmt_;
+        evaled_stmt lbody_e = eval_stmt(lbody, return_type, block_id);
+
+        pop_block();
+        pop_block();
+
+        retval.all_branches_return = 0;
+        return retval;
+    }
     }
 
     return retval; // TODO: Should not be reached
@@ -1125,6 +1192,7 @@ main(int argc, char** argv)
         no_recover();
 
     define_primitives();
+    add_classes(parse_tree);
     add_global_funcs(parse_tree);
 
     if (has_error)
@@ -1156,18 +1224,11 @@ main(int argc, char** argv)
     printf("\n");
 #endif
 
-
     LIST_FOREACH(it, parse_tree->u.prog_, listtopdef_)
     {
         TopDef t = it->topdef_;
         if (t->kind != is_FnDef)
             continue;
-
-#if 0
-        printf("-- ----------------------------------------------------------------\n");
-        printf("-- Evaluating body of function \"%s\"\n", t->u.fndef_.ident_);
-        printf("-- ----------------------------------------------------------------\n");
-#endif
 
         eval_body(t);
     }

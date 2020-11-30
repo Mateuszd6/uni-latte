@@ -1,0 +1,15 @@
+class foo
+{
+    int i;
+}
+
+int main()
+{
+    foo[] foobar;
+    for (foo m : foobar)
+    {
+        printInt(m);
+    }
+
+    return 0;
+}

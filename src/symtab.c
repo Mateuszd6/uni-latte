@@ -195,6 +195,7 @@ add_classes(Program p)
 static void
 add_global_funcs(Program p)
 {
+    b32 has_main = 0;
     LIST_FOREACH(it, p->u.prog_, listtopdef_)
     {
         TopDef t = it->topdef_;
@@ -326,6 +327,22 @@ add_global_funcs(Program p)
                 }
             }
         }
+
+        if (!has_main && strcmp("main", t->u.fndef_.ident_) == 0)
+        {
+            if (f.ret_type_id != TYPEID_INT)
+                error(f.lnum, "\"main\" function must return an \"int\"");
+
+            if (n_args != 0)
+                error(f.lnum, "\"main\" function must not have any arguments");
+
+            has_main = 1;
+        }
+    }
+
+    if (!has_main)
+    {
+        error(0, "No \"main\" function defined");
     }
 }
 
