@@ -1,4 +1,7 @@
 // TODO:
+// * Check test-new.lat, because it exposes some errors, namely:
+//   * Why is it possible to not cast?
+//   * Why cast is wrong?
 // * regenerate parser on students, b/c current have different bison version
 // * make a frontend.h/c file
 // * check if type error work fine for classes
@@ -298,8 +301,8 @@ enforce_type(evaled_expr* e, u32 type_id)
 {
     if (UNLIKELY(e->type_id != type_id))
     {
-        d_type t_expected = g_types[type_id];
-        d_type t_got = g_types[e->type_id];
+        d_type t_expected = g_types[type_id & (~TYPEID_FLAG_ARRAY)];
+        d_type t_got = g_types[e->type_id & (~TYPEID_FLAG_ARRAY)];
 
         // TODO: lnum
         error(get_lnum(e->node),
@@ -320,18 +323,18 @@ enforce_type_of(evaled_expr* e, u32* type_ids, mm n_type_ids)
             return;
 
     char buf[4096]; // TODO: may index-out
-    d_type t_got = g_types[e->type_id];
+    d_type t_got = g_types[e->type_id & (~TYPEID_FLAG_ARRAY)];
     buf[0] = 0;
     for (mm i = 1; i < n_type_ids; ++i)
     {
-        d_type t_expected = g_types[type_ids[i]];
+        d_type t_expected = g_types[type_ids[i] & (~TYPEID_FLAG_ARRAY)];
 
         strcat(buf, ", \"");
         strcat(buf, t_expected.name);
         strcat(buf, "\"");
     }
 
-    d_type first_t_expected = g_types[type_ids[0]];
+    d_type first_t_expected = g_types[type_ids[0] & (~TYPEID_FLAG_ARRAY)];
     error(get_lnum(e->node),
           "Expected one of \"%s\"%s but got incompatible type \"%s\"",
           first_t_expected.name, buf, t_got.name);
@@ -699,8 +702,8 @@ eval_expr(Expr e)
 
                 if (argexpr_e.type_id != expected_type_id) // TODO: Handle inheritance
                 {
-                    d_type t_expected = g_types[expected_type_id];
-                    d_type t_provided = g_types[argexpr_e.type_id];
+                    d_type t_expected = g_types[expected_type_id & (~TYPEID_FLAG_ARRAY)];
+                    d_type t_provided = g_types[argexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
 
                     error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type %s",
                           invoked->u.evar_.ident_, n_given_args + 1, t_expected.name);
@@ -794,15 +797,102 @@ eval_expr(Expr e)
         evaled_expr e_idx = eval_expr(e->u.earrapp_.expr_2);
         enforce_type(&e_idx, TYPEID_INT);
 
+        // If given array is lvalue then it's subscript also is
+        retval.is_lvalue = e_array.is_lvalue;
         retval.type_id = e_array.type_id & (~TYPEID_FLAG_ARRAY);
         retval.kind = EET_COMPUTE;
         return retval;
     }
 
-    case is_ENull:
-    case is_ECast:
     case is_EClMem:
+    {
+        evaled_expr e_struct = eval_expr(e->u.eclmem_.expr_);
+        if (e_struct.type_id & TYPEID_FLAG_ARRAY)
+        {
+            // In case of array, only .length is possible
+            if (strcmp(e->u.eclmem_.ident_, "length") != 0)
+            {
+                error(get_lnum(e->u.eclmem_.expr_),
+                      "Member field \"%s\" does not exists on the \"array\" type",
+                      e->u.eclmem_.ident_);
+            }
+
+            retval.type_id = TYPEID_INT;
+            retval.kind = EET_COMPUTE;
+            return retval;
+        }
+        else if (e_struct.type_id <= TYPEID_LAST_BUILTIN_TYPE)
+        {
+            d_type t_provided = g_types[e_struct.type_id & (~TYPEID_FLAG_ARRAY)];
+            error(get_lnum(e->u.eclmem_.expr_),
+                  "Left-hand-side of . expression is not a struct nor array");
+            note(get_lnum(e->u.eclmem_.expr_),
+                 "Expression type evaluates to \"%s\"", t_provided.name);
+
+            retval.type_id = TYPEID_INT;
+            retval.kind = EET_COMPUTE;
+            return retval;
+        }
+        else
+        {
+            NOTREACHED; // TODO support class members
+
+            retval.type_id = TYPEID_INT;
+            retval.kind = EET_COMPUTE;
+            return retval;
+        }
+
         NOTREACHED;
+    }
+
+    case is_ENull:
+    {
+        retval.type_id = TYPEID_NULL;
+        retval.kind = EET_CONSTANT;
+        retval.is_lvalue = 0;
+        retval.u.cnst.numeric_val = 0;
+        return retval;
+    }
+
+    case is_ECast:
+    {
+        char* type_name = e->u.ecast_.ident_;
+        u32 type_id = symbol_resolve_type(type_name, 0, e);
+        assert(!(type_id & TYPEID_FLAG_ARRAY));
+        switch (type_id) {
+        case TYPEID_NOTFOUND:
+        {
+        } break;
+        case TYPEID_VOID:
+        case TYPEID_INT:
+        case TYPEID_BOOL:
+        case TYPEID_STRING:
+        case TYPEID_NULL:
+        {
+            error(get_lnum(e), "Casting to a builtin type is not allowed.");
+            // TODO: dummy assing type_id
+        } break;
+        default:
+        {
+        } break;
+        }
+
+        evaled_expr expr_to_cast = eval_expr(e->u.ecast_.expr_);
+        switch (expr_to_cast.type_id) {
+        case TYPEID_NULL: // Null is always castable to desired type
+        {
+            retval.type_id = type_id;
+            retval.kind = EET_COMPUTE;
+            return retval;
+        }
+        default:
+        {
+            // TODO(ex): Implement casting between types when inhericance is implemented
+            warn(get_lnum(e), "NOT IMPLEMENTED");
+            NOTREACHED;
+        } break;
+        }
+    }
     }
 
     NOTREACHED;
@@ -987,6 +1077,10 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                     printf("    Evaluated to: \"%s\"\n",
                            g_str_consts[vval.u.cnst.str_const_id].data);
                 } break;
+                case TYPEID_NULL:
+                {
+                    printf("    Evaluated to: \"NULL\"\n");
+                } break;
                 default:
                 {
                 } NOTREACHED;
@@ -1009,8 +1103,8 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         }
         else if (UNLIKELY(e1.type_id != e2.type_id)) // TODO: Handle the case with inheritance
         {
-            d_type expected_t = g_types[e1.type_id];
-            d_type got_t = g_types[e2.type_id];
+            d_type expected_t = g_types[e1.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type got_t = g_types[e2.type_id & (~TYPEID_FLAG_ARRAY)];
             error(get_lnum(e2.node),
                   "Variable of type \"%s\" is assigned with uncompatible type \"%s\"\n",
                   expected_t.name, got_t.name);
@@ -1038,8 +1132,8 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (UNLIKELY(e.type_id != return_type)) // TODO: Handle the case with inheritance
         {
-            d_type expected_t = g_types[e.type_id];
-            d_type got_t = g_types[return_type];
+            d_type expected_t = g_types[e.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type got_t = g_types[return_type & (~TYPEID_FLAG_ARRAY)];
             error(get_lnum(e.node),
                   "Returning value of type \"%s\" incompatible with type \"%s\"\n",
                   expected_t.name, got_t.name);
@@ -1109,7 +1203,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (condexpr_e.type_id != TYPEID_BOOL)
         {
-            d_type t_given = g_types[condexpr_e.type_id];
+            d_type t_given = g_types[condexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
             error(get_lnum(condexpr),
                   "Loop condition has a type %s, when boolean was expected",
                   t_given.name);
@@ -1134,7 +1228,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (!(e_expr.type_id & TYPEID_FLAG_ARRAY) || e_expr.type_id == TYPEID_VOID)
         {
-            d_type t_given = g_types[e_expr.type_id];
+            d_type t_given = g_types[e_expr.type_id & (~TYPEID_FLAG_ARRAY)];
 
             error(get_lnum(e), "Type in the \"for\" expresion must be a non-void array");
             note(get_lnum(e), "Given expression resolved to a type \"%s%s\"",
@@ -1167,7 +1261,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             //       for (base b : new dervied[10])
 
             d_type t_arr = g_types[e_expr.type_id & (~(TYPEID_FLAG_ARRAY))];
-            d_type t_iter = g_types[iter_type_id];
+            d_type t_iter = g_types[iter_type_id & (~TYPEID_FLAG_ARRAY)];
             error(get_lnum(e), "Given array has a type, which is non assignable to the iterator type");
             note(get_lnum(e), "Iterator has type \"%s\", but expression has \"%s\"",
                  t_iter.name, t_arr.name);

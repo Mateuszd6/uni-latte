@@ -79,8 +79,9 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define TYPEID_INT (1)
 #define TYPEID_BOOL (2)
 #define TYPEID_STRING (3)
+#define TYPEID_NULL (4)
 
-#define TYPEID_LAST_BUILTIN_TYPE TYPEID_STRING
+#define TYPEID_LAST_BUILTIN_TYPE TYPEID_NULL
 
 #define TYPEID_MASK (((u32)1 << 31) - 1)
 #define TYPEID_FLAG_ARRAY ((u32)1 << 31)

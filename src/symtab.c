@@ -63,7 +63,7 @@ define_primitive_types(void)
 {
     assert(array_size(g_symtab) == 0); // Primitive types are first that we add
 
-    char* type_names[] = {"void", "int", "boolean", "string"};
+    char* type_names[] = {"void", "int", "boolean", "string", "null"};
     d_type builtin_types[COUNT_OF(type_names)];
 
     for (mm i = 0; i < COUNT_OF(type_names); ++i)
