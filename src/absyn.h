@@ -370,12 +370,12 @@ struct Expr_
         } earrapp_;
         struct
         {
-            Type type_;
+            Ident ident_;
         } enew_;
         struct
         {
             Expr expr_;
-            Type type_;
+            Ident ident_;
         } enewarr_;
         struct
         {
@@ -438,9 +438,9 @@ make_EClMem(Expr p0, Ident p1);
 Expr
 make_EArrApp(Expr p0, Expr p1);
 Expr
-make_ENew(Type p0);
+make_ENew(Ident p0);
 Expr
-make_ENewArr(Type p0, Expr p1);
+make_ENewArr(Ident p0, Expr p1);
 Expr
 make_ELitInt(Integer p0);
 Expr

@@ -283,20 +283,20 @@ make_EArrApp(Expr p1, Expr p2)
 }
 /********************   ENew    ********************/
 Expr
-make_ENew(Type p1)
+make_ENew(Ident p1)
 {
     Expr tmp = (Expr)alloc_ast_node(sizeof(*tmp));
     tmp->kind = is_ENew;
-    tmp->u.enew_.type_ = p1;
+    tmp->u.enew_.ident_ = p1;
     return tmp;
 }
 /********************   ENewArr    ********************/
 Expr
-make_ENewArr(Type p1, Expr p2)
+make_ENewArr(Ident p1, Expr p2)
 {
     Expr tmp = (Expr)alloc_ast_node(sizeof(*tmp));
     tmp->kind = is_ENewArr;
-    tmp->u.enewarr_.type_ = p1;
+    tmp->u.enewarr_.ident_ = p1;
     tmp->u.enewarr_.expr_ = p2;
     return tmp;
 }

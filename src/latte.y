@@ -490,7 +490,7 @@ ListClBody reverseListClBody(ListClBody l)
 Program : ListTopDef { $$ = make_Prog($1); YY_RESULT_Program_= $$; } 
 ;
 TopDef : Type _IDENT_ _SYMB_0 ListArg _SYMB_1 Block { $$ = make_FnDef($1, $2, $4, $6);  } 
-  | _SYMB_28 _IDENT_ ClProps _SYMB_2 ListClBody _SYMB_3 { $$ = make_ClDef($2, $3, $5);  }
+  | _SYMB_28 _IDENT_ ClProps _SYMB_2 ListClBody _SYMB_3 { $$ = make_ClDef($2, $3, reverseListClBody($5));  }
 ;
 ListTopDef : TopDef { $$ = make_ListTopDef($1, 0);  } 
   | TopDef ListTopDef { $$ = make_ListTopDef($1, $2);  }
@@ -539,8 +539,8 @@ Expr10 : Expr9 _SYMB_11 _IDENT_ { $$ = make_EClMem($1, $3);  }
 Expr9 : Expr8 _SYMB_12 Expr _SYMB_13 { $$ = make_EArrApp($1, $3);  } 
   | Expr10 { $$ = $1;  }
 ;
-Expr8 : _SYMB_34 Type { $$ = make_ENew($2);  } 
-  | _SYMB_34 Type _SYMB_12 Expr _SYMB_13 { $$ = make_ENewArr($2, $4);  }
+Expr8 : _SYMB_34 _IDENT_ { $$ = make_ENew($2);  } 
+  | _SYMB_34 _IDENT_ _SYMB_12 Expr _SYMB_13 { $$ = make_ENewArr($2, $4);  }
   | Expr9 { $$ = $1;  }
 ;
 Expr7 : _INTEGER_ { $$ = make_ELitInt($1);  } 
@@ -580,8 +580,8 @@ ListExpr : /* empty */ { $$ = 0;  }
 ClBody : Type _IDENT_ _SYMB_5 { $$ = make_CBVar($1, $2);  } 
   | Type _IDENT_ _SYMB_0 ListArg _SYMB_1 Block { $$ = make_CBFnDef($1, $2, $4, $6);  }
 ;
-ListClBody : ClBody { $$ = make_ListClBody($1, 0);  } 
-  | ClBody ListClBody { $$ = make_ListClBody($1, $2);  }
+ListClBody : /* empty */ { $$ = 0;  } 
+  | ListClBody ClBody { $$ = make_ListClBody($2, $1);  }
 ;
 ClProps : /* empty */ { $$ = make_CNone();  } 
   | _SYMB_30 _IDENT_ { $$ = make_CExtends($2);  }

@@ -303,7 +303,7 @@ enforce_type(evaled_expr* e, u32 type_id)
 
         // TODO: lnum
         error(get_lnum(e->node),
-              "expected type \"%s\" but got incompatible type \"%s\"",
+              "Expected type \"%s\" but got incompatible type \"%s\"",
               t_expected.name, t_got.name);
 
         // TODO: Set COMPUTE to true and add some fake value so that we carry on
@@ -333,7 +333,7 @@ enforce_type_of(evaled_expr* e, u32* type_ids, mm n_type_ids)
 
     d_type first_t_expected = g_types[type_ids[0]];
     error(get_lnum(e->node),
-          "expected one of \"%s\"%s but got incompatible type \"%s\"",
+          "Expected one of \"%s\"%s but got incompatible type \"%s\"",
           first_t_expected.name, buf, t_got.name);
 }
 
@@ -724,12 +724,84 @@ eval_expr(Expr e)
         return retval;
     }
 
+    case is_ENew:
+    {
+        char* type_name = e->u.enew_.ident_;
+        u32 type_id = symbol_resolve_type(type_name, 0, e);
+        assert(!(type_id & TYPEID_FLAG_ARRAY));
+        switch (type_id) {
+        case TYPEID_NOTFOUND:
+        {
+            type_id = TYPEID_INT; // Default to int in order to avoid errors
+        } break;
+        case TYPEID_VOID:
+        case TYPEID_INT:
+        case TYPEID_BOOL:
+        case TYPEID_STRING:
+        {
+            error(get_lnum(e), "Primitive types cannot be heap-allocated with new");
+            type_id = TYPEID_INT;
+        } break;
+        default:
+        {
+        } break;
+        }
+
+        retval.type_id = type_id;
+        retval.kind = EET_COMPUTE;
+        return retval;
+    }
+
+    case is_ENewArr:
+    {
+        char* type_name = e->u.enewarr_.ident_;
+        Expr esize = e->u.enewarr_.expr_;
+        u32 type_id = symbol_resolve_type(type_name, 0, e);
+        assert(!(type_id & TYPEID_FLAG_ARRAY));
+        switch (type_id) {
+        case TYPEID_NOTFOUND:
+        {
+            type_id = TYPEID_INT; // Default to int in order to avoid errors
+        } break;
+        case TYPEID_VOID:
+        {
+            error(get_lnum(e), "\"void\" type cannot be used in an array");
+            type_id = TYPEID_INT;
+        } break;
+        default:
+        {
+        } break;
+        }
+        type_id |= TYPEID_FLAG_ARRAY; // The resulting type of the expr is array
+
+        evaled_expr e_esize = eval_expr(esize);
+        enforce_type(&e_esize, TYPEID_INT);
+
+        retval.type_id = type_id;
+        retval.kind = EET_COMPUTE;
+        return retval;
+    }
+
+    case is_EArrApp:
+    {
+        evaled_expr e_array = eval_expr(e->u.earrapp_.expr_1);
+        if (!(e_array.type_id & TYPEID_FLAG_ARRAY))
+        {
+            error(get_lnum(e->u.earrapp_.expr_1),
+                  "Non-array cannot be a left-hand-side of the array subscript");
+        }
+
+        evaled_expr e_idx = eval_expr(e->u.earrapp_.expr_2);
+        enforce_type(&e_idx, TYPEID_INT);
+
+        retval.type_id = e_array.type_id & (~TYPEID_FLAG_ARRAY);
+        retval.kind = EET_COMPUTE;
+        return retval;
+    }
+
+    case is_ENull:
     case is_ECast:
     case is_EClMem:
-    case is_EArrApp:
-    case is_ENew:
-    case is_ENewArr:
-    case is_ENull:
         NOTREACHED;
     }
 
@@ -863,11 +935,14 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
                 if (type_id != vval.type_id) // TODO: Handle the case with inheritance
                 {
-                    d_type expected_t = g_types[type_id];
-                    d_type got_t = g_types[vval.type_id];
+                    d_type expected_t = g_types[type_id & (~TYPEID_FLAG_ARRAY)];
+                    d_type got_t = g_types[vval.type_id & (~TYPEID_FLAG_ARRAY)];
                     error(get_lnum(i),
-                          "Expression of type \"%s\" is initialized with uncompatible type \"%s\"\n",
-                          expected_t.name, got_t.name);
+                          "Expression of type \"%s%s\" is initialized with uncompatible type \"%s%s\"\n",
+                          expected_t.name,
+                          type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
+                          got_t.name,
+                          vval.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
                 }
             } break;
             }

@@ -41,8 +41,8 @@ EVar.      Expr11 ::= Ident ; -- Rename to VarOfFunc? B/c it can also be a funct
 EApp.      Expr11 ::= Expr10 "(" [Expr] ")" ;
 EClMem.    Expr10 ::= Expr9 "." Ident ;
 EArrApp.   Expr9 ::= Expr8 "[" Expr "]" ;
-ENew.      Expr8 ::= "new" Type ;
-ENewArr.   Expr8 ::= "new" Type "[" Expr "]" ;
+ENew.      Expr8 ::= "new" Ident ;
+ENewArr.   Expr8 ::= "new" Ident "[" Expr "]" ;
 ELitInt.   Expr7 ::= Integer ;
 ELitStr.   Expr7 ::= String ;
 ELitTrue.  Expr7 ::= "true" ;
@@ -63,7 +63,7 @@ separator  Expr "," ;
 -- Classes -------------------------------------------------
 CBVar.     ClBody ::= Type Ident ";" ;
 CBFnDef.   ClBody ::= Type Ident "(" [Arg] ")" Block ;
-separator nonempty ClBody "" ;
+separator ClBody "" ;
 
 CNone.     ClProps ::= ;
 CExtends.  ClProps ::= "extends" Ident ;
