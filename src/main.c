@@ -367,7 +367,7 @@ eval_expr(Expr e)
     {
         // Looks like BNFC (or bison (or flex?)) leaves here -1 if the number
         // was too large. Print a reasonable warning, and treat this value as 0
-        if (e->u.elitint_.integer_ == -1)
+        if (e->u.elitint_.integer_ < 0)
         {
             error(get_lnum(e), "Integer constant is too large");
             e->u.elitint_.integer_ = 0;
