@@ -1,16 +1,27 @@
-class foobar {
+class foobar
+{
     int a;
     int b;
 }
 
-foobar make_foobar(int a_, int b_) {
+class list
+{
+    int x;
+    list xs;
+}
+
+foobar make_foobar(int a_, int b_)
+{
     foobar retval = new foobar;
-    retval.a = a_;
-    retval.b = b_;
+    // retval.a = a_;
+    // retval.b = b_;
 
     return retval;
 }
 
-int main() {
-
+int main()
+{
+    int i = 2147483647;
+    foobar f = make_foobar(1, 2);
+    return 0;
 }

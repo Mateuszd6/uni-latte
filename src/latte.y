@@ -460,6 +460,8 @@ ListClBody reverseListClBody(ListClBody l)
 %type <item_> Item
 %type <listitem_> ListItem
 %type <type_> Type
+%type <expr_> Expr13
+%type <expr_> Expr12
 %type <expr_> Expr11
 %type <expr_> Expr10
 %type <expr_> Expr9
@@ -529,11 +531,16 @@ ListItem : Item { $$ = make_ListItem($1, 0);  }
 Type : _IDENT_ { $$ = make_TCls($1);  } 
   | _IDENT_ _SYMB_10 { $$ = make_TArr($1);  }
 ;
-Expr11 : _IDENT_ { $$ = make_EVar($1);  } 
-  | Expr10 _SYMB_0 ListExpr _SYMB_1 { $$ = make_EApp($1, $3);  }
+Expr13 : _IDENT_ { $$ = make_EVar($1);  } 
   | _SYMB_0 Expr _SYMB_1 { $$ = $2;  }
 ;
-Expr10 : Expr9 _SYMB_11 _IDENT_ { $$ = make_EClMem($1, $3);  } 
+Expr12 : _IDENT_ _SYMB_0 ListExpr _SYMB_1 { $$ = make_EApp($1, $3);  } 
+  | Expr13 { $$ = $1;  }
+;
+Expr11 : Expr10 _SYMB_11 _IDENT_ { $$ = make_EClMem($1, $3);  } 
+  | Expr12 { $$ = $1;  }
+;
+Expr10 : Expr9 _SYMB_11 _IDENT_ _SYMB_0 ListExpr _SYMB_1 { $$ = make_EClApp($1, $3, $5);  } 
   | Expr11 { $$ = $1;  }
 ;
 Expr9 : Expr8 _SYMB_12 Expr _SYMB_13 { $$ = make_EArrApp($1, $3);  } 

@@ -253,11 +253,11 @@ make_EVar(Ident p1)
 }
 /********************   EApp    ********************/
 Expr
-make_EApp(Expr p1, ListExpr p2)
+make_EApp(Ident p1, ListExpr p2)
 {
     Expr tmp = (Expr)alloc_ast_node(sizeof(*tmp));
     tmp->kind = is_EApp;
-    tmp->u.eapp_.expr_ = p1;
+    tmp->u.eapp_.ident_ = p1;
     tmp->u.eapp_.listexpr_ = p2;
     return tmp;
 }
@@ -269,6 +269,17 @@ make_EClMem(Expr p1, Ident p2)
     tmp->kind = is_EClMem;
     tmp->u.eclmem_.expr_ = p1;
     tmp->u.eclmem_.ident_ = p2;
+    return tmp;
+}
+/********************   EClApp    ********************/
+Expr
+make_EClApp(Expr p1, Ident p2, ListExpr p3)
+{
+    Expr tmp = (Expr)alloc_ast_node(sizeof(*tmp));
+    tmp->kind = is_EClApp;
+    tmp->u.eclapp_.expr_ = p1;
+    tmp->u.eclapp_.ident_ = p2;
+    tmp->u.eclapp_.listexpr_ = p3;
     return tmp;
 }
 /********************   EArrApp    ********************/

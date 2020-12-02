@@ -206,12 +206,12 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
     case BIOP_GE: retval.u.cnst.numeric_val = (v1 >= v2); retval.type_id = TYPEID_BOOL; break;
     }
 
-    // Safe for booleans becasue they never overflow
+    // Safe for booleans becasue they never overflow. In case of overflow, leave
+    // 0 to have something reasonable for computations, we won't compile anyway
     if (UNLIKELY(overflows_32bit(retval.u.cnst.numeric_val)))
     {
-        // TODO: Handle overflow - return constnat expression of 0? Or
-        //       computable expression?
-        fatal("Constant integer overflow");
+        error(get_lnum(node), "Integer constant overflows");
+        retval.u.cnst.numeric_val = 0;
     }
 
     return retval;
@@ -672,25 +672,11 @@ eval_expr(Expr e)
 
     case is_EApp: // TODO
     {
-        Expr invoked = e->u.eapp_.expr_;
-        d_func f;
-        switch (invoked->kind) {
-        case is_EVar:
-        {
-            u32 func_id = symbol_resolve_func(invoked->u.evar_.ident_, invoked);
-            if (func_id == FUNCID_NOTFOUND)
-                func_id = 0; // TODO: This is baaad, maybe just return something instead?
+        u32 func_id = symbol_resolve_func(e->u.eapp_.ident_, e->u.eapp_.listexpr_);
+        if (func_id == FUNCID_NOTFOUND)
+            func_id = 0; // TODO: This is baaad, maybe just return something instead?
 
-            f = g_funcs[func_id];
-        } break;
-        default:
-        {
-            // TODO: This is actually a syntax error, but whatever, try to do
-            // something reasonable with it
-            NOTREACHED;
-        }
-        }
-
+        d_func f = g_funcs[func_id];
         i32 n_given_args = 0;
         LIST_FOREACH(it, e->u.eapp_, listexpr_)
         {
@@ -706,7 +692,7 @@ eval_expr(Expr e)
                     d_type t_provided = g_types[argexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
 
                     error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type %s",
-                          invoked->u.evar_.ident_, n_given_args + 1, t_expected.name);
+                          e->u.eapp_.ident_, n_given_args + 1, t_expected.name);
 
                     note(get_lnum(argexpr), "Given expression of type %s, which is not assignable to type %s",
                          t_provided.name, t_expected.name);
@@ -718,8 +704,9 @@ eval_expr(Expr e)
 
         if (n_given_args != f.num_args)
         {
-            error(get_lnum(invoked), "Function \"%s\" takes %d arguments, but %d were provided.",
-                  invoked->u.evar_.ident_, f.num_args, n_given_args);
+            error(get_lnum(e->u.eapp_.listexpr_),
+                  "Function \"%s\" takes %d arguments, but %d were provided.",
+                  e->u.eapp_.ident_, f.num_args, n_given_args);
         }
 
         retval.type_id = f.ret_type_id;
@@ -835,6 +822,7 @@ eval_expr(Expr e)
         }
         else
         {
+            warn(get_lnum(e_struct.node), "NOT IMPLEMENTED"); // TODO
             NOTREACHED; // TODO support class members
 
             retval.type_id = TYPEID_INT;
@@ -888,7 +876,7 @@ eval_expr(Expr e)
         default:
         {
             // TODO(ex): Implement casting between types when inhericance is implemented
-            warn(get_lnum(e), "NOT IMPLEMENTED");
+            warn(get_lnum(e), "NOT IMPLEMENTED"); // TODO
             NOTREACHED;
         } break;
         }
@@ -1028,11 +1016,19 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                     d_type expected_t = g_types[type_id & (~TYPEID_FLAG_ARRAY)];
                     d_type got_t = g_types[vval.type_id & (~TYPEID_FLAG_ARRAY)];
                     error(get_lnum(i),
-                          "Expression of type \"%s%s\" is initialized with uncompatible type \"%s%s\"\n",
-                          expected_t.name,
-                          type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
-                          got_t.name,
-                          vval.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+                          "Expression of type \"%s%s\" is initialized with incompatible type \"%s%s\"",
+                          expected_t.name, type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
+                          got_t.name, vval.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+                    // Clarify why null is not implicitely assignable to a reference type:
+                    if (vval.type_id == TYPEID_NULL && type_id > TYPEID_LAST_BUILTIN_TYPE)
+                    {
+                        note(get_lnum(i),
+                             "\"null\" is not implcitely assingable to a reference type. Use: \"(%s)null\"",
+                             expected_t.name);
+                        note(get_lnum(i),
+                             "This requirement is forced by the Author of the assignment. Sorry.");
+                    }
                 }
             } break;
             }
@@ -1043,7 +1039,6 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             var.lnum = get_lnum(i);
             var.type_id = type_id;
             var.block_id = cur_block_id;
-
             push_var(var, vname, i);
 
             // TODO: Check if shadows or redefined in the same block
@@ -1103,11 +1098,23 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         }
         else if (UNLIKELY(e1.type_id != e2.type_id)) // TODO: Handle the case with inheritance
         {
+            // TODO: Copypase from is_Decl
+
             d_type expected_t = g_types[e1.type_id & (~TYPEID_FLAG_ARRAY)];
             d_type got_t = g_types[e2.type_id & (~TYPEID_FLAG_ARRAY)];
             error(get_lnum(e2.node),
-                  "Variable of type \"%s\" is assigned with uncompatible type \"%s\"\n",
+                  "Variable of type \"%s\" is assigned with incompatible type \"%s\"",
                   expected_t.name, got_t.name);
+
+            // Clarify why null is not implicitely assignable to a reference type:
+            if (e2.type_id == TYPEID_NULL && e1.type_id > TYPEID_LAST_BUILTIN_TYPE)
+            {
+                note(get_lnum(e2.node),
+                     "\"null\" is not implcitely assingable to a reference type. Use: \"(%s)null\"",
+                     expected_t.name);
+                note(get_lnum(e2.node),
+                     "This requirement is forced by the Author of the assignment. Sorry.");
+            }
         }
 
         retval.all_branches_return = 0;

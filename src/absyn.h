@@ -330,6 +330,7 @@ struct Expr_
         is_EVar,
         is_EApp,
         is_EClMem,
+        is_EClApp,
         is_EArrApp,
         is_ENew,
         is_ENewArr,
@@ -356,7 +357,7 @@ struct Expr_
         } evar_;
         struct
         {
-            Expr expr_;
+            Ident ident_;
             ListExpr listexpr_;
         } eapp_;
         struct
@@ -364,6 +365,12 @@ struct Expr_
             Expr expr_;
             Ident ident_;
         } eclmem_;
+        struct
+        {
+            Expr expr_;
+            Ident ident_;
+            ListExpr listexpr_;
+        } eclapp_;
         struct
         {
             Expr expr_1, expr_2;
@@ -432,9 +439,11 @@ struct Expr_
 Expr
 make_EVar(Ident p0);
 Expr
-make_EApp(Expr p0, ListExpr p1);
+make_EApp(Ident p0, ListExpr p1);
 Expr
 make_EClMem(Expr p0, Ident p1);
+Expr
+make_EClApp(Expr p0, Ident p1, ListExpr p2);
 Expr
 make_EArrApp(Expr p0, Expr p1);
 Expr

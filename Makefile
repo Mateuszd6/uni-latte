@@ -21,7 +21,7 @@ OBJS = ./obj/absyn.o ./obj/lexer.o ./obj/parser.o
 all: latc
 
 clean:
-	@-rm -rf ./outs ./obj latc
+	@-rm -rf ./outs ./obj ./cov latc
 
 latc: ${OBJS} src/*.c src/*.h
 	${CC} ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${CPLATFORM} ${OBJS} ./src/main.c -o latc

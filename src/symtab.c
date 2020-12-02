@@ -49,11 +49,11 @@ create_func(d_func f, char* name)
 static void
 define_primitive_constants(void)
 {
+    // Empty string
     string_const strc;
     strc.data = malloc(1);
     strc.data[0] = 0;
     strc.len = 1;
-
     assert(array_size(g_str_consts) == EMPTY_STRING_CONSTANT_ID);
     array_push(g_str_consts, strc);
 }
@@ -72,7 +72,7 @@ define_primitive_types(void)
         builtin_types[i] = t;
     }
 
-    array_pushn(g_types, builtin_types, 4);
+    array_pushn(g_types, builtin_types, COUNT_OF(type_names));
     for (mm i = 0; i < COUNT_OF(type_names); ++i)
     {
         symbol s = { .type = S_TYPE, .id = (i32)i };
