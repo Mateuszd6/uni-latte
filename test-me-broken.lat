@@ -1,5 +1,0 @@
-boolean foo(boolean b)
-{
-    b = true;
-    return true;
-}

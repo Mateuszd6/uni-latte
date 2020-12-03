@@ -90,8 +90,12 @@ define_primitive_types(void)
 static void
 define_primitive_functions(void)
 {
-    assert(array_size(g_funcs) == 0); // Primitive funcs are first that we add
     char* fun_names[] = { "printInt", "printString", "error", "readInt", "readString" };
+
+    // Primitive funcs are first that we add. And we defined in the header file
+    // how many of the we add
+    assert(array_size(g_funcs) == 0);
+    assert(COUNT_OF(fun_names) == FUNCID_LAST_BUILTIN_FUNC);
 
     d_func_arg* argsof_printInt = 0;
     d_func_arg a1 = { .name = "_int", .type_id = TYPEID_INT };
@@ -392,7 +396,11 @@ add_global_funcs(Program p)
             {
                 d_func prev_f = g_funcs[prev_sym.id];
                 error(f.lnum, "Redefinition of global function \"%s\"", t->u.fndef_.ident_);
-                note(prev_f.lnum, "Previosuly defined here");
+
+                if (prev_sym.id > FUNCID_LAST_BUILTIN_FUNC)
+                    note(prev_f.lnum, "Previosuly defined here");
+                else
+                    note(0, "\"%s\" is a builtin function", t->u.fndef_.ident_);
             }
             else
             {
@@ -430,7 +438,7 @@ add_global_funcs(Program p)
     }
 }
 
-static inline i32
+static inline void
 push_var(d_var var, char* vname, void* node)
 {
     symbol prev_decl = symbol_get(vname, node, 0);
@@ -447,57 +455,49 @@ push_var(d_var var, char* vname, void* node)
             error(get_lnum(node), "Variable \"%s\" redefined in the same block", vname);
             note(v.lnum, "Variable \"%s\" declared here", vname);
 
-            // TODO: error, don't push
+            return; // Don't push the sumbol
         }
-        else
-        {
-            //
-            // TODO: Printing warnings to the console cause writing stuff to the
-            // stderr before "OK" is printed, which is incorrect during the spec
-            //
-#if 0
-            warn(get_lnum(node), "Variable \"%s\" shadows an existing variable", vname);
-            note(v.lnum, "Variable \"%s\" declared here", vname);
-#endif
-        }
+
+        //
+        // Shadowing an existing variable, which is OK. Can't write a warning,
+        // because the compiler must outut either "ERROR" or "OK" to stdin, and
+        // there might be some errors later.
+        //
     } break;
     case S_FUN:
     {
         d_func f = g_funcs[prev_decl.id];
-        error(get_lnum(node), "Variable \"%s\" cannot have same name as a function", vname);
+        error(get_lnum(node), "Variable \"%s\" cannot be named after a function", vname);
         note(f.lnum, "Function \"%s\" declared here", vname);
 
-        // TODO: error, don't push
+        return; // Don't push the sumbol
     } break;
 
     case S_TYPE:
     {
         if (prev_decl.id <= TYPEID_LAST_BUILTIN_TYPE)
         {
-            error(get_lnum(node), "Variable \"%s\" cannot have same name as a builtin type", vname);
+            error(get_lnum(node), "Variable \"%s\" cannot be named after a builtin type", vname);
         }
         else
         {
             d_type t = g_types[prev_decl.id];
-            error(get_lnum(node), "Variable \"%s\" cannot have same name as a class", vname);
+            error(get_lnum(node), "Variable \"%s\" cannot be named after a class", vname);
             note(t.lnum, "Class \"%s\" declared here", vname);
         }
 
-        // TODO: error, don't push
+        return;
     } break;
     }
 
     mm var_id = array_size(g_vars);
-    array_push(g_vars, var);
-
     symbol sym;
     sym.type = S_VAR;
     sym.id = (i32)var_id;
     symbol_push(vname, sym);
 
+    array_push(g_vars, var);
     array_push(g_local_symbols, vname);
-
-    return (i32)var_id;
 }
 
 // Assumes that there is a shadowed symbol (stack is of size at least 2)

@@ -316,33 +316,6 @@ enforce_type(evaled_expr* e, u32 type_id)
     }
 }
 
-#if 0
-static void
-enforce_type_of(evaled_expr* e, u32* type_ids, mm n_type_ids)
-{
-    for (mm i = 0; i < n_type_ids; ++i)
-        if (LIKELY(e->type_id == type_ids[i]))
-            return;
-
-    char buf[4096]; // TODO: may index-out
-    d_type t_got = g_types[e->type_id & (~TYPEID_FLAG_ARRAY)];
-    buf[0] = 0;
-    for (mm i = 1; i < n_type_ids; ++i)
-    {
-        d_type t_expected = g_types[type_ids[i] & (~TYPEID_FLAG_ARRAY)];
-
-        strcat(buf, ", \"");
-        strcat(buf, t_expected.name);
-        strcat(buf, "\"");
-    }
-
-    d_type first_t_expected = g_types[type_ids[0] & (~TYPEID_FLAG_ARRAY)];
-    error(get_lnum(e->node),
-          "Expected one of \"%s\"%s but got incompatible type \"%s\"",
-          first_t_expected.name, buf, t_got.name);
-}
-#endif
-
 // TODO: Rename eval_ -> ?
 
 static evaled_expr
@@ -585,7 +558,9 @@ eval_expr(Expr e)
         switch (e1.type_id) {
         case TYPEID_INT:
         {
-            enforce_type(&e2, TYPEID_INT);
+            if (e2.type_id != TYPEID_INT)
+                goto type_missmatch;
+
             if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
                 goto compute_contant_equality_int_or_bool;
 
@@ -597,7 +572,9 @@ eval_expr(Expr e)
 
         case TYPEID_BOOL:
         {
-            enforce_type(&e2, TYPEID_BOOL);
+            if (e2.type_id != TYPEID_BOOL)
+                goto type_missmatch;
+
             if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
                 goto compute_contant_equality_int_or_bool;
 
@@ -609,7 +586,9 @@ eval_expr(Expr e)
 
         case TYPEID_STRING:
         {
-            enforce_type(&e2, TYPEID_STRING);
+            if (e2.type_id != TYPEID_STRING)
+                goto type_missmatch;
+
             if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
                 goto compute_contant_equality_string;
 
@@ -639,23 +618,31 @@ eval_expr(Expr e)
             return compute_binary_string_equality_expr(str1, str2, bineqop, e1.node);
         }
 
+        type_missmatch:
+        {
+            d_type lhs_t = g_types[e1.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type rhs_t = g_types[e2.type_id & (~TYPEID_FLAG_ARRAY)];
+
+            error(get_lnum(e1.node), "Comparing expressions with incompatible types");
+            note(get_lnum(e1.node), "Left hand side evalutes to \"%s\"", lhs_t.name);
+            note(get_lnum(e2.node), "Right hand side evalutes to \"%s\"", rhs_t.name);
+
+            retval.type_id = TYPEID_BOOL;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 0;
+            return retval; // TODO
+        }
+
         //
         // Latte is unspecified when it comes to comparing the reference type
-        // other than strings with ==, so we asssume that this is basically the
-        // equality of references (so that equality again null is meaningful).
+        // other than strings, so we asssume that this is basically the equality
+        // of references (so that equality against null is meaningful).
         //
         default:
         {
             // TODO(ex): Make sure equality works when type A inherits from type B
             if (e1.type_id != e2.type_id)
-            {
-                d_type lhs_t = g_types[e1.type_id & (~TYPEID_FLAG_ARRAY)];
-                d_type rhs_t = g_types[e2.type_id & (~TYPEID_FLAG_ARRAY)];
-
-                error(get_lnum(e1.node), "Comparing expressions with incompatible types");
-                note(get_lnum(e1.node), "Left hand side evalutes to \"%s\"", lhs_t.name);
-                note(get_lnum(e2.node), "Right hand side evalutes to \"%s\"", rhs_t.name);
-            }
+                goto type_missmatch;
 
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_COMPUTE;
@@ -689,9 +676,14 @@ eval_expr(Expr e)
 
     case is_EApp: // TODO
     {
-        u32 func_id = symbol_resolve_func(e->u.eapp_.ident_, e->u.eapp_.listexpr_);
+        u32 func_id = symbol_resolve_func(e->u.eapp_.ident_, e);
         if (func_id == FUNCID_NOTFOUND)
-            func_id = 0; // TODO: This is baaad, maybe just return something instead?
+        {
+            // Can't do anything reasonable, so just asume that type is int
+            retval.type_id = TYPEID_INT;
+            retval.kind = EET_COMPUTE;
+            return retval;
+        }
 
         d_func f = g_funcs[func_id];
         i32 n_given_args = 0;
@@ -927,11 +919,6 @@ eval_expr(Expr e)
 static evaled_stmt
 eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 {
-#if 0
-    printf("--\n");
-    printf("Statement (type: %d)\n", s->kind);
-#endif
-
     evaled_stmt retval;
     switch (s->kind) {
     case is_Empty:
@@ -960,37 +947,10 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     case is_SExp:
     {
         evaled_expr ee = eval_expr(s->u.sexp_.expr_);
-#if 0
-        printf("    Expression %s constant\n", ee.kind == EET_CONSTANT ? "IS" : "IS NOT");
-        printf("    Typed to %u (%s)\n",
-               ee.type_id,
-               (ee.type_id == 0
-                ? "void"
-                : (ee.type_id == 1
-                   ? "int"
-                   : (ee.type_id == 2
-                      ? "boolean"
-                      : (ee.type_id == 3 ? "string" : "reference")))));
-#endif
+        (void)ee;
 
-        if (ee.kind == EET_CONSTANT)
-        {
-            switch (ee.type_id) {
-            case TYPEID_INT:
-            case TYPEID_BOOL:
-            {
-                printf("    Evaluated to: %ld\n", ee.u.cnst.numeric_val);
-            } break;
-            case TYPEID_STRING:
-            {
-                printf("    Evaluated to: \"%s\"\n",
-                       g_str_consts[ee.u.cnst.str_const_id].data);
-            } break;
-            default:
-            {
-            } NOTREACHED;
-            }
-        }
+        // TODO(ir): If expression is not constant, generate IT for it anyway,
+        //           b/c it can call a function that causes side-effects
 
         retval.all_branches_return = 0;
         return retval;
@@ -1026,7 +986,9 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             error(get_lnum(var_type), "Cannot declare a variable of type \"void%s\"",
                   type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
 
-            type_id = TYPEID_VOID; // If void[] change to void, to aVOID errors
+            // TODO: Defaulting to \"int\"
+
+            type_id = TYPEID_INT; // If void[] change to void, to aVOID errors
         } break;
         default:
         {
@@ -1417,32 +1379,6 @@ main(int argc, char** argv)
 
     if (has_error)
         no_recover();
-
-#if 0 && DEBUG
-    printf("Types:\n");
-    for (mm i = 0; i < array_size(g_types); ++i)
-    {
-        note(g_types[i].lnum, "(%ld)", i);
-    }
-
-    printf("\nFunctions:\n");
-    for (mm i = 0; i < array_size(g_funcs); ++i)
-    {
-        note(g_funcs[i].lnum, "(%ld)", i);
-        printf("    Return type: %u%s\n",
-               g_funcs[i].ret_type_id & TYPEID_MASK,
-               g_funcs[i].ret_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
-
-        for (mm j = 0; j < array_size(g_funcs[i].arg_type_ids); ++j)
-        {
-            d_func_arg a = g_funcs[i].arg_type_ids[j];
-            printf("    Param: %d%s\n",
-                   a.type_id & TYPEID_MASK,
-                   a.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
-        }
-    }
-    printf("\n");
-#endif
 
     LIST_FOREACH(it, parse_tree->u.prog_, listtopdef_)
     {

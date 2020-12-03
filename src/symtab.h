@@ -99,6 +99,7 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define EMPTY_STRING_CONSTANT_ID (0)
 
 #define FUNCID_NOTFOUND ((u32)-1)
+#define FUNCID_LAST_BUILTIN_FUNC (5)
 
 #define VARID_NOTFOUND ((u32)-1)
 
