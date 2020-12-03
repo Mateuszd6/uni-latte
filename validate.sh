@@ -49,7 +49,7 @@ echo "Running \"extension\" tests."
 for f in $(ls ./tests/extensions/*.lat ./tests/extensions/**/*.lat 2> /dev/null); do
     KOVNAME="./cov/cov_${COV_IDX}"
     let "COV_IDX += 1";
-    kcov $KOVNAME ./cov ./latc $f > /dev/null 2> temp.out
+    kcov $KOVNAME ./latc $f > /dev/null 2> temp.out
 
     ECODE=$?
     if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ]; then

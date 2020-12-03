@@ -39,8 +39,8 @@ TArr.      Type ::= Ident "[]" ;
 -- Expressions ---------------------------------------------
 EVar.      Expr13 ::= Ident ;
 EApp.      Expr12 ::= Ident "(" [Expr] ")" ;
+EClApp.    Expr11 ::= Expr10 "." Ident "(" [Expr] ")" ;
 EClMem.    Expr11 ::= Expr10 "." Ident ;
-EClApp.    Expr10 ::= Expr9 "." Ident "(" [Expr] ")" ;
 EArrApp.   Expr9 ::= Expr8 "[" Expr "]" ;
 ENew.      Expr8 ::= "new" Ident ;
 ENewArr.   Expr8 ::= "new" Ident "[" Expr "]" ;

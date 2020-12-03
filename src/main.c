@@ -12,6 +12,7 @@
 // * tests: void type everywhere!
 // * tests: void[] type everywhere!
 // * class foo {} does not parse!
+// * Extract g_types[type_id & (~TYPEID_FLAG_ARRAY)]; to a function
 
 // TODO: Temprary.
 extern char const* __asan_default_options(void);
@@ -315,6 +316,7 @@ enforce_type(evaled_expr* e, u32 type_id)
     }
 }
 
+#if 0
 static void
 enforce_type_of(evaled_expr* e, u32* type_ids, mm n_type_ids)
 {
@@ -339,6 +341,7 @@ enforce_type_of(evaled_expr* e, u32* type_ids, mm n_type_ids)
           "Expected one of \"%s\"%s but got incompatible type \"%s\"",
           first_t_expected.name, buf, t_got.name);
 }
+#endif
 
 // TODO: Rename eval_ -> ?
 
@@ -636,17 +639,31 @@ eval_expr(Expr e)
             return compute_binary_string_equality_expr(str1, str2, bineqop, e1.node);
         }
 
+        //
+        // Latte is unspecified when it comes to comparing the reference type
+        // other than strings with ==, so we asssume that this is basically the
+        // equality of references (so that equality again null is meaningful).
+        //
         default:
         {
-            // This will produce an error msg
-            u32 allowed_types[] = { TYPEID_INT, TYPEID_BOOL, TYPEID_STRING };
-            enforce_type_of(&e1, allowed_types, COUNT_OF(allowed_types));
+            // TODO(ex): Make sure equality works when type A inherits from type B
+            if (e1.type_id != e2.type_id)
+            {
+                d_type lhs_t = g_types[e1.type_id & (~TYPEID_FLAG_ARRAY)];
+                d_type rhs_t = g_types[e2.type_id & (~TYPEID_FLAG_ARRAY)];
 
-            // TODO: return something
-        } break;
+                error(get_lnum(e1.node), "Comparing expressions with incompatible types");
+                note(get_lnum(e1.node), "Left hand side evalutes to \"%s\"", lhs_t.name);
+                note(get_lnum(e2.node), "Right hand side evalutes to \"%s\"", rhs_t.name);
+            }
+
+            retval.type_id = TYPEID_BOOL;
+            retval.kind = EET_COMPUTE;
+            retval.is_lvalue = 0;
+            return retval; // TODO
         }
-
-    } break;
+        }
+    }
 
     case is_EVar:
     {
@@ -797,7 +814,7 @@ eval_expr(Expr e)
         if (e_struct.type_id & TYPEID_FLAG_ARRAY)
         {
             // In case of array, only .length is possible
-            if (strcmp(e->u.eclmem_.ident_, "length") != 0)
+            if (UNLIKELY(strcmp(e->u.eclmem_.ident_, "length") != 0))
             {
                 error(get_lnum(e->u.eclmem_.expr_),
                       "Member field \"%s\" does not exists on the \"array\" type",
@@ -822,14 +839,35 @@ eval_expr(Expr e)
         }
         else
         {
-            warn(get_lnum(e_struct.node), "NOT IMPLEMENTED"); // TODO
-            NOTREACHED; // TODO support class members
+            d_type cltype = g_types[e_struct.type_id & (~TYPEID_FLAG_ARRAY)];
 
-            retval.type_id = TYPEID_INT;
+            // TODO: Replace with bsearch for suuuper large structs?
+            mm n_members = array_size(cltype.members);
+            mm idx = 0;
+            for (; idx < n_members; ++idx)
+                if (strcmp(cltype.members[idx].name, e->u.eclmem_.ident_) == 0)
+                    break;
+
+            if (UNLIKELY(idx == n_members))
+            {
+                error(get_lnum(e->u.eclmem_.expr_),
+                      "Class \"%s\" does not have a member named \"%s\"",
+                      cltype.name,
+                      e->u.eclmem_.ident_);
+            }
+
+
+            retval.type_id = cltype.members[idx].type_id;
             retval.kind = EET_COMPUTE;
             return retval;
         }
 
+        NOTREACHED;
+    }
+
+    case is_EClApp:
+    {
+        warn(get_lnum(e), "NOT IMPLEMENTED");
         NOTREACHED;
     }
 
@@ -1139,11 +1177,16 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (UNLIKELY(e.type_id != return_type)) // TODO: Handle the case with inheritance
         {
-            d_type expected_t = g_types[e.type_id & (~TYPEID_FLAG_ARRAY)];
-            d_type got_t = g_types[return_type & (~TYPEID_FLAG_ARRAY)];
+            d_type expected_t = g_types[return_type & (~TYPEID_FLAG_ARRAY)];
+            d_type got_t = g_types[e.type_id & (~TYPEID_FLAG_ARRAY)];
             error(get_lnum(e.node),
-                  "Returning value of type \"%s\" incompatible with type \"%s\"\n",
-                  expected_t.name, got_t.name);
+                  "Returning value of type \"%s\" incompatible with type \"%s\"",
+                  got_t.name, expected_t.name);
+
+            if ((e.type_id & (~TYPEID_FLAG_ARRAY)) > TYPEID_LAST_BUILTIN_TYPE)
+            {
+                note(got_t.lnum, "Type \"%s\" defined here", got_t.name);
+            }
         }
 
         retval.all_branches_return = 1;
@@ -1369,6 +1412,7 @@ main(int argc, char** argv)
 
     define_primitives();
     add_classes(parse_tree);
+    add_class_members(parse_tree);
     add_global_funcs(parse_tree);
 
     if (has_error)

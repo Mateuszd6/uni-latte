@@ -33,6 +33,14 @@ struct d_var
     i32 block_id;
 };
 
+typedef struct d_class_mem d_class_mem;
+struct d_class_mem
+{
+    char* name;
+    i32 offset; // Offset from the start of the struct in qwords, first has 0
+    u32 type_id;
+};
+
 typedef struct d_func_arg d_func_arg;
 struct d_func_arg
 {
@@ -53,6 +61,8 @@ typedef struct d_type d_type;
 struct d_type
 {
     char* name;
+    d_class_mem* members;
+    char** func_names;
     i32 lnum;
     b32 is_primitive;
 };
@@ -98,6 +108,16 @@ static b32 symbol_push(char* name, symbol s);
 static void symbol_pop(char* name);
 
 static u32 symbol_resolve_type(char* name, b32 is_array, void* node);
+static u32 symbol_resolve_func(char* name, void* node);
+
+static inline int
+qsort_d_class_mem(void const* lhs_p, void const* rhs_p)
+{
+    d_class_mem const* lhs = (d_class_mem const*)(lhs_p);
+    d_class_mem const* rhs = (d_class_mem const*)(rhs_p);
+
+    return strcmp(lhs->name, rhs->name);
+}
 
 // TODO: Possibly make other functions, like get func / get type / get var
 //       that fail when not found or type missmatch

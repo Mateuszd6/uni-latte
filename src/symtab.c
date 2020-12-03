@@ -68,7 +68,14 @@ define_primitive_types(void)
 
     for (mm i = 0; i < COUNT_OF(type_names); ++i)
     {
-        d_type t = {.name = type_names[i], .lnum = 0, .is_primitive = 1};
+        d_type t = {
+            .name = type_names[i],
+            .members = 0,
+            .func_names = 0,
+            .lnum = 0,
+            .is_primitive = 1,
+        };
+
         builtin_types[i] = t;
     }
 
@@ -158,6 +165,8 @@ add_classes(Program p)
 
         d_type new_class = {
             .name = t->u.cldef_.ident_,
+            .members = 0,
+            .func_names = 0,
             .lnum = get_lnum(t->u.cldef_.clprops_),
             .is_primitive = 0
         };
@@ -188,6 +197,81 @@ add_classes(Program p)
 
                 symbol_pop(t->u.cldef_.ident_);
             }
+        }
+    }
+}
+
+static void
+add_class_members(Program p)
+{
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_ClDef)
+            continue;
+
+        u32 class_type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, t->u.cldef_.clprops_);
+        assert(class_type_id != TYPEID_NOTFOUND); // We've added all classes already
+
+        // Parse member variables
+        d_class_mem* members = 0;
+        i32 n_members = 0;
+        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        {
+            ClBody cl = cl_it->clbody_;
+            if (cl->kind != is_CBVar)
+                continue;
+
+            char* member_name = cl->u.cbvar_.ident_;
+            Type member_type = cl->u.cbvar_.type_;
+            char* type_name;
+            b32 is_array;
+            switch (member_type->kind) { // TODO: Copypaste
+            case is_TCls:
+            {
+                type_name = member_type->u.tcls_.ident_;
+                is_array = 0;
+            } break;
+            case is_TArr:
+            {
+                type_name = member_type->u.tarr_.ident_;
+                is_array = 1;
+            } break;
+            }
+
+            u32 type_id = symbol_resolve_type(type_name, is_array, member_type);
+            switch (type_id) {
+            case TYPEID_NOTFOUND:
+            {
+                type_id = TYPEID_INT; // Default to int in order to avoid errors
+                // TODO: defaulting to "int"
+            } break;
+            case TYPEID_VOID:
+            case TYPEID_VOID | TYPEID_FLAG_ARRAY:
+            {
+                error(get_lnum(member_type),
+                      "Cannot declare member field of type \"void%s\"",
+                      type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+                type_id = TYPEID_INT;
+                // TODO: defaulting to "int"
+            } break;
+            default:
+            {
+            } break;
+            }
+
+            d_class_mem clmem;
+            clmem.name = member_name;
+            clmem.offset = n_members++;
+            clmem.type_id = type_id;
+            array_push(members, clmem);
+        }
+
+        if (members)
+        {
+            qsort(members, (umm)n_members, sizeof(d_class_mem), qsort_d_class_mem);
+            g_types[class_type_id].members = members;
         }
     }
 }
