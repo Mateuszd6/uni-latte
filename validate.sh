@@ -16,9 +16,12 @@ for f in $(ls ./tests/good/*.lat ./tests/good/**/*.lat 2> /dev/null); do
     KOVNAME="./cov/cov_${COV_IDX}"
     let "COV_IDX += 1";
     kcov $KOVNAME ./latc $f > /dev/null 2> temp.out
-
     ECODE=$?
-    if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ]; then
+
+    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer' < temp.out
+    SANITIZED=$?
+
+    if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ] && [ $SANITIZED -eq 1 ]; then
         let "PASSED_TESTS += 1";
         let "TOTAL_TESTS += 1";
     else
@@ -33,9 +36,12 @@ for f in $(ls ./tests/bad/*.lat ./tests/bad/**/*.lat 2> /dev/null); do
     KOVNAME="./cov/cov_${COV_IDX}"
     let "COV_IDX += 1";
     kcov $KOVNAME ./latc $f > /dev/null 2> temp.out
-
     ECODE=$?
-    if [ "ERROR" == "`head -n1 temp.out`" ] && [ $ECODE -ne 0 ]; then
+
+    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer' < temp.out
+    SANITIZED=$?
+
+    if [ "ERROR" == "`head -n1 temp.out`" ] && [ $ECODE -ne 0 ] && [ $SANITIZED -eq 1 ]; then
         let "PASSED_TESTS += 1";
         let "TOTAL_TESTS += 1";
     else
@@ -50,9 +56,12 @@ for f in $(ls ./tests/extensions/*.lat ./tests/extensions/**/*.lat 2> /dev/null)
     KOVNAME="./cov/cov_${COV_IDX}"
     let "COV_IDX += 1";
     kcov $KOVNAME ./latc $f > /dev/null 2> temp.out
-
     ECODE=$?
-    if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ]; then
+
+    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer' < temp.out
+    SANITIZED=$?
+
+    if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ]  && [ $SANITIZED -eq 1 ]; then
         let "PASSED_TESTS += 1";
         let "TOTAL_TESTS += 1";
     else

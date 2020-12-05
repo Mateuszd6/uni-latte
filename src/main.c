@@ -1,17 +1,10 @@
 // TODO:
-// * Check test-new.lat, because it exposes some errors, namely:
-//   * Why is it possible to not cast?
-//   * Why cast is wrong?
 // * regenerate parser on students, b/c current have different bison version
 // * make a frontend.h/c file
-// * check if type error work fine for classes
-// * typecheck actual code
 // * looks like if a constant is too large, -1 is retuend, check and implement accordingly
 // * void[] return type / param of the function? void arguments
-// * int main() { int int; int x; } allows to redefine int to a variable...
 // * tests: void type everywhere!
 // * tests: void[] type everywhere!
-// * class foo {} does not parse!
 // * Extract g_types[type_id & (~TYPEID_FLAG_ARRAY)]; to a function
 
 // TODO: Temprary.
@@ -727,7 +720,7 @@ eval_expr(Expr e)
     {
         char* type_name = e->u.enew_.ident_;
         u32 type_id = symbol_resolve_type(type_name, 0, e);
-        assert(!(type_id & TYPEID_FLAG_ARRAY));
+        assert(type_id == TYPEID_NOTFOUND || !(type_id & TYPEID_FLAG_ARRAY));
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
@@ -756,7 +749,7 @@ eval_expr(Expr e)
         char* type_name = e->u.enewarr_.ident_;
         Expr esize = e->u.enewarr_.expr_;
         u32 type_id = symbol_resolve_type(type_name, 0, e);
-        assert(!(type_id & TYPEID_FLAG_ARRAY));
+        assert(type_id == TYPEID_NOTFOUND || !(type_id & TYPEID_FLAG_ARRAY));
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
@@ -838,7 +831,10 @@ eval_expr(Expr e)
             mm idx = 0;
             for (; idx < n_members; ++idx)
                 if (strcmp(cltype.members[idx].name, e->u.eclmem_.ident_) == 0)
+                {
+                    retval.type_id = cltype.members[idx].type_id;
                     break;
+                }
 
             if (UNLIKELY(idx == n_members))
             {
@@ -846,10 +842,10 @@ eval_expr(Expr e)
                       "Class \"%s\" does not have a member named \"%s\"",
                       cltype.name,
                       e->u.eclmem_.ident_);
+
+                retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
             }
 
-
-            retval.type_id = cltype.members[idx].type_id;
             retval.kind = EET_COMPUTE;
             return retval;
         }
@@ -1024,7 +1020,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                     if (vval.type_id == TYPEID_NULL && type_id > TYPEID_LAST_BUILTIN_TYPE)
                     {
                         note(get_lnum(i),
-                             "\"null\" is not implcitely assingable to a reference type. Use: \"(%s)null\"",
+                             "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
                              expected_t.name);
                         note(get_lnum(i),
                              "This requirement is forced by the Author of the assignment. Sorry.");
@@ -1110,7 +1106,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             if (e2.type_id == TYPEID_NULL && e1.type_id > TYPEID_LAST_BUILTIN_TYPE)
             {
                 note(get_lnum(e2.node),
-                     "\"null\" is not implcitely assingable to a reference type. Use: \"(%s)null\"",
+                     "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
                      expected_t.name);
                 note(get_lnum(e2.node),
                      "This requirement is forced by the Author of the assignment. Sorry.");
@@ -1121,7 +1117,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         return retval;
     }
 
-    case is_Ret: // TODO: Return value
+    case is_Ret:
     case is_VRet:
     {
         evaled_expr e;
@@ -1155,7 +1151,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         return retval;
     }
 
-    case is_Cond: // TODO: If stmt
+    case is_Cond:
     case is_CondElse:
     {
         evaled_expr condex;
