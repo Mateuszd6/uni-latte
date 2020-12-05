@@ -5,7 +5,7 @@ CSANITIZERS = -fsanitize=address,undefined
 CPLATFORM = -D_POSIX_C_SOURCE=200809L
 CFORMAT = clang-format -style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
 
-BNFC = /home/mateusz/work/latte-bnfc/bnfc # /home/students/inf/PUBLIC/MRJP/bin/students/bnfc # TODO
+BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc # TODO
 BNFC_FLAGS = --c
 
 FLEX = flex

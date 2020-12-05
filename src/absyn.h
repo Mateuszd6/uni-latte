@@ -61,8 +61,7 @@ struct Program_
     {
         is_Prog
     } kind;
-    union
-    {
+    union {
         struct
         {
             ListTopDef listtopdef_;
@@ -80,8 +79,7 @@ struct TopDef_
         is_FnDef,
         is_ClDef
     } kind;
-    union
-    {
+    union {
         struct
         {
             Block block_;
@@ -117,8 +115,7 @@ struct Arg_
     {
         is_Ar
     } kind;
-    union
-    {
+    union {
         struct
         {
             Ident ident_;
@@ -144,8 +141,7 @@ struct Block_
     {
         is_Blk
     } kind;
-    union
-    {
+    union {
         struct
         {
             ListStmt liststmt_;
@@ -182,8 +178,7 @@ struct Stmt_
         is_For,
         is_SExp
     } kind;
-    union
-    {
+    union {
         struct
         {
             Block block_;
@@ -271,8 +266,7 @@ struct Item_
         is_NoInit,
         is_Init
     } kind;
-    union
-    {
+    union {
         struct
         {
             Ident ident_;
@@ -305,8 +299,7 @@ struct Type_
         is_TCls,
         is_TArr
     } kind;
-    union
-    {
+    union {
         struct
         {
             Ident ident_;
@@ -349,8 +342,7 @@ struct Expr_
         is_EAnd,
         is_EOr
     } kind;
-    union
-    {
+    union {
         struct
         {
             Ident ident_;
@@ -494,8 +486,7 @@ struct ClBody_
         is_CBVar,
         is_CBFnDef
     } kind;
-    union
-    {
+    union {
         struct
         {
             Ident ident_;
@@ -531,8 +522,7 @@ struct ClProps_
         is_CNone,
         is_CExtends
     } kind;
-    union
-    {
+    union {
         struct
         {
             Ident ident_;
@@ -552,8 +542,7 @@ struct AddOp_
         is_Plus,
         is_Minus
     } kind;
-    union
-    {
+    union {
     } u;
 };
 
@@ -570,8 +559,7 @@ struct MulOp_
         is_Div,
         is_Mod
     } kind;
-    union
-    {
+    union {
     } u;
 };
 
@@ -591,8 +579,7 @@ struct RelOp_
         is_GTH,
         is_GE
     } kind;
-    union
-    {
+    union {
     } u;
 };
 
@@ -612,8 +599,7 @@ struct EqOp_
         is_NE,
         is_EQU
     } kind;
-    union
-    {
+    union {
     } u;
 };
 
