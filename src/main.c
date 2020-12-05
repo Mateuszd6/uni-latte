@@ -806,6 +806,7 @@ eval_expr(Expr e)
                       e->u.eclmem_.ident_);
             }
 
+            retval.is_lvalue = 0;
             retval.type_id = TYPEID_INT;
             retval.kind = EET_COMPUTE;
             return retval;
@@ -846,6 +847,7 @@ eval_expr(Expr e)
                 retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
             }
 
+            retval.is_lvalue = e_struct.is_lvalue;
             retval.kind = EET_COMPUTE;
             return retval;
         }
@@ -872,7 +874,7 @@ eval_expr(Expr e)
     {
         char* type_name = e->u.ecast_.ident_;
         u32 type_id = symbol_resolve_type(type_name, 0, e);
-        assert(!(type_id & TYPEID_FLAG_ARRAY));
+        assert(type_id == TYPEID_NOTFOUND || !(type_id & TYPEID_FLAG_ARRAY));
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
@@ -884,7 +886,7 @@ eval_expr(Expr e)
         case TYPEID_NULL:
         {
             error(get_lnum(e), "Casting to a builtin type is not allowed.");
-            // TODO: dummy assing type_id
+            type_id = TYPEID_INT; // TODO: defaults to "int"
         } break;
         default:
         {
@@ -974,7 +976,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
-            type_id = TYPEID_INT; // Default to int in order to avoid errors
+            type_id = TYPEID_INT; // TODO: Defaults to "int"
         } break;
         case TYPEID_VOID:
         case TYPEID_VOID | TYPEID_FLAG_ARRAY:
@@ -983,7 +985,6 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                   type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
 
             // TODO: Defaulting to \"int\"
-
             type_id = TYPEID_INT; // If void[] change to void, to aVOID errors
         } break;
         default:
@@ -1234,29 +1235,40 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         Expr e = s->u.for_.expr_;
         evaled_expr e_expr = eval_expr(e);
 
-        if (!(e_expr.type_id & TYPEID_FLAG_ARRAY) || e_expr.type_id == TYPEID_VOID)
+        if (!(e_expr.type_id & TYPEID_FLAG_ARRAY))
         {
             d_type t_given = g_types[e_expr.type_id & (~TYPEID_FLAG_ARRAY)];
 
-            error(get_lnum(e), "Type in the \"for\" expresion must be a non-void array");
-            note(get_lnum(e), "Given expression resolved to a type \"%s%s\"",
-                 t_given.name, e_expr.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+            error(get_lnum(e), "Type in the \"for\" expresion must be a an array");
+            note(get_lnum(e), "Given expression resolved to a type \"%s\"", t_given.name);
+
+            // TODO: Change type to int to avoid error cascade?
+            //       For example, when RHS of the for loop is void
+        }
+        else if ((e_expr.type_id & (~TYPEID_FLAG_ARRAY)) == TYPEID_VOID)
+        {
+            error(get_lnum(e), "Type in the \"for\" expresion must not be a void[]");
 
             // TODO: Change type to int to avoid error cascade?
             //       For example, when RHS of the for loop is void
         }
 
         u32 iter_type_id = symbol_resolve_type(type_name, 0, e);
-        assert(!(iter_type_id & TYPEID_FLAG_ARRAY));
+        assert(iter_type_id == TYPEID_NOTFOUND || !(iter_type_id & TYPEID_FLAG_ARRAY));
         switch (iter_type_id) {
         case TYPEID_NOTFOUND:
         {
-            iter_type_id = e_expr.type_id; // Default to good iterator type anyway
+            // Default to good iterator type anyway
+            iter_type_id = e_expr.type_id & ~TYPEID_FLAG_ARRAY;
+            // TODO: "Assuming type ..."
         } break;
         case TYPEID_VOID:
         {
             error(get_lnum(e), "Cannot declare a variable of type \"void\" in the range loop");
-            iter_type_id = e_expr.type_id;
+
+            // Default to good iterator type anyway
+            iter_type_id = e_expr.type_id & ~TYPEID_FLAG_ARRAY;
+            // TODO: "Assuming type ..."
         } break;
         default:
         {
@@ -1265,13 +1277,13 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (iter_type_id != (e_expr.type_id & (~(TYPEID_FLAG_ARRAY))))
         {
-            // TODO: Test with list of classes that inherit from the base class:
-            //       for (base b : new dervied[10])
+            // TODO(ex): Support list of classes that inherit from the base class:
+            //           for (base b : new dervied[10])
 
             d_type t_arr = g_types[e_expr.type_id & (~(TYPEID_FLAG_ARRAY))];
             d_type t_iter = g_types[iter_type_id & (~TYPEID_FLAG_ARRAY)];
             error(get_lnum(e), "Given array has a type, which is non assignable to the iterator type");
-            note(get_lnum(e), "Iterator has type \"%s\", but expression has \"%s\"",
+            note(get_lnum(e), "Iterator has type \"%s\", when \"%s\" was expected",
                  t_iter.name, t_arr.name);
         }
 
@@ -1294,7 +1306,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     }
     }
 
-    return retval; // TODO: Should not be reached
+    NOTREACHED; // TODO: Should not be reached?
 }
 
 static void
