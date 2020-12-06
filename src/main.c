@@ -679,7 +679,8 @@ eval_expr(Expr e)
         }
 
         d_func f = g_funcs[func_id];
-        i32 n_given_args = 0;
+        i32 n_given_args = 0 + !!f.is_local; // 1st param "self" for local func
+
         LIST_FOREACH(it, e->u.eapp_, listexpr_)
         {
             if (LIKELY(n_given_args < f.num_args)) // if not too many args given
@@ -693,10 +694,10 @@ eval_expr(Expr e)
                     d_type t_expected = g_types[expected_type_id & (~TYPEID_FLAG_ARRAY)];
                     d_type t_provided = g_types[argexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
 
-                    error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type %s",
+                    error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type \"%s\"",
                           e->u.eapp_.ident_, n_given_args + 1, t_expected.name);
 
-                    note(get_lnum(argexpr), "Given expression of type %s, which is not assignable to type %s",
+                    note(get_lnum(argexpr), "Given expression of type \"%s\", which is not assignable to type \"%s\"",
                          t_provided.name, t_expected.name);
                 }
             }
@@ -706,11 +707,13 @@ eval_expr(Expr e)
 
         if (n_given_args != f.num_args)
         {
-            error(get_lnum(e->u.eapp_.listexpr_),
+            error(get_lnum(e),
                   "Function \"%s\" takes %d arguments, but %d were provided.",
-                  e->u.eapp_.ident_, f.num_args, n_given_args);
+                  e->u.eapp_.ident_, f.num_args - !!f.is_local, n_given_args - !!f.is_local);
         }
 
+        // TODO: Set lvalue. Usually false, except the cases, when reference or
+        //       array is retured.
         retval.type_id = f.ret_type_id;
         retval.kind = EET_COMPUTE;
         return retval;
@@ -857,8 +860,47 @@ eval_expr(Expr e)
 
     case is_EClApp:
     {
-        warn(get_lnum(e), "NOT IMPLEMENTED");
-        NOTREACHED;
+        evaled_expr e_struct = eval_expr(e->u.eclapp_.expr_);
+        d_type cltype = g_types[e_struct.type_id];
+        char* fn_name = e->u.eclapp_.ident_;
+
+        if (cltype.is_primitive)
+        {
+            error(get_lnum(e->u.eclapp_.expr_), "Builtin types does not have a member functions");
+            note(get_lnum(e->u.eclapp_.expr_), "Expresion evaluated to type \"%s\"", cltype.name);
+            retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
+        }
+        else
+        {
+            // TODO: Replace with bsearch for suuuper large structs?
+            mm n_member_funcs = array_size(cltype.member_funcs);
+            mm idx = 0;
+            for (; idx < n_member_funcs; ++idx)
+                if (strcmp(cltype.member_funcs[idx].name, fn_name) == 0)
+                {
+                    retval.type_id = cltype.member_funcs[idx].ret_type_id;
+                    break;
+                }
+
+            if (UNLIKELY(idx == n_member_funcs))
+            {
+                error(get_lnum(e->u.eclapp_.expr_),
+                      "Function \"%s\" is not a member of class \"%s\"",
+                      fn_name, cltype.name);
+                note(cltype.lnum, "Class \"%s\" defined here", cltype.name);
+                retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
+            }
+        }
+
+        //
+        // TODO: Check args of function!!!!
+        //
+
+        // TODO: Set lvalue. Usually false, except the cases, when reference or
+        //       array is retured.
+
+        retval.kind = EET_COMPUTE;
+        return retval;
     }
 
     case is_ENull:
@@ -957,22 +999,9 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     case is_Decl:
     {
         Type var_type = s->u.decl_.type_;
-        char* type_name;
-        b32 is_array;
-        switch (var_type->kind) { // TODO: Copypaste
-        case is_TCls:
-        {
-            type_name = var_type->u.tcls_.ident_;
-            is_array = 0;
-        } break;
-        case is_TArr:
-        {
-            type_name = var_type->u.tarr_.ident_;
-            is_array = 1;
-        } break;
-        }
+        parsed_type type = parse_type(s->u.decl_.type_);
+        u32 type_id = symbol_resolve_type(type.name, type.is_array, var_type);
 
-        u32 type_id = symbol_resolve_type(type_name, is_array, var_type);
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
@@ -1310,50 +1339,28 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 }
 
 static void
-eval_body(TopDef fundef)
+eval_func_body(char* fnname, Block b, void* node)
 {
-    assert(fundef->kind == is_FnDef);
-    Ident fnname = fundef->u.fndef_.ident_;
-    u32 f_id = symbol_resolve_func(fnname, fundef);
-    assert(f_id != FUNCID_NOTFOUND);
+    u32 f_id = symbol_resolve_func(fnname, node);
+    assert(f_id != FUNCID_NOTFOUND); // Already added
 
-    i32 param_block_id = push_block(); // block in which params get defined
-    LIST_FOREACH(arg_it, fundef->u.fndef_, listarg_)
+    i32 param_block_id = push_block(); // Block in which params get defined
+    i32 node_lnum = get_lnum(node);
+    d_func_arg* args = g_funcs[f_id].arg_type_ids;
+    mm n_args = array_size(args);
+    for (mm i = 0; i < n_args; ++i)
     {
-        // TODO: Copypaste
-        Arg a = arg_it->arg_;
-        Ident aname = a->u.ar_.ident_;
-        Type atype = a->u.ar_.type_;
-        Ident arg_type_name;
-        b32 arg_is_array;
-        switch (atype->kind) {
-        case is_TCls:
-        {
-            arg_type_name = atype->u.tcls_.ident_;
-            arg_is_array = 0;
-        } break;
-        case is_TArr:
-        {
-            arg_type_name = atype->u.tarr_.ident_;
-            arg_is_array = 1;
-        } break;
-        }
-
-        u32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, arg_is_array, atype);
-        assert(arg_type_id != TYPEID_NOTFOUND); // Already checked earlier
-
         d_var var;
-        var.lnum = get_lnum(a);
-        var.type_id = arg_type_id;
+        var.lnum = node_lnum; // TODO: lnum for funargs
+        var.type_id = args[i].type_id;
         var.block_id = param_block_id;
 
-        push_var(var, aname, a);
+        push_var(var, args[i].name, node);
     }
 
     u32 f_rettype_id = g_funcs[f_id].ret_type_id;
-    Block b = fundef->u.fndef_.block_;
     b32 all_branches_return = 0;
-    i32 body_block_id = push_block(); // block where body is parsed (so args can be shadowed)
+    i32 body_block_id = push_block(); // Block where body is parsed (so args can be shadowed)
     assert(b->kind == is_Blk);
     LIST_FOREACH(it, b->u.blk_, liststmt_)
     {
@@ -1394,7 +1401,60 @@ main(int argc, char** argv)
         if (t->kind != is_FnDef)
             continue;
 
-        eval_body(t);
+        eval_func_body(t->u.fndef_.ident_, t->u.fndef_.block_, t->u.fndef_.type_);
+    }
+
+    LIST_FOREACH(it, parse_tree->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_ClDef)
+            continue;
+
+        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        {
+            ClBody cl = cl_it->clbody_;
+            if (cl->kind != is_CBFnDef)
+                continue;
+
+            u32 type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, cl);
+            assert(type_id != TYPEID_NOTFOUND);
+
+            d_type type = g_types[type_id];
+            mm n_member_funcs = array_size(type.member_funcs);
+            for (mm i = 0; i < n_member_funcs; ++i)
+                create_func(type.member_funcs[i], type.member_funcs[i].name);
+
+            push_block(); // Block for class memebers
+            mm n_members = array_size(type.members);
+            for (mm i = 0; i < n_members; ++i)
+            {
+                char* vname = type.members[i].name;
+                d_var var = {
+                    .lnum = 0, // TODO: lnum in d_class_mem
+                    .type_id = type.members[i].type_id,
+                    .block_id = -1,
+                };
+
+                mm var_id = array_size(g_vars);
+                symbol sym;
+                sym.type = S_VAR;
+                sym.id = (i32)var_id;
+                symbol_push(vname, sym);
+
+                array_push(g_vars, var);
+                array_push(g_local_symbols, vname);
+            }
+
+
+            eval_func_body(cl->u.cbfndef_.ident_, cl->u.cbfndef_.block_, cl->u.cbfndef_.type_);
+
+            pop_block();
+
+            // Pop back the member functions
+            for (mm i = 0; i < n_member_funcs; ++i)
+                symbol_pop(type.member_funcs[i].name);
+            array_popn(g_funcs, n_member_funcs);
+        }
     }
 
     if (has_error)

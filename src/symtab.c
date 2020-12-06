@@ -28,12 +28,33 @@ HASHMAP_DEFINE(symboltab, char*, symbol_stack, str_cmp, str_hash);
 
 static symboltab_kvp* g_symtab = 0;
 static d_var* g_vars = 0;
-static char** g_local_symbols = 0; // symbols to pop, when leaving a scope,
-static d_func* g_funcs = 0;        // NULL means break in the scopes
+static char** g_local_symbols = 0; // symbols to pop, when leaving a scope
+static d_func* g_funcs = 0;
+static d_func* g_local_funcs = 0; // Functions defined in classes ("self" param)
 static d_type* g_types = 0;
 static string_const* g_str_consts = 0;
 
-static b32
+static parsed_type
+parse_type(Type type)
+{
+    parsed_type retval;
+    switch (type->kind) {
+    case is_TCls:
+    {
+        retval.name = type->u.tcls_.ident_;
+        retval.is_array = 0;
+    } break;
+    case is_TArr:
+    {
+        retval.name = type->u.tarr_.ident_;
+        retval.is_array = 1;
+    } break;
+    }
+
+    return retval;
+}
+
+static b32 // TODO: Rename -> push global func? // TODO: Kill 2nd param?
 create_func(d_func f, char* name)
 {
     symbol s = {
@@ -71,7 +92,7 @@ define_primitive_types(void)
         d_type t = {
             .name = type_names[i],
             .members = 0,
-            .func_names = 0,
+            .member_funcs = 0,
             .lnum = 0,
             .is_primitive = 1,
         };
@@ -108,6 +129,7 @@ define_primitive_functions(void)
     d_func f[] = {
         // void printInt(int)
         {
+            .name = "printInt",
             .lnum = 0,
             .ret_type_id = TYPEID_VOID,
             .num_args = 1,
@@ -115,6 +137,7 @@ define_primitive_functions(void)
         },
         // void printString(string)
         {
+            .name = "printString",
             .lnum = 0,
             .ret_type_id = TYPEID_VOID,
             .num_args = 1,
@@ -122,6 +145,7 @@ define_primitive_functions(void)
         },
         // void error()
         {
+            .name = "error",
             .lnum = 0,
             .ret_type_id = TYPEID_VOID,
             .num_args = 0,
@@ -129,6 +153,7 @@ define_primitive_functions(void)
         },
         // int readInt()
         {
+            .name = "readInt",
             .lnum = 0,
             .ret_type_id = TYPEID_INT,
             .num_args = 0,
@@ -136,6 +161,7 @@ define_primitive_functions(void)
         },
         // string readString()
         {
+            .name = "readString",
             .lnum = 0,
             .ret_type_id = TYPEID_STRING,
             .num_args = 0,
@@ -170,7 +196,7 @@ add_classes(Program p)
         d_type new_class = {
             .name = t->u.cldef_.ident_,
             .members = 0,
-            .func_names = 0,
+            .member_funcs = 0,
             .lnum = get_lnum(t->u.cldef_.clprops_),
             .is_primitive = 0
         };
@@ -205,6 +231,72 @@ add_classes(Program p)
     }
 }
 
+// Get arguments for function. TopDef is assumed to be of the type is_FnDef. If
+// this_param is != -1, the first param is called "self" and is of given type
+static d_func_arg*
+get_args_for_function(ListArg args, i32 this_param)
+{
+    // TODO: Make sure that if "self" is a param, no other param can be named
+    // this (OR is it done already)?
+
+    d_func_arg* arg_type_ids = 0;
+    if (this_param != -1)
+    {
+        d_func_arg arg = { .name = "self", .type_id = (u32)this_param };
+        array_push(arg_type_ids, arg);
+    }
+
+    struct { ListArg listarg_; } arglist;
+    arglist.listarg_ = args;
+    LIST_FOREACH(arg_it, arglist, listarg_)
+    {
+        Arg a = arg_it->arg_;
+        assert(a->kind == is_Ar); // Only possible type
+
+        Ident aname = a->u.ar_.ident_;
+        parsed_type atype = parse_type(a->u.ar_.type_);
+        u32 arg_type_id = symbol_resolve_type(atype.name, atype.is_array, a->u.ar_.type_);
+
+        if (arg_type_id == TYPEID_NOTFOUND)
+            arg_type_id = TYPEID_INT;
+
+        if (arg_type_id == TYPEID_VOID || arg_type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+        {
+            error(get_lnum(a), "Parameter type void%s is not allowed",
+                  arg_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+            arg_type_id = TYPEID_INT; // TODO: assuming int
+        }
+
+        d_func_arg arg = { .name = aname, .type_id = arg_type_id };
+        array_push(arg_type_ids, arg);
+    }
+
+    // Check if all parameter names are unique
+    mm n_args = array_size(arg_type_ids);
+    if (n_args)
+    {
+        char** arg_names = 0;
+        array_reserve(arg_names, n_args);
+        for (mm i = 0; i < n_args; ++i)
+            array_push(arg_names, arg_type_ids[i].name);
+
+        qsort(arg_names, (umm)n_args, sizeof(char*), qsort_strcmp);
+        for (mm i = 0; i < n_args - 1; ++i)
+        {
+            if (UNLIKELY(strcmp(arg_names[i], arg_names[i + 1]) == 0))
+            {
+                error(get_lnum(args), "Redefinition of parameter \"%s\"", arg_names[i]);
+                break; // TODO: Report all redefinitions, not just first one
+            }
+        }
+
+        array_free(arg_names);
+    }
+
+    return arg_type_ids;
+}
+
 static void
 add_class_members(Program p)
 {
@@ -228,22 +320,9 @@ add_class_members(Program p)
 
             char* member_name = cl->u.cbvar_.ident_;
             Type member_type = cl->u.cbvar_.type_;
-            char* type_name;
-            b32 is_array;
-            switch (member_type->kind) { // TODO: Copypaste
-            case is_TCls:
-            {
-                type_name = member_type->u.tcls_.ident_;
-                is_array = 0;
-            } break;
-            case is_TArr:
-            {
-                type_name = member_type->u.tarr_.ident_;
-                is_array = 1;
-            } break;
-            }
+            parsed_type mem_type = parse_type(cl->u.cbvar_.type_);
+            u32 type_id = symbol_resolve_type(mem_type.name, mem_type.is_array, cl->u.cbvar_.type_);
 
-            u32 type_id = symbol_resolve_type(type_name, is_array, member_type);
             switch (type_id) {
             case TYPEID_NOTFOUND:
             {
@@ -274,8 +353,54 @@ add_class_members(Program p)
 
         if (members)
         {
+            // Make it easy to find a member by name
             qsort(members, (umm)n_members, sizeof(d_class_mem), qsort_d_class_mem);
             g_types[class_type_id].members = members;
+        }
+
+        // Parse local functions
+        d_func* member_funcs = 0;
+        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        {
+            ClBody cl = cl_it->clbody_;
+            if (cl->kind != is_CBFnDef)
+                continue;
+
+            //
+            // TODO: Copypaste from function. Merge?
+            //
+
+            parsed_type retval_type = parse_type(cl->u.cbfndef_.type_);
+            u32 type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, cl->u.cbfndef_.type_);
+            if (type_id == TYPEID_NOTFOUND)
+                type_id = TYPEID_INT;
+
+            if (type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+            {
+                error(get_lnum(cl->u.cbfndef_.type_), "Return type void[] is not allowed");
+                type_id = TYPEID_INT;
+            }
+
+            d_func_arg* arg_type_ids = get_args_for_function(cl->u.cbfndef_.listarg_, (i32)class_type_id);
+            mm n_args = array_size(arg_type_ids);
+
+            d_func f = {
+                .name = cl->u.cbfndef_.ident_,
+                .lnum = get_lnum(cl->u.cbfndef_.type_),
+                .ret_type_id = type_id,
+                .num_args = (i32)n_args,
+                .arg_type_ids = arg_type_ids,
+                .is_local = 1,
+            };
+
+            array_push(member_funcs, f);
+        }
+
+        if (member_funcs)
+        {
+            // Make it easy to find a member by name
+            qsort(member_funcs, (umm)array_size(member_funcs), sizeof(d_func), qsort_d_func);
+            g_types[class_type_id].member_funcs = member_funcs;
         }
     }
 }
@@ -290,100 +415,27 @@ add_global_funcs(Program p)
         if (t->kind != is_FnDef)
             continue;
 
-        Type retval_type = t->u.fndef_.type_;
-        Ident type_name;
-        b32 is_array;
-        switch (retval_type->kind) {
-        case is_TCls:
-        {
-            type_name = retval_type->u.tcls_.ident_;
-            is_array = 0;
-        } break;
-        case is_TArr:
-        {
-            type_name = retval_type->u.tarr_.ident_;
-            is_array = 1;
-        } break;
-        }
-
-        u32 type_id = symbol_resolve_type(type_name, is_array, retval_type);
+        parsed_type retval_type = parse_type(t->u.fndef_.type_);
+        u32 type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, t->u.fndef_.type_);
         if (type_id == TYPEID_NOTFOUND)
             type_id = TYPEID_INT;
 
         if (type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
         {
-            error(get_lnum(retval_type), "Return type void[] is not allowed");
+            error(get_lnum(t->u.fndef_.type_), "Return type void[] is not allowed");
             type_id = TYPEID_INT;
         }
 
-        d_func_arg* arg_type_ids = 0;
-        LIST_FOREACH(arg_it, t->u.fndef_, listarg_)
-        {
-            Arg a = arg_it->arg_;
-            Ident aname = a->u.ar_.ident_;
-            Type atype = a->u.ar_.type_;
-            Ident arg_type_name;
-            b32 arg_is_array;
-            switch (atype->kind) {
-            case is_TCls:
-            {
-                arg_type_name = atype->u.tcls_.ident_;
-                arg_is_array = 0;
-            } break;
-            case is_TArr:
-            {
-                arg_type_name = atype->u.tarr_.ident_;
-                arg_is_array = 1;
-            } break;
-            }
-
-            assert(a->kind == is_Ar);
-            u32 arg_type_id = symbol_resolve_type(atype->u.tcls_.ident_, arg_is_array, atype);
-            if (arg_type_id == TYPEID_NOTFOUND)
-                arg_type_id = TYPEID_INT;
-
-            if (arg_type_id == TYPEID_VOID || arg_type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
-            {
-                error(get_lnum(a), "Parameter type void%s is not allowed",
-                      arg_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
-
-                arg_type_id = TYPEID_INT;
-            }
-
-            d_func_arg arg = { .name = aname, .type_id = arg_type_id };
-            array_push(arg_type_ids, arg);
-        }
-
-        // Check if all parameter names are unique
+        d_func_arg* arg_type_ids = get_args_for_function(t->u.fndef_.listarg_, -1);
         mm n_args = array_size(arg_type_ids);
-        if (n_args)
-        {
-            char** arg_names = 0;
-            array_reserve(arg_names, n_args);
-            for (mm i = 0; i < n_args; ++i)
-                array_push(arg_names, arg_type_ids[i].name);
-
-            qsort(arg_names, (umm)n_args, sizeof(char*), qsort_strcmp);
-            for (mm i = 0; i < n_args - 1; ++i)
-            {
-                if (UNLIKELY(strcmp(arg_names[i], arg_names[i + 1]) == 0))
-                {
-                    error(get_lnum(t->u.fndef_.listarg_),
-                          "Redefinition of parameter \"%s\"",
-                          arg_names[i]);
-
-                    break; // TODO: Report all redefinitions, not just first one
-                }
-            }
-
-            array_free(arg_names);
-        }
 
         d_func f = {
+            .name = t->u.fndef_.ident_,
             .lnum = get_lnum(t->u.fndef_.type_),
             .ret_type_id = type_id,
             .num_args = (i32)n_args,
             .arg_type_ids = arg_type_ids,
+            .is_local = 0,
         };
 
         b32 shadows = create_func(f, t->u.fndef_.ident_);
@@ -463,6 +515,7 @@ push_var(d_var var, char* vname, void* node)
         // because the compiler must outut either "ERROR" or "OK" to stdin, and
         // there might be some errors later.
         //
+
     } break;
     case S_FUN:
     {
@@ -566,7 +619,7 @@ static inline u32
 symbol_resolve_func(char* name, void* node)
 {
     symbol sym = symbol_get(name, node, 1);
-    if (LIKELY(sym.type == S_FUN))
+    if (LIKELY(sym.type == S_FUN)) // TODO: Local function as well?
     {
         return (u32)sym.id;
     }
@@ -661,9 +714,3 @@ symbol_pop(char* name)
         symboltab_delete(g_symtab, name);
     }
 }
-
-//
-// Expression validating:
-//
-
-// TODO

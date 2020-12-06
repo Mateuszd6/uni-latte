@@ -30,7 +30,7 @@ struct d_var
 {
     i32 lnum;
     u32 type_id;
-    i32 block_id;
+    i32 block_id; // -1 means var in the class body
 };
 
 typedef struct d_class_mem d_class_mem;
@@ -51,10 +51,12 @@ struct d_func_arg
 typedef struct d_func d_func;
 struct d_func
 {
-    d_func_arg* arg_type_ids;
+    char* name;
+    d_func_arg* arg_type_ids; // TODO: renmae to args!!!
     i32 lnum;
     u32 ret_type_id;
     i32 num_args;
+    b32 is_local;
 };
 
 typedef struct d_type d_type;
@@ -62,7 +64,7 @@ struct d_type
 {
     char* name;
     d_class_mem* members;
-    char** func_names;
+    d_func* member_funcs;
     i32 lnum;
     b32 is_primitive;
 };
@@ -78,6 +80,13 @@ struct string_const
 {
     char* data;
     mm len;
+};
+
+typedef struct parsed_type parsed_type;
+struct parsed_type
+{
+    char* name;
+    b32 is_array;
 };
 
 HASHMAP_DECLARE(symboltab, char*, symbol_stack);
@@ -116,6 +125,15 @@ qsort_d_class_mem(void const* lhs_p, void const* rhs_p)
 {
     d_class_mem const* lhs = (d_class_mem const*)(lhs_p);
     d_class_mem const* rhs = (d_class_mem const*)(rhs_p);
+
+    return strcmp(lhs->name, rhs->name);
+}
+
+static inline int
+qsort_d_func(void const* lhs_p, void const* rhs_p)
+{
+    d_func const* lhs = (d_func const*)(lhs_p);
+    d_func const* rhs = (d_func const*)(rhs_p);
 
     return strcmp(lhs->name, rhs->name);
 }
