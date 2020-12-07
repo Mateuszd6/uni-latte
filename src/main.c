@@ -1,10 +1,5 @@
 // TODO:
-// * regenerate parser on students, b/c current have different bison version
 // * make a frontend.h/c file
-// * looks like if a constant is too large, -1 is retuend, check and implement accordingly
-// * void[] return type / param of the function? void arguments
-// * tests: void type everywhere!
-// * tests: void[] type everywhere!
 // * Extract g_types[type_id & (~TYPEID_FLAG_ARRAY)]; to a function
 
 // TODO: Temprary.
@@ -223,8 +218,9 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     string_const s1 = g_str_consts[str1];
     string_const s2 = g_str_consts[str2];
 
-    // TODO: This is allocated differently that strings hard-coded in code, and
-    //       won't be easy to free!
+    // This is allocated differently that strings hard-coded in code, and won't
+    // be easy to free. But, since compiler works for short period of time, we
+    // don't generally care about memory leaks here
     char* new_string = malloc((umm)(s1.len + s2.len + 1));
     new_string[0] = 0;
     strcat(new_string, s1.data);
@@ -298,7 +294,6 @@ enforce_type(evaled_expr* e, u32 type_id)
         d_type t_expected = g_types[type_id & (~TYPEID_FLAG_ARRAY)];
         d_type t_got = g_types[e->type_id & (~TYPEID_FLAG_ARRAY)];
 
-        // TODO: lnum
         error(get_lnum(e->node),
               "Expected type \"%s\" but got incompatible type \"%s\"",
               t_expected.name, t_got.name);
@@ -436,9 +431,16 @@ eval_expr(Expr e)
 
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
-            // TODO: Check overflow of -2kkk to positive value!!
             assert(!e1.is_lvalue);
             e1.u.cnst.numeric_val = -e1.u.cnst.numeric_val;
+
+            // In case when we have -(INT_MIN):
+            if (UNLIKELY(overflows_32bit(e1.u.cnst.numeric_val)))
+            {
+                error(get_lnum(e1.node), "Integer constant overflows");
+                retval.u.cnst.numeric_val = 0;
+            }
+
             return e1;
         }
 
@@ -566,7 +568,6 @@ eval_expr(Expr e)
             return compute_binary_integer_expr(v1, v2, binintop, e1.node);
         }
 
-        // TODO: un-uglify
         if (binintop == BIOP_LTH || binintop == BIOP_LE
             || binintop == BIOP_GTH || binintop == BIOP_GE)
         {
@@ -574,9 +575,6 @@ eval_expr(Expr e)
         }
         else
         {
-            assert(binintop == BIOP_ADD || binintop == BIOP_SUB
-                   || binintop == BIOP_MUL || binintop == BIOP_DIV
-                   || binintop == BIOP_MOD);
             retval.type_id = TYPEID_INT;
         }
 
@@ -714,7 +712,7 @@ eval_expr(Expr e)
         }
     }
 
-    case is_EApp: // TODO
+    case is_EApp:
     {
         u32 func_id = symbol_resolve_func(e->u.eapp_.ident_, e);
         if (func_id == FUNCID_NOTFOUND)
@@ -1002,11 +1000,8 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         evaled_expr ee = eval_expr(s->u.sexp_.expr_);
         (void)ee;
 
-        // TODO(ir): If expression is not constant, generate IT for it anyway,
-        //           b/c it can call a function that causes side-effects
-
         retval.all_branches_return = 0;
-        return retval;
+        return retval; // TODO:
     }
 
     case is_Decl:
@@ -1050,7 +1045,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                 vname = i->u.init_.ident_;
                 vval = eval_expr(i->u.init_.expr_);
 
-                if (type_id != vval.type_id) // TODO: Handle the case with inheritance
+                if (type_id != vval.type_id) // TODO(ex): Handle inheritance
                 {
                     d_type expected_t = g_types[type_id & (~TYPEID_FLAG_ARRAY)];
                     d_type got_t = g_types[vval.type_id & (~TYPEID_FLAG_ARRAY)];
@@ -1079,48 +1074,6 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             var.type_id = type_id;
             var.block_id = cur_block_id;
             push_var(var, vname, i);
-
-            // TODO: Check if shadows or redefined in the same block
-            printf("Declaring variable of type %u%s named \"%s\"\n",
-                   type_id & TYPEID_MASK,
-                   type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
-                   vname);
-
-#if 1 // TODO: COPYPASTE, REMOVE
-            printf("    Initialized var %s constant\n", vval.kind == EET_CONSTANT ? "IS" : "IS NOT");
-            printf("    Typed to %u (%s)\n",
-                   vval.type_id,
-                   (vval.type_id == 0
-                    ? "void"
-                    : (vval.type_id == 1
-                       ? "int"
-                       : (vval.type_id == 2
-                          ? "boolean"
-                          : (vval.type_id == 3 ? "string" : "reference")))));
-
-            if (vval.kind == EET_CONSTANT)
-            {
-                switch (vval.type_id) {
-                case TYPEID_INT:
-                case TYPEID_BOOL:
-                {
-                    printf("    Evaluated to: %ld\n", vval.u.cnst.numeric_val);
-                } break;
-                case TYPEID_STRING:
-                {
-                    printf("    Evaluated to: \"%s\"\n",
-                           g_str_consts[vval.u.cnst.str_const_id].data);
-                } break;
-                case TYPEID_NULL:
-                {
-                    printf("    Evaluated to: \"NULL\"\n");
-                } break;
-                default:
-                {
-                } NOTREACHED;
-                }
-            }
-#endif
         }
 
         retval.all_branches_return = 0;
@@ -1135,7 +1088,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         {
             error(get_lnum(e1.node), "Left side of assingment must be an lvalue");
         }
-        else if (UNLIKELY(e1.type_id != e2.type_id)) // TODO: Handle the case with inheritance
+        else if (UNLIKELY(e1.type_id != e2.type_id)) // TODO(ex): Handle inheritance
         {
             // TODO: Copypase from is_Decl
 
@@ -1176,7 +1129,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             e = eval_expr(s->u.ret_.expr_);
         }
 
-        if (UNLIKELY(e.type_id != return_type)) // TODO: Handle the case with inheritance
+        if (UNLIKELY(e.type_id != return_type)) // TODO(ex): Handle inheritance
         {
             d_type expected_t = g_types[return_type & (~TYPEID_FLAG_ARRAY)];
             d_type got_t = g_types[e.type_id & (~TYPEID_FLAG_ARRAY)];
@@ -1319,8 +1272,7 @@ eval_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (iter_type_id != (e_expr.type_id & (~(TYPEID_FLAG_ARRAY))))
         {
-            // TODO(ex): Support list of classes that inherit from the base class:
-            //           for (base b : new dervied[10])
+            // TODO(ex): Handle inheritance, eg: "for (base b : new dervied[10])"
 
             d_type t_arr = g_types[e_expr.type_id & (~(TYPEID_FLAG_ARRAY))];
             d_type t_iter = g_types[iter_type_id & (~TYPEID_FLAG_ARRAY)];
@@ -1435,7 +1387,7 @@ main(int argc, char** argv)
             d_type type = g_types[type_id];
             mm n_member_funcs = array_size(type.member_funcs);
             for (mm i = 0; i < n_member_funcs; ++i)
-                create_func(type.member_funcs[i], type.member_funcs[i].name);
+                create_func(type.member_funcs[i]);
 
             push_block(); // Block for class memebers
             mm n_members = array_size(type.members);

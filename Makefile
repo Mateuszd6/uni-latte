@@ -75,17 +75,6 @@ grammar:
     # This replaces the default node allocation function with the one that saved line numbers
 	@-sed -i 's/malloc/alloc_ast_node/g' ./src/absyn.c
 
-    # Typedef to normal lowercase letters and avoid this horrible pointer typedefing
-	@-grep -oh "^struct [A-Za-z_]*" --color=never ./src/absyn.h \
-		| cut -c8- \
-		| sort \
-		| uniq \
-		| awk '{ while (match($$0, /(.*)([a-z0-9])([A-Z])(.*)/, cap)) \
-					$$stripped = cap[1] cap[2] "_" tolower(cap[3]) cap[4]; \
-					$$0 = "typedef " $$0 " " "ast_" substr(tolower($$stripped), 1, length($$stripped) - 1) ";" ; \
-					print \
-			   }' # TODO: add these to absync.h
-
     # Format source files. Unfortunetly clang-format cannot format .y (bison) files...
 	${CFORMAT} ./src/parser.h
 	${CFORMAT} ./src/absyn.c

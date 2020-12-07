@@ -23,8 +23,6 @@ struct symbol
     i32 id;
 };
 
-// TODO: replace d_* -> ?
-
 typedef struct d_var d_var;
 struct d_var
 {

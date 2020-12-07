@@ -1,9 +1,7 @@
 obj/**
 *.o
 *.out
-examples/**
 main
 latc
-foo*
-# TODO: Revive tests??
-tests/**
+tests
+cov

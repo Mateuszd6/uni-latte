@@ -143,7 +143,7 @@ alloc_ast_node(size_t size)
     return mem;
 }
 
-extern i32 // TODO extern?
+extern i32
 get_lnum(void* ast_node)
 {
     umm val = (umm)ast_node;
@@ -155,7 +155,7 @@ get_lnum(void* ast_node)
             return (i32)node_lnums[i].lnum;
     }
 
-    return -1; // TODO: Should not reach, but check it!
+    return -1; // When used in report function, lnum won't be provided
 }
 
 //

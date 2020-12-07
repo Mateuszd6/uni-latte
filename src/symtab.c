@@ -54,8 +54,8 @@ parse_type(Type type)
     return retval;
 }
 
-static b32 // TODO: Rename -> push global func? // TODO: Kill 2nd param?
-create_func(d_func f, char* name)
+static b32 // TODO: Rename -> push global func?
+create_func(d_func f)
 {
     symbol s = {
         .type = S_FUN,
@@ -63,7 +63,7 @@ create_func(d_func f, char* name)
     };
 
     array_push(g_funcs, f);
-    b32 shadows = symbol_push(name, s);
+    b32 shadows = symbol_push(f.name, s);
     return shadows;
 }
 
@@ -111,12 +111,9 @@ define_primitive_types(void)
 static void
 define_primitive_functions(void)
 {
-    char* fun_names[] = { "printInt", "printString", "error", "readInt", "readString" };
-
     // Primitive funcs are first that we add. And we defined in the header file
     // how many of the we add
     assert(array_size(g_funcs) == 0);
-    assert(COUNT_OF(fun_names) == FUNCID_LAST_BUILTIN_FUNC);
 
     d_func_arg* argsof_printInt = 0;
     d_func_arg a1 = { .name = "_int", .type_id = TYPEID_INT };
@@ -169,9 +166,11 @@ define_primitive_functions(void)
         },
     };
 
+    assert(COUNT_OF(f) == FUNCID_LAST_BUILTIN_FUNC);
+
     for (mm i = 0; i < COUNT_OF(f); ++i)
     {
-        b32 shadows = create_func(f[i], fun_names[i]);
+        b32 shadows = create_func(f[i]);
         assert(!shadows);
     }
 }
@@ -438,7 +437,7 @@ add_global_funcs(Program p)
             .is_local = 0,
         };
 
-        b32 shadows = create_func(f, t->u.fndef_.ident_);
+        b32 shadows = create_func(f);
         if (UNLIKELY(shadows))
         {
             symbol prev_sym = symbol_get_shadowed(t->u.fndef_.ident_);
