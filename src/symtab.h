@@ -50,7 +50,7 @@ typedef struct d_func d_func;
 struct d_func
 {
     char* name;
-    d_func_arg* arg_type_ids; // TODO: renmae to args!!!
+    d_func_arg* args;
     i32 lnum;
     u32 ret_type_id;
     i32 num_args;
@@ -117,6 +117,7 @@ static void symbol_pop(char* name);
 
 static u32 symbol_resolve_type(char* name, b32 is_array, void* node);
 static u32 symbol_resolve_func(char* name, void* node);
+// TODO: add resovle_var etc to the header file
 
 static inline int
 qsort_d_class_mem(void const* lhs_p, void const* rhs_p)
@@ -135,8 +136,5 @@ qsort_d_func(void const* lhs_p, void const* rhs_p)
 
     return strcmp(lhs->name, rhs->name);
 }
-
-// TODO: Possibly make other functions, like get func / get type / get var
-//       that fail when not found or type missmatch
 
 #endif // SYMTAB_H_

@@ -130,7 +130,7 @@ define_primitive_functions(void)
             .lnum = 0,
             .ret_type_id = TYPEID_VOID,
             .num_args = 1,
-            .arg_type_ids = argsof_printInt,
+            .args = argsof_printInt,
         },
         // void printString(string)
         {
@@ -138,7 +138,7 @@ define_primitive_functions(void)
             .lnum = 0,
             .ret_type_id = TYPEID_VOID,
             .num_args = 1,
-            .arg_type_ids = argsof_printString,
+            .args = argsof_printString,
         },
         // void error()
         {
@@ -146,7 +146,7 @@ define_primitive_functions(void)
             .lnum = 0,
             .ret_type_id = TYPEID_VOID,
             .num_args = 0,
-            .arg_type_ids = 0,
+            .args = 0,
         },
         // int readInt()
         {
@@ -154,7 +154,7 @@ define_primitive_functions(void)
             .lnum = 0,
             .ret_type_id = TYPEID_INT,
             .num_args = 0,
-            .arg_type_ids = 0,
+            .args = 0,
         },
         // string readString()
         {
@@ -162,7 +162,7 @@ define_primitive_functions(void)
             .lnum = 0,
             .ret_type_id = TYPEID_STRING,
             .num_args = 0,
-            .arg_type_ids = 0,
+            .args = 0,
         },
     };
 
@@ -238,11 +238,11 @@ get_args_for_function(ListArg args, i32 this_param)
     // TODO: Make sure that if "self" is a param, no other param can be named
     // this (OR is it done already)?
 
-    d_func_arg* arg_type_ids = 0;
+    d_func_arg* fun_args = 0;
     if (this_param != -1)
     {
         d_func_arg arg = { .name = "self", .type_id = (u32)this_param };
-        array_push(arg_type_ids, arg);
+        array_push(fun_args, arg);
     }
 
     struct { ListArg listarg_; } arglist;
@@ -268,17 +268,17 @@ get_args_for_function(ListArg args, i32 this_param)
         }
 
         d_func_arg arg = { .name = aname, .type_id = arg_type_id };
-        array_push(arg_type_ids, arg);
+        array_push(fun_args, arg);
     }
 
     // Check if all parameter names are unique
-    mm n_args = array_size(arg_type_ids);
+    mm n_args = array_size(fun_args);
     if (n_args)
     {
         char** arg_names = 0;
         array_reserve(arg_names, n_args);
         for (mm i = 0; i < n_args; ++i)
-            array_push(arg_names, arg_type_ids[i].name);
+            array_push(arg_names, fun_args[i].name);
 
         qsort(arg_names, (umm)n_args, sizeof(char*), qsort_strcmp);
         for (mm i = 0; i < n_args - 1; ++i)
@@ -293,7 +293,7 @@ get_args_for_function(ListArg args, i32 this_param)
         array_free(arg_names);
     }
 
-    return arg_type_ids;
+    return fun_args;
 }
 
 static void
@@ -380,15 +380,15 @@ add_class_members(Program p)
                 type_id = TYPEID_INT;
             }
 
-            d_func_arg* arg_type_ids = get_args_for_function(cl->u.cbfndef_.listarg_, (i32)class_type_id);
-            mm n_args = array_size(arg_type_ids);
+            d_func_arg* fun_args = get_args_for_function(cl->u.cbfndef_.listarg_, (i32)class_type_id);
+            mm n_args = array_size(fun_args);
 
             d_func f = {
                 .name = cl->u.cbfndef_.ident_,
                 .lnum = get_lnum(cl->u.cbfndef_.type_),
                 .ret_type_id = type_id,
                 .num_args = (i32)n_args,
-                .arg_type_ids = arg_type_ids,
+                .args = fun_args,
                 .is_local = 1,
             };
 
@@ -425,15 +425,15 @@ add_global_funcs(Program p)
             type_id = TYPEID_INT;
         }
 
-        d_func_arg* arg_type_ids = get_args_for_function(t->u.fndef_.listarg_, -1);
-        mm n_args = array_size(arg_type_ids);
+        d_func_arg* fun_args = get_args_for_function(t->u.fndef_.listarg_, -1);
+        mm n_args = array_size(fun_args);
 
         d_func f = {
             .name = t->u.fndef_.ident_,
             .lnum = get_lnum(t->u.fndef_.type_),
             .ret_type_id = type_id,
             .num_args = (i32)n_args,
-            .arg_type_ids = arg_type_ids,
+            .args = fun_args,
             .is_local = 0,
         };
 
