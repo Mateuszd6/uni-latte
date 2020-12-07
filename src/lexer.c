@@ -1,6 +1,6 @@
-#line 2 "src/lexer.c"
+#line 1 "src/lexer.c"
 
-#line 4 "src/lexer.c"
+#line 3 "src/lexer.c"
 
 #define YY_INT_ALIGNED short int
 
@@ -776,9 +776,9 @@ YY_BUFFER_RESET(void)
         YY_PARSED_STRING[x] = 0;
 }
 
-#line 807 "src/lexer.c"
+#line 806 "src/lexer.c"
 
-#line 809 "src/lexer.c"
+#line 808 "src/lexer.c"
 
 #define INITIAL 0
 #define YYINITIAL 1
@@ -1031,7 +1031,7 @@ YY_DECL
     {
 #line 32 "src/latte.l"
 
-#line 1036 "src/lexer.c"
+#line 1035 "src/lexer.c"
 
         while (/*CONSTCOND*/ 1) /* loops until end-of-file is reached */
         {
@@ -1403,7 +1403,7 @@ YY_DECL
 #line 95 "src/latte.l"
                     ECHO;
                     YY_BREAK
-#line 1398 "src/lexer.c"
+#line 1397 "src/lexer.c"
                 case YY_STATE_EOF(INITIAL):
                 case YY_STATE_EOF(YYINITIAL):
                 case YY_STATE_EOF(COMMENT):

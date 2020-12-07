@@ -460,9 +460,8 @@ ListClBody reverseListClBody(ListClBody l)
 %type <item_> Item
 %type <listitem_> ListItem
 %type <type_> Type
-%type <expr_> Expr13
-%type <expr_> Expr12
 %type <expr_> Expr11
+%type <expr_> Expr10
 %type <expr_> Expr9
 %type <expr_> Expr8
 %type <expr_> Expr7
@@ -473,7 +472,6 @@ ListClBody reverseListClBody(ListClBody l)
 %type <expr_> Expr2
 %type <expr_> Expr1
 %type <expr_> Expr
-%type <expr_> Expr10
 %type <listexpr_> ListExpr
 %type <clbody_> ClBody
 %type <listclbody_> ListClBody
@@ -531,17 +529,15 @@ ListItem : Item { $$ = make_ListItem($1, 0);  }
 Type : _IDENT_ { $$ = make_TCls($1);  } 
   | _IDENT_ _SYMB_10 { $$ = make_TArr($1);  }
 ;
-Expr13 : _IDENT_ { $$ = make_EVar($1);  } 
+Expr11 : _IDENT_ { $$ = make_EVar($1);  } 
   | _SYMB_0 Expr _SYMB_1 { $$ = $2;  }
 ;
-Expr12 : _IDENT_ _SYMB_0 ListExpr _SYMB_1 { $$ = make_EApp($1, $3);  } 
-  | Expr13 { $$ = $1;  }
+Expr10 : _IDENT_ _SYMB_0 ListExpr _SYMB_1 { $$ = make_EApp($1, $3);  } 
+  | Expr11 { $$ = $1;  }
 ;
-Expr11 : Expr10 _SYMB_11 _IDENT_ _SYMB_0 ListExpr _SYMB_1 { $$ = make_EClApp($1, $3, $5);  } 
-  | Expr10 _SYMB_11 _IDENT_ { $$ = make_EClMem($1, $3);  }
-  | Expr12 { $$ = $1;  }
-;
-Expr9 : Expr8 _SYMB_12 Expr _SYMB_13 { $$ = make_EArrApp($1, $3);  } 
+Expr9 : Expr8 _SYMB_11 _IDENT_ _SYMB_0 ListExpr _SYMB_1 { $$ = make_EClApp($1, $3, $5);  } 
+  | Expr8 _SYMB_11 _IDENT_ { $$ = make_EClMem($1, $3);  }
+  | Expr8 _SYMB_12 Expr _SYMB_13 { $$ = make_EArrApp($1, $3);  }
   | Expr10 { $$ = $1;  }
 ;
 Expr8 : _SYMB_34 _IDENT_ { $$ = make_ENew($2);  } 
@@ -577,8 +573,6 @@ Expr1 : Expr2 _SYMB_16 Expr1 { $$ = make_EAnd($1, $3);  }
 ;
 Expr : Expr1 _SYMB_17 Expr { $$ = make_EOr($1, $3);  } 
   | Expr1 { $$ = $1;  }
-;
-Expr10 : Expr11 { $$ = $1;  } 
 ;
 ListExpr : /* empty */ { $$ = 0;  } 
   | Expr { $$ = make_ListExpr($1, 0);  }

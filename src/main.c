@@ -311,6 +311,53 @@ enforce_type(evaled_expr* e, u32 type_id)
 
 // TODO: Rename eval_ -> ?
 
+// TODO: Define all of them in the header file
+static evaled_expr eval_expr(Expr e);
+
+static void
+eval_params(ListExpr arg_exprs, d_func* fun, void* node)
+{
+    // 1st param "self" for local func. So for local functions we start
+    // evaluating params from the second arg. Error messages needs to be
+    // adjusted to this hack!
+    i32 n_given_args = 0 + !!fun->is_local;
+
+    struct { ListExpr listexpr_; } expr_list;
+    expr_list.listexpr_ = arg_exprs;
+    LIST_FOREACH(it, expr_list, listexpr_)
+    {
+        if (LIKELY(n_given_args < fun->num_args)) // if not too many args given
+        {
+            Expr argexpr = it->expr_;
+            evaled_expr argexpr_e = eval_expr(argexpr);
+            u32 expected_type_id = fun->arg_type_ids[n_given_args].type_id;
+
+            if (argexpr_e.type_id != expected_type_id) // TODO(ex): Handle inheritance
+            {
+                d_type t_expected = g_types[expected_type_id & (~TYPEID_FLAG_ARRAY)];
+                d_type t_provided = g_types[argexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
+
+                error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type \"%s\"",
+                      fun->name, n_given_args + 1 - !!(fun->is_local), t_expected.name);
+
+                note(get_lnum(argexpr), "Given expression of type \"%s\", which is not assignable to type \"%s\"",
+                     t_provided.name, t_expected.name);
+            }
+        }
+
+        n_given_args++;
+    }
+
+    if (n_given_args != fun->num_args)
+    {
+        error(get_lnum(node),
+              "Function \"%s\" takes %d arguments, but %d were provided.",
+              fun->name,
+              fun->num_args - !!fun->is_local,
+              n_given_args - !!fun->is_local);
+    }
+}
+
 static evaled_expr
 eval_expr(Expr e)
 {
@@ -673,48 +720,17 @@ eval_expr(Expr e)
         if (func_id == FUNCID_NOTFOUND)
         {
             // Can't do anything reasonable, so just asume that type is int
+            // TODO: Defaults to "int"
             retval.type_id = TYPEID_INT;
             retval.kind = EET_COMPUTE;
             return retval;
         }
 
-        d_func f = g_funcs[func_id];
-        i32 n_given_args = 0 + !!f.is_local; // 1st param "self" for local func
+        d_func* f = g_funcs + func_id;
+        eval_params(e->u.eapp_.listexpr_, f, e);
 
-        LIST_FOREACH(it, e->u.eapp_, listexpr_)
-        {
-            if (LIKELY(n_given_args < f.num_args)) // if not too many args given
-            {
-                Expr argexpr = it->expr_;
-                evaled_expr argexpr_e = eval_expr(argexpr);
-                u32 expected_type_id = f.arg_type_ids[n_given_args].type_id;
-
-                if (argexpr_e.type_id != expected_type_id) // TODO: Handle inheritance
-                {
-                    d_type t_expected = g_types[expected_type_id & (~TYPEID_FLAG_ARRAY)];
-                    d_type t_provided = g_types[argexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
-
-                    error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type \"%s\"",
-                          e->u.eapp_.ident_, n_given_args + 1, t_expected.name);
-
-                    note(get_lnum(argexpr), "Given expression of type \"%s\", which is not assignable to type \"%s\"",
-                         t_provided.name, t_expected.name);
-                }
-            }
-
-            n_given_args++;
-        }
-
-        if (n_given_args != f.num_args)
-        {
-            error(get_lnum(e),
-                  "Function \"%s\" takes %d arguments, but %d were provided.",
-                  e->u.eapp_.ident_, f.num_args - !!f.is_local, n_given_args - !!f.is_local);
-        }
-
-        // TODO: Set lvalue. Usually false, except the cases, when reference or
-        //       array is retured.
-        retval.type_id = f.ret_type_id;
+        retval.is_lvalue = 0; // Like in Java, functions always return rvalues
+        retval.type_id = f->ret_type_id;
         retval.kind = EET_COMPUTE;
         return retval;
     }
@@ -884,21 +900,17 @@ eval_expr(Expr e)
 
             if (UNLIKELY(idx == n_member_funcs))
             {
-                error(get_lnum(e->u.eclapp_.expr_),
-                      "Function \"%s\" is not a member of class \"%s\"",
+                error(get_lnum(e->u.eclapp_.expr_), "Function \"%s\" is not a member of class \"%s\"",
                       fn_name, cltype.name);
                 note(cltype.lnum, "Class \"%s\" defined here", cltype.name);
                 retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
             }
+
+            d_func* f = cltype.member_funcs + idx;
+            eval_params(e->u.eclapp_.listexpr_, f, e);
         }
 
-        //
-        // TODO: Check args of function!!!!
-        //
-
-        // TODO: Set lvalue. Usually false, except the cases, when reference or
-        //       array is retured.
-
+        retval.is_lvalue = 0; // Like in Java, functions always return rvalues
         retval.kind = EET_COMPUTE;
         return retval;
     }
@@ -920,6 +932,7 @@ eval_expr(Expr e)
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
+            type_id = TYPEID_INT; // TODO: defaults to "int"
         } break;
         case TYPEID_VOID:
         case TYPEID_INT:

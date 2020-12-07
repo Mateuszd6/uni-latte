@@ -1,6 +1,12 @@
 Mateusz Dudzinski
 Latte Compiler MRJP 2020Z
 
+Frontend:
+  All extensions except inheritance are already implemented. The 'extends' is
+  allowed but is ignored so far. Errors are displayed in gcc-compatible format:
+  "./filename:line_number: error: what" (without column number, because BNFC
+  makes in extraordinarily hard to implement in C).
+
 Compilation:
   Project is build exclusively by running 'make'. The project is compiled using
   gcc, but will work with any compliant C99 (or higher) compiler (I've tested

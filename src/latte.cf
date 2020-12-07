@@ -37,10 +37,10 @@ TCls.      Type ::= Ident ;
 TArr.      Type ::= Ident "[]" ;
 
 -- Expressions ---------------------------------------------
-EVar.      Expr13 ::= Ident ;
-EApp.      Expr12 ::= Ident "(" [Expr] ")" ;
-EClApp.    Expr11 ::= Expr10 "." Ident "(" [Expr] ")" ;
-EClMem.    Expr11 ::= Expr10 "." Ident ;
+EVar.      Expr11 ::= Ident ;
+EApp.      Expr10 ::= Ident "(" [Expr] ")" ;
+EClApp.    Expr9 ::= Expr8 "." Ident "(" [Expr] ")" ;
+EClMem.    Expr9 ::= Expr8 "." Ident ;
 EArrApp.   Expr9 ::= Expr8 "[" Expr "]" ;
 ENew.      Expr8 ::= "new" Ident ;
 ENewArr.   Expr8 ::= "new" Ident "[" Expr "]" ;
@@ -58,7 +58,7 @@ ERel.      Expr2 ::= Expr2 RelOp Expr3 ;
 EEq.       Expr2 ::= Expr2 EqOp Expr3 ;
 EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 EOr.       Expr ::= Expr1 "||" Expr ;
-coercions  Expr 13 ;
+coercions  Expr 11 ;
 separator  Expr "," ;
 
 -- Classes -------------------------------------------------
