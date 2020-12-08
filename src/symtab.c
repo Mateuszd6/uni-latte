@@ -22,10 +22,6 @@ str_hash(void const* key, ptrdiff_t len)
 
 HASHMAP_DEFINE(symboltab, char*, symbol_stack, str_cmp, str_hash);
 
-//
-// TODO: Move some stuff to frontend?
-//
-
 static symboltab_kvp* g_symtab = 0;
 static d_var* g_vars = 0;
 static char** g_local_symbols = 0; // symbols to pop, when leaving a scope
@@ -33,26 +29,6 @@ static d_func* g_funcs = 0;
 static d_func* g_local_funcs = 0; // Functions defined in classes ("self" param)
 static d_type* g_types = 0;
 static string_const* g_str_consts = 0;
-
-static parsed_type
-parse_type(Type type)
-{
-    parsed_type retval;
-    switch (type->kind) {
-    case is_TCls:
-    {
-        retval.name = type->u.tcls_.ident_;
-        retval.is_array = 0;
-    } break;
-    case is_TArr:
-    {
-        retval.name = type->u.tarr_.ident_;
-        retval.is_array = 1;
-    } break;
-    }
-
-    return retval;
-}
 
 static b32 // TODO: Rename -> push global func?
 create_func(d_func f)

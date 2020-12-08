@@ -3,6 +3,26 @@
 #include "misc.h"
 #include "symtab.h"
 
+static parsed_type
+parse_type(Type type)
+{
+    parsed_type retval;
+    switch (type->kind) {
+    case is_TCls:
+    {
+        retval.name = type->u.tcls_.ident_;
+        retval.is_array = 0;
+    } break;
+    case is_TArr:
+    {
+        retval.name = type->u.tarr_.ident_;
+        retval.is_array = 1;
+    } break;
+    }
+
+    return retval;
+}
+
 // Assumes that the type exists
 static processed_expr
 get_default_expr(u32 type_id, void* node)
@@ -1153,6 +1173,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         i32 block_id = push_block();
         Stmt lbody = s->u.while_.stmt_;
         processed_stmt lbody_e = process_stmt(lbody, return_type, block_id);
+        (void)lbody_e; // TODO(ir): Generate code from evaluated stmt
+
         pop_block();
 
         if (condexpr_e.type_id != TYPEID_BOOL)
@@ -1241,6 +1263,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         Stmt lbody = s->u.for_.stmt_;
         processed_stmt lbody_e = process_stmt(lbody, return_type, block_id);
+        (void)lbody_e; // TODO(ir): Generate code from evaluated stmt
 
         pop_block();
         pop_block();

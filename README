@@ -5,7 +5,9 @@ Frontend:
   All extensions except inheritance are already implemented. The 'extends' is
   allowed but is ignored so far. Errors are displayed in gcc-compatible format:
   "./filename:line_number: error: what" (without column number, because BNFC
-  makes in extraordinarily hard to implement in C).
+  makes in extraordinarily hard to implement in C). There are some TODOs
+  (because the project is not even started for good, of course!), they are
+  marked with tags like "ir" (intermediate representation), "ex" extension etc.
 
 Compilation:
   Project is build exclusively by running 'make'. The project is compiled using
@@ -20,9 +22,8 @@ Libraries:
   Both libraries are _heavily_ inspired by: github.com/nothings/stb , but
   written by me, a long time ago. Also hashmap is using a murmur3 - a public
   domain hash by Austin Appleby slightly adjusted to work in plain C. Original
-  implementation can be found on: github.com/aappleby/smhasher .
-
-  Except that, the only thing the project relies on is a C99 standard library.
+  implementation can be found on: github.com/aappleby/smhasher . Except that,
+  the only thing the project relies on is a C99 standard library.
 
 Catalogues:
   Source code (bnfc files included) is in 'src' directory, object files are
