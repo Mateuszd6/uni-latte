@@ -1,7 +1,7 @@
+#include "absyn.h"
+#include "frontend.h"
 #include "misc.h"
 #include "symtab.h"
-
-#include "frontend.h"
 
 // Assumes that the type exists
 static processed_expr
@@ -151,6 +151,69 @@ pop_block(void)
     }
 }
 
+static inline void
+push_var(d_var var, char* vname, void* node)
+{
+    symbol prev_decl = symbol_get(vname, node, 0);
+    switch (prev_decl.type) {
+    case S_NONE:
+    {
+        // No shadow, nothing to do
+    } break;
+    case S_VAR:
+    {
+        d_var v = g_vars[prev_decl.id];
+        if (UNLIKELY(v.block_id) == var.block_id) // Redefinition, not just shadowing
+        {
+            error(get_lnum(node), "Variable \"%s\" redefined in the same block", vname);
+            note(v.lnum, "Variable \"%s\" declared here", vname);
+
+            return; // Don't push the sumbol
+        }
+
+        //
+        // Shadowing an existing variable, which is OK. Can't write a warning,
+        // because the compiler must outut either "ERROR" or "OK" to stdin, and
+        // there might be some errors later.
+        //
+
+    } break;
+    case S_FUN:
+    {
+        d_func f = g_funcs[prev_decl.id];
+        error(get_lnum(node), "Variable \"%s\" cannot be named after a function", vname);
+        note(f.lnum, "Function \"%s\" declared here", vname);
+
+        return; // Don't push the sumbol
+    } break;
+
+    case S_TYPE:
+    {
+        if (prev_decl.id <= TYPEID_LAST_BUILTIN_TYPE)
+        {
+            error(get_lnum(node), "Variable \"%s\" cannot be named after a builtin type", vname);
+        }
+        else
+        {
+            d_type t = g_types[prev_decl.id];
+            error(get_lnum(node), "Variable \"%s\" cannot be named after a class", vname);
+            note(t.lnum, "Class \"%s\" declared here", vname);
+        }
+
+        return;
+    } break;
+    }
+
+    mm var_id = array_size(g_vars);
+    symbol sym;
+    sym.type = S_VAR;
+    sym.id = (i32)var_id;
+    symbol_push(vname, sym);
+
+    array_push(g_vars, var);
+    array_push(g_local_symbols, vname);
+}
+
 static processed_expr
 compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, binary_eq_op_t op, void* node)
 {
@@ -183,8 +246,8 @@ enforce_type(processed_expr* e, u32 type_id)
 {
     if (UNLIKELY(e->type_id != type_id))
     {
-        d_type t_expected = g_types[type_id & (~TYPEID_FLAG_ARRAY)];
-        d_type t_got = g_types[e->type_id & (~TYPEID_FLAG_ARRAY)];
+        d_type t_expected = g_types[TYPEID_UNMASK(type_id)];
+        d_type t_got = g_types[TYPEID_UNMASK(e->type_id)];
 
         error(get_lnum(e->node),
               "Expected type \"%s\" but got incompatible type \"%s\"",
@@ -216,8 +279,8 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node)
 
             if (argexpr_e.type_id != expected_type_id) // TODO(ex): Handle inheritance
             {
-                d_type t_expected = g_types[expected_type_id & (~TYPEID_FLAG_ARRAY)];
-                d_type t_provided = g_types[argexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
+                d_type t_expected = g_types[TYPEID_UNMASK(expected_type_id)];
+                d_type t_provided = g_types[TYPEID_UNMASK(argexpr_e.type_id)];
 
                 error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type \"%s\"",
                       fun->name, n_given_args + 1 - !!(fun->is_local), t_expected.name);
@@ -545,8 +608,8 @@ process_expr(Expr e)
 
         type_missmatch:
         {
-            d_type lhs_t = g_types[e1.type_id & (~TYPEID_FLAG_ARRAY)];
-            d_type rhs_t = g_types[e2.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type lhs_t = g_types[TYPEID_UNMASK(e1.type_id)];
+            d_type rhs_t = g_types[TYPEID_UNMASK(e2.type_id)];
 
             error(get_lnum(e1.node), "Comparing expressions with incompatible types");
             note(get_lnum(e1.node), "Left hand side evalutes to \"%s\"", lhs_t.name);
@@ -692,7 +755,7 @@ process_expr(Expr e)
 
         // If given array is lvalue then it's subscript also is
         retval.is_lvalue = e_array.is_lvalue;
-        retval.type_id = e_array.type_id & (~TYPEID_FLAG_ARRAY);
+        retval.type_id = TYPEID_UNMASK(e_array.type_id);
         retval.kind = EET_COMPUTE;
         return retval;
     }
@@ -717,7 +780,7 @@ process_expr(Expr e)
         }
         else if (e_struct.type_id <= TYPEID_LAST_BUILTIN_TYPE)
         {
-            d_type t_provided = g_types[e_struct.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type t_provided = g_types[TYPEID_UNMASK(e_struct.type_id)];
             error(get_lnum(e->u.eclmem_.expr_),
                   "Left-hand-side of . expression is not a struct nor array");
             note(get_lnum(e->u.eclmem_.expr_),
@@ -729,7 +792,7 @@ process_expr(Expr e)
         }
         else
         {
-            d_type cltype = g_types[e_struct.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type cltype = g_types[TYPEID_UNMASK(e_struct.type_id)];
 
             // TODO: Replace with bsearch for suuuper large structs?
             mm n_members = array_size(cltype.members);
@@ -934,8 +997,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
                 if (type_id != vval.type_id) // TODO(ex): Handle inheritance
                 {
-                    d_type expected_t = g_types[type_id & (~TYPEID_FLAG_ARRAY)];
-                    d_type got_t = g_types[vval.type_id & (~TYPEID_FLAG_ARRAY)];
+                    d_type expected_t = g_types[TYPEID_UNMASK(type_id)];
+                    d_type got_t = g_types[TYPEID_UNMASK(vval.type_id)];
                     error(get_lnum(i),
                           "Expression of type \"%s%s\" is initialized with incompatible type \"%s%s\"",
                           expected_t.name, type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
@@ -979,8 +1042,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         {
             // TODO: Copypase from is_Decl
 
-            d_type expected_t = g_types[e1.type_id & (~TYPEID_FLAG_ARRAY)];
-            d_type got_t = g_types[e2.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type expected_t = g_types[TYPEID_UNMASK(e1.type_id)];
+            d_type got_t = g_types[TYPEID_UNMASK(e2.type_id)];
             error(get_lnum(e2.node),
                   "Variable of type \"%s\" is assigned with incompatible type \"%s\"",
                   expected_t.name, got_t.name);
@@ -1018,13 +1081,13 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (UNLIKELY(e.type_id != return_type)) // TODO(ex): Handle inheritance
         {
-            d_type expected_t = g_types[return_type & (~TYPEID_FLAG_ARRAY)];
-            d_type got_t = g_types[e.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type expected_t = g_types[TYPEID_UNMASK(return_type)];
+            d_type got_t = g_types[TYPEID_UNMASK(e.type_id)];
             error(get_lnum(e.node),
                   "Returning value of type \"%s\" incompatible with type \"%s\"",
                   got_t.name, expected_t.name);
 
-            if ((e.type_id & (~TYPEID_FLAG_ARRAY)) > TYPEID_LAST_BUILTIN_TYPE)
+            if (TYPEID_UNMASK(e.type_id) > TYPEID_LAST_BUILTIN_TYPE)
             {
                 note(got_t.lnum, "Type \"%s\" defined here", got_t.name);
             }
@@ -1094,7 +1157,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (condexpr_e.type_id != TYPEID_BOOL)
         {
-            d_type t_given = g_types[condexpr_e.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type t_given = g_types[TYPEID_UNMASK(condexpr_e.type_id)];
             error(get_lnum(condexpr),
                   "Loop condition has a type %s, when boolean was expected",
                   t_given.name);
@@ -1119,7 +1182,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         if (!(e_expr.type_id & TYPEID_FLAG_ARRAY))
         {
-            d_type t_given = g_types[e_expr.type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type t_given = g_types[TYPEID_UNMASK(e_expr.type_id)];
 
             error(get_lnum(e), "Type in the \"for\" expresion must be a an array");
             note(get_lnum(e), "Given expression resolved to a type \"%s\"", t_given.name);
@@ -1127,7 +1190,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             // TODO: Change type to int to avoid error cascade?
             //       For example, when RHS of the for loop is void
         }
-        else if ((e_expr.type_id & (~TYPEID_FLAG_ARRAY)) == TYPEID_VOID)
+        else if ((TYPEID_UNMASK(e_expr.type_id)) == TYPEID_VOID)
         {
             error(get_lnum(e), "Type in the \"for\" expresion must not be a void[]");
 
@@ -1157,12 +1220,12 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         } break;
         }
 
-        if (iter_type_id != (e_expr.type_id & (~(TYPEID_FLAG_ARRAY))))
+        if (iter_type_id != (TYPEID_UNMASK(e_expr.type_id)))
         {
             // TODO(ex): Handle inheritance, eg: "for (base b : new dervied[10])"
 
-            d_type t_arr = g_types[e_expr.type_id & (~(TYPEID_FLAG_ARRAY))];
-            d_type t_iter = g_types[iter_type_id & (~TYPEID_FLAG_ARRAY)];
+            d_type t_arr = g_types[TYPEID_UNMASK(e_expr.type_id)];
+            d_type t_iter = g_types[TYPEID_UNMASK(iter_type_id)];
             error(get_lnum(e), "Given array has a type, which is non assignable to the iterator type");
             note(get_lnum(e), "Iterator has type \"%s\", when \"%s\" was expected",
                  t_iter.name, t_arr.name);
@@ -1227,4 +1290,310 @@ process_func_body(char* fnname, Block b, void* node)
 
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
         error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
+}
+
+// Get arguments for function. TopDef is assumed to be of the type is_FnDef. If
+// this_param is != -1, the first param is called "self" and is of given type
+static d_func_arg*
+get_args_for_function(ListArg args, i32 this_param)
+{
+    // TODO: Make sure that if "self" is a param, no other param can be named
+    // this (OR is it done already)?
+
+    d_func_arg* fun_args = 0;
+    if (this_param != -1)
+    {
+        d_func_arg arg = { .name = "self", .type_id = (u32)this_param };
+        array_push(fun_args, arg);
+    }
+
+    struct { ListArg listarg_; } arglist;
+    arglist.listarg_ = args;
+    LIST_FOREACH(arg_it, arglist, listarg_)
+    {
+        Arg a = arg_it->arg_;
+        assert(a->kind == is_Ar); // Only possible type
+
+        Ident aname = a->u.ar_.ident_;
+        parsed_type atype = parse_type(a->u.ar_.type_);
+        u32 arg_type_id = symbol_resolve_type(atype.name, atype.is_array, a->u.ar_.type_);
+
+        if (arg_type_id == TYPEID_NOTFOUND)
+            arg_type_id = TYPEID_INT;
+
+        if (arg_type_id == TYPEID_VOID || arg_type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+        {
+            error(get_lnum(a), "Parameter type void%s is not allowed",
+                  arg_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+            arg_type_id = TYPEID_INT; // TODO: assuming int
+        }
+
+        d_func_arg arg = { .name = aname, .type_id = arg_type_id };
+        array_push(fun_args, arg);
+    }
+
+    // Check if all parameter names are unique
+    mm n_args = array_size(fun_args);
+    if (n_args)
+    {
+        char** arg_names = 0;
+        array_reserve(arg_names, n_args);
+        for (mm i = 0; i < n_args; ++i)
+            array_push(arg_names, fun_args[i].name);
+
+        qsort(arg_names, (umm)n_args, sizeof(char*), qsort_strcmp);
+        for (mm i = 0; i < n_args - 1; ++i)
+        {
+            if (UNLIKELY(strcmp(arg_names[i], arg_names[i + 1]) == 0))
+            {
+                error(get_lnum(args), "Redefinition of parameter \"%s\"", arg_names[i]);
+                break; // TODO: Report all redefinitions, not just first one
+            }
+        }
+
+        array_free(arg_names);
+    }
+
+    return fun_args;
+}
+
+static void
+add_classes(Program p)
+{
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_ClDef)
+            continue;
+
+        d_type new_class = {
+            .name = t->u.cldef_.ident_,
+            .members = 0,
+            .member_funcs = 0,
+            .lnum = get_lnum(t->u.cldef_.clprops_),
+            .is_primitive = 0
+        };
+        array_push(g_types, new_class);
+
+        symbol s = {
+            .type = S_TYPE,
+            .id = (i32)(array_size(g_types) - 1)
+        };
+
+        b32 shadows = symbol_push(t->u.cldef_.ident_, s);
+        if (UNLIKELY(shadows))
+        {
+            // TODO: Make sure there are no symbols for func/vars yet!
+            symbol prev_sym = symbol_get_shadowed(t->u.cldef_.ident_);
+            assert(prev_sym.type == S_TYPE);
+
+            d_type type = g_types[prev_sym.id];
+            if (!type.is_primitive)
+            {
+                error(new_class.lnum, "Redefinition of class \"%s\"", t->u.cldef_.ident_);
+                note(type.lnum, "Previously defined here");
+            }
+            else
+            {
+                error(new_class.lnum, "Cannot name a class after a builtin type \"%s\"",
+                      t->u.cldef_.ident_);
+
+                symbol_pop(t->u.cldef_.ident_);
+            }
+        }
+    }
+}
+
+static void
+add_class_members(Program p)
+{
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_ClDef)
+            continue;
+
+        u32 class_type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, t->u.cldef_.clprops_);
+        assert(class_type_id != TYPEID_NOTFOUND); // We've added all classes already
+
+        // Parse member variables
+        d_class_mem* members = 0;
+        i32 n_members = 0;
+        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        {
+            ClBody cl = cl_it->clbody_;
+            if (cl->kind != is_CBVar)
+                continue;
+
+            char* member_name = cl->u.cbvar_.ident_;
+            Type member_type = cl->u.cbvar_.type_;
+            parsed_type mem_type = parse_type(cl->u.cbvar_.type_);
+            u32 type_id = symbol_resolve_type(mem_type.name, mem_type.is_array, cl->u.cbvar_.type_);
+
+            switch (type_id) {
+            case TYPEID_NOTFOUND:
+            {
+                type_id = TYPEID_INT; // Default to int in order to avoid errors
+                // TODO: defaulting to "int"
+            } break;
+            case TYPEID_VOID:
+            case TYPEID_VOID | TYPEID_FLAG_ARRAY:
+            {
+                error(get_lnum(member_type),
+                      "Cannot declare member field of type \"void%s\"",
+                      type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+                type_id = TYPEID_INT;
+                // TODO: defaulting to "int"
+            } break;
+            default:
+            {
+            } break;
+            }
+
+            d_class_mem clmem;
+            clmem.name = member_name;
+            clmem.offset = n_members++;
+            clmem.type_id = type_id;
+            array_push(members, clmem);
+        }
+
+        if (members)
+        {
+            // Make it easy to find a member by name
+            qsort(members, (umm)n_members, sizeof(d_class_mem), qsort_d_class_mem);
+            g_types[class_type_id].members = members;
+        }
+
+        // Parse local functions
+        d_func* member_funcs = 0;
+        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        {
+            ClBody cl = cl_it->clbody_;
+            if (cl->kind != is_CBFnDef)
+                continue;
+
+            //
+            // TODO: Copypaste from function. Merge?
+            //
+
+            parsed_type retval_type = parse_type(cl->u.cbfndef_.type_);
+            u32 type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, cl->u.cbfndef_.type_);
+            if (type_id == TYPEID_NOTFOUND)
+                type_id = TYPEID_INT;
+
+            if (type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+            {
+                error(get_lnum(cl->u.cbfndef_.type_), "Return type void[] is not allowed");
+                type_id = TYPEID_INT;
+            }
+
+            d_func_arg* fun_args = get_args_for_function(cl->u.cbfndef_.listarg_, (i32)class_type_id);
+            mm n_args = array_size(fun_args);
+
+            d_func f = {
+                .name = cl->u.cbfndef_.ident_,
+                .lnum = get_lnum(cl->u.cbfndef_.type_),
+                .ret_type_id = type_id,
+                .num_args = (i32)n_args,
+                .args = fun_args,
+                .is_local = 1,
+            };
+
+            array_push(member_funcs, f);
+        }
+
+        if (member_funcs)
+        {
+            // Make it easy to find a member by name
+            qsort(member_funcs, (umm)array_size(member_funcs), sizeof(d_func), qsort_d_func);
+            g_types[class_type_id].member_funcs = member_funcs;
+        }
+    }
+}
+
+static void
+add_global_funcs(Program p)
+{
+    b32 has_main = 0;
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_FnDef)
+            continue;
+
+        parsed_type retval_type = parse_type(t->u.fndef_.type_);
+        u32 type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, t->u.fndef_.type_);
+        if (type_id == TYPEID_NOTFOUND)
+            type_id = TYPEID_INT;
+
+        if (type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+        {
+            error(get_lnum(t->u.fndef_.type_), "Return type void[] is not allowed");
+            type_id = TYPEID_INT;
+        }
+
+        d_func_arg* fun_args = get_args_for_function(t->u.fndef_.listarg_, -1);
+        mm n_args = array_size(fun_args);
+
+        d_func f = {
+            .name = t->u.fndef_.ident_,
+            .lnum = get_lnum(t->u.fndef_.type_),
+            .ret_type_id = type_id,
+            .num_args = (i32)n_args,
+            .args = fun_args,
+            .is_local = 0,
+        };
+
+        b32 shadows = create_func(f);
+        if (UNLIKELY(shadows))
+        {
+            symbol prev_sym = symbol_get_shadowed(t->u.fndef_.ident_);
+            assert(prev_sym.type == S_FUN || prev_sym.type == S_TYPE);
+
+            if (prev_sym.type == S_FUN)
+            {
+                d_func prev_f = g_funcs[prev_sym.id];
+                error(f.lnum, "Redefinition of global function \"%s\"", t->u.fndef_.ident_);
+
+                if (prev_sym.id > FUNCID_LAST_BUILTIN_FUNC)
+                    note(prev_f.lnum, "Previosuly defined here");
+                else
+                    note(0, "\"%s\" is a builtin function", t->u.fndef_.ident_);
+            }
+            else
+            {
+                d_type type = g_types[prev_sym.id];
+                if (!type.is_primitive)
+                {
+                    error(f.lnum, "Function \"%s\" cannot be named same as a class", t->u.fndef_.ident_);
+                    note(type.lnum, "Class \"%s\" defined here", t->u.fndef_.ident_);
+
+                    symbol_pop(t->u.fndef_.ident_);
+                }
+                else
+                {
+                    error(f.lnum, "Cannot name a function after a builtin type \"%s\"", t->u.fndef_.ident_);
+                    symbol_pop(t->u.fndef_.ident_);
+                }
+            }
+        }
+
+        if (!has_main && strcmp("main", t->u.fndef_.ident_) == 0)
+        {
+            if (f.ret_type_id != TYPEID_INT)
+                error(f.lnum, "\"main\" function must return an \"int\"");
+
+            if (n_args != 0)
+                error(f.lnum, "\"main\" function must not have any arguments");
+
+            has_main = 1;
+        }
+    }
+
+    if (!has_main)
+    {
+        error(0, "No \"main\" function defined");
+    }
 }

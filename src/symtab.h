@@ -103,12 +103,14 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define TYPEID_MASK (((u32)1 << 31) - 1)
 #define TYPEID_FLAG_ARRAY ((u32)1 << 31)
 
-#define EMPTY_STRING_CONSTANT_ID (0)
+#define TYPEID_UNMASK(TID) (TID & (~TYPEID_FLAG_ARRAY))
 
 #define FUNCID_NOTFOUND ((u32)-1)
 #define FUNCID_LAST_BUILTIN_FUNC (5)
 
 #define VARID_NOTFOUND ((u32)-1)
+
+#define EMPTY_STRING_CONSTANT_ID (0)
 
 static symbol symbol_get(char* name, void* node, b32 report_error);
 static symbol symbol_get_shadowed(char* name);
@@ -117,7 +119,9 @@ static void symbol_pop(char* name);
 
 static u32 symbol_resolve_type(char* name, b32 is_array, void* node);
 static u32 symbol_resolve_func(char* name, void* node);
-// TODO: add resovle_var etc to the header file
+static u32 symbol_resolve_var(char* name, void* node);
+
+static void define_primitives(void);
 
 static inline int
 qsort_d_class_mem(void const* lhs_p, void const* rhs_p)

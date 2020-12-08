@@ -1,9 +1,5 @@
-// TODO:
-// * make a frontend.h/c file
-// * Extract g_types[type_id & (~TYPEID_FLAG_ARRAY)]; to a function
-
-
-#ifdef DEBUG // Disable leak checking for asan in debug mode
+// Disable leak checking for asan in debug mode
+#ifdef DEBUG
 extern char const* __asan_default_options(void);
 extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #endif
@@ -17,6 +13,7 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #define ARRAY_STATIC
 #include "absyn.h"
 #include "array.h"
+#include "frontend.h"
 #include "misc.h"
 #include "parser.h"
 #include "symtab.h"

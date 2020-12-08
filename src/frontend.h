@@ -2,6 +2,8 @@
 #define FRONTEND_H_
 
 #include "absyn.h"
+#include "misc.h"
+#include "symtab.h"
 
 typedef enum processed_expr_t processed_expr_t;
 enum processed_expr_t
@@ -68,5 +70,9 @@ static processed_expr process_expr(Expr e);
 static processed_stmt process_stmt(Stmt s, u32 return_type, i32 cur_block_id);
 static void process_params(ListExpr arg_exprs, d_func* fun, void* node);
 static void process_func_body(char* fnname, Block b, void* node);
+
+static void add_classes(Program p);
+static void add_class_members(Program p);
+static void add_global_funcs(Program p);
 
 #endif // FRONTEND_H_

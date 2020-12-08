@@ -1,86 +1,8 @@
-// Defines:
 //
-//   * #define HASHMAP_IMPLEMENTATION
-//         For this file to behave like an implementation file. Without this it
-//         behaves like a header file. Note that this file mostly contains macros
-//         so the only thing to instantiate is a hash function.
+// A generic C flat hashmap (robin hood hashmap) written by me long time ago,
+// somewhat inspired by stb_ds: github.com/nothings/stb/blob/master/stb_ds.h ,
+// but you need to isntantiate in order to use it first.
 //
-//   * #define HASHMAP_STATIC
-//         To make an implementation private to the translation unit.
-//
-//   * #define HASHMAP_MIN_CAPACITY
-//         To set minimum number of items in one allocation. Array capacity, if
-//         not zero, will never be smaller than this value. If not provided,
-//         sensible default one is used. Provided value MUST BE DIVISIBLE by 2.
-//         TODO: Or is it? Shoudn't it be a power of 2?
-//         TODO: Rename, so that it's clear that its num of chars to insert not
-//               to hold.
-//
-//   * #define HASHMAP_DEFAULT_HASH
-//         To replace a Murmur3 default hash function. Note that if you deine
-//         this one, Murmur code is never instantiated so HASHMAP_IMPLEMENATION
-//         macros becomes usless. Hash function must be invokable with a ptr to
-//         item to hash and number of bytes.
-//
-//   * #define HASHMAP_NOERRNO
-//         If you don't want to include errno.h. Some functions return errno
-//         values that reflects errors (errno is NEVER set). If this is defined
-//         they will only return 0/1.
-//
-//   * #define HASHMAP_ASSERT
-//         If not defined stdlib assert header is included and a default assert
-//         macro is used.
-//
-//   * #define HASHMAP_STRLEN
-//   * #define HASHMAP_STRCMP
-//   * #define HASHMAP_MEMCPY
-//         To replace one or more of these functions. Note that if any of these
-//         is defined, string.h is included and missing functions are added.
-//
-//   * #define HASHMAP_MALLOC
-//   * #define HASHMAP_FREE
-//         To replace malloc and free. You must define either both of them or
-//         none.
-//
-// Usage:
-//
-//   * You must first INSTANTIATE the hashmap yourself with given key/value
-//     types, compare, hash funcs etc. Defining a hasmap looks like this:
-//
-//     // In the header file:
-//     HASHMAP_DECLARE(map_name, key_t, value_t);
-//     #define map_name_insert(HM, K, V) map_name_insert_((void**)&(HM), K, V)
-//     #define map_name_reserve(HM, N) map_name_reserve_((void**)&(HM), N)
-//
-//     // In the implementation file:
-//     HASHMAP_DEFINE(map_name, key_t, value_t,
-//                    HASHMAP_DEFAULT_COMPARE,
-//                    HASHMAP_DEFAULT_HASH);
-//
-//     If you defined HASHMAP_STATIC with the intention of pulling the header
-//     once into the file you can of course DEFINE map right after DECLAREing
-//     it. The macros are necesarry, as C doesn't allow you to define macro in a
-//     macro. Instead of HASHMAP_DEFAULT_COMPARE you can provide a function
-//     which is invokable like: int(*)(void const*, void const*) , where pointer
-//     params are pointers to the things you want to compare (like qsort param).
-//     Instead of HASHMAP_DEFAULT_HASH you can provide a hash function invokable
-//     with pointer to the key and size of the key with signature:
-//     (size_t)(void const* key, ptrdiff_t len) .
-//
-//    * TODO: DESCRIBE THE MAP INTERFACE!
-//
-// Notes:
-//
-//   * If you want to use the "conforming" murmur3 or my murmur3 w/ small cases
-//     fallbacks implemented here for general purpose hashing you can use it,
-//     just #define 'your_hash_func_name' to either 'hashmap_murmur3' or
-//     'hashmap_hashbytes'. This is me, trying not to invade your namespace.
-//
-// TODO:
-//
-//   * Combine_hash are the same for 32 and 64-bits. This might be wrong.
-//
-//   * Add inline (onstack) functionality.
 
 #ifndef HASHMAP_H_
 #define HASHMAP_H_
