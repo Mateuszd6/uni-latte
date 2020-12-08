@@ -1,7 +1,7 @@
 CC = clang
 CCFLAGS = -std=c99 -O0 -ggdb -DDEBUG
-CWARNINGS = -Wall -Wextra -Wshadow -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro -Wno-missing-noreturn -Wno-pedantic
-CSANITIZERS = -fsanitize=address,undefined
+CWARNINGS = -Wall -Wextra -Wshadow -pedantic -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro -Wno-missing-noreturn
+CSANITIZERS = -fsanitize=memory,undefined
 CPLATFORM = -D_POSIX_C_SOURCE=200809L
 CFORMAT = clang-format -style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
 

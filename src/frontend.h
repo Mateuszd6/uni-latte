@@ -5,14 +5,13 @@
 #include "misc.h"
 #include "symtab.h"
 
-typedef enum processed_expr_t processed_expr_t;
 enum processed_expr_t
 {
     EET_COMPUTE,
     EET_CONSTANT,
 };
+typedef enum processed_expr_t processed_expr_t;
 
-typedef enum binary_int_op_t binary_int_op_t;
 enum binary_int_op_t
 {
     BIOP_ADD,
@@ -25,20 +24,21 @@ enum binary_int_op_t
     BIOP_GTH,
     BIOP_GE,
 };
+typedef enum binary_int_op_t binary_int_op_t;
 
-typedef enum binary_bool_op_t binary_bool_op_t;
 enum binary_bool_op_t
 {
     BBOP_AND,
     BBOP_OR,
 };
+typedef enum binary_bool_op_t binary_bool_op_t;
 
-typedef enum binary_eq_op_t binary_eq_op_t;
 enum binary_eq_op_t
 {
     BEOP_EQ,
     BEOP_NEQ,
 };
+typedef enum binary_eq_op_t binary_eq_op_t;
 
 typedef struct processed_expr processed_expr;
 struct processed_expr

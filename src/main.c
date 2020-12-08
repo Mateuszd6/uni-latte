@@ -106,7 +106,7 @@ main(int argc, char** argv)
             {
                 char* vname = type.members[i].name;
                 d_var var = {
-                    .lnum = 0, // TODO: lnum in d_class_mem
+                    .lnum = type.members[i].lnum,
                     .type_id = type.members[i].type_id,
                     .block_id = -1,
                 };

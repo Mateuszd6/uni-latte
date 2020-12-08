@@ -273,9 +273,9 @@ enforce_type(processed_expr* e, u32 type_id)
               "Expected type \"%s\" but got incompatible type \"%s\"",
               t_expected.name, t_got.name);
 
-        // TODO: Set COMPUTE to true and add some fake value so that we carry on
-        //       with a compilation Or move it outside the func, bc/
-        //       enforce_type_of can't do it
+        // Default to the desired type
+        e->type_id = type_id;
+        e->kind = EET_COMPUTE;
     }
 }
 
@@ -333,6 +333,7 @@ process_expr(Expr e)
     binary_bool_op_t binboolop;
 
     retval.node = e;
+    retval.is_lvalue = 0;
     switch (e->kind) {
     case is_ELitTrue:
     case is_ELitFalse:
@@ -347,7 +348,7 @@ process_expr(Expr e)
     case is_ELitInt:
     {
         // Looks like BNFC (or bison (or flex?)) leaves here -1 if the number
-        // was too large. Print a reasonable warning, and treat this value as 0
+        // was too large. Print a reasonable error, and treat this value as 0
         if (e->u.elitint_.integer_ < 0)
         {
             error(get_lnum(e), "Integer constant is too large");
@@ -363,15 +364,14 @@ process_expr(Expr e)
 
     case is_ELitStr:
     {
-        retval.type_id = TYPEID_STRING;
-        retval.kind = EET_CONSTANT;
-        retval.is_lvalue = 0;
-
         char* data = e->u.elitstr_.string_;
         string_const c = { .data = data, .len = (mm)strlen(data) };
         mm idx = array_size(g_str_consts);
         array_push(g_str_consts, c);
 
+        retval.type_id = TYPEID_STRING;
+        retval.kind = EET_CONSTANT;
+        retval.is_lvalue = 0;
         retval.u.cnst.str_const_id = idx;
         return retval;
     }
@@ -383,7 +383,7 @@ process_expr(Expr e)
 
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
-            assert(!e1.is_lvalue); // Already an lvalue
+            assert(!e1.is_lvalue);
             e1.u.cnst.numeric_val = !e1.u.cnst.numeric_val;
             return e1;
         }
@@ -391,7 +391,7 @@ process_expr(Expr e)
         retval.type_id = TYPEID_BOOL;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
-        return retval; // TODO
+        return retval; // TODO(ir)
     }
 
     case is_Neg:
@@ -417,7 +417,7 @@ process_expr(Expr e)
         retval.type_id = TYPEID_INT;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
-        return retval; // TODO
+        return retval; // TODO(ir)
     }
 
     case is_EMul:
@@ -496,7 +496,7 @@ process_expr(Expr e)
         retval.type_id = TYPEID_BOOL;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
-        return retval; // TODO
+        return retval; // TODO(ir)
     }
 
     binary_integer_expr:
@@ -523,11 +523,11 @@ process_expr(Expr e)
             retval.type_id = TYPEID_STRING;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
 
         enforce_type(&e1, TYPEID_INT);
-        enforce_type(&e2, TYPEID_INT); // TODO: Avoid doubled error message if both types won't work with "+"?
+        enforce_type(&e2, TYPEID_INT);
         if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
@@ -550,7 +550,7 @@ process_expr(Expr e)
 
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
-        return retval; // TODO
+        return retval; // TODO(ir)
     }
 
     case is_EEq:
@@ -575,7 +575,7 @@ process_expr(Expr e)
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
 
         case TYPEID_BOOL:
@@ -589,7 +589,7 @@ process_expr(Expr e)
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
 
         case TYPEID_STRING:
@@ -603,7 +603,7 @@ process_expr(Expr e)
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
 
         compute_contant_equality_int_or_bool:
@@ -638,7 +638,7 @@ process_expr(Expr e)
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
 
         //
@@ -655,7 +655,7 @@ process_expr(Expr e)
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
         }
     }
@@ -670,15 +670,15 @@ process_expr(Expr e)
             retval.type_id = var.type_id;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 1;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
         else
         {
-            // TODO: This might not be the best thing to do here
+            // TODO: Defaults to "int"
             retval.type_id = TYPEID_INT;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 1;
-            return retval; // TODO
+            return retval; // TODO(ir)
         }
     }
 
@@ -689,6 +689,7 @@ process_expr(Expr e)
         {
             // Can't do anything reasonable, so just asume that type is int
             // TODO: Defaults to "int"
+            retval.is_lvalue = 0;
             retval.type_id = TYPEID_INT;
             retval.kind = EET_COMPUTE;
             return retval;
@@ -813,8 +814,6 @@ process_expr(Expr e)
         else
         {
             d_type cltype = g_types[TYPEID_UNMASK(e_struct.type_id)];
-
-            // TODO: Replace with bsearch for suuuper large structs?
             mm n_members = array_size(cltype.members);
             mm idx = 0;
             for (; idx < n_members; ++idx)
@@ -856,7 +855,6 @@ process_expr(Expr e)
         }
         else
         {
-            // TODO: Replace with bsearch for suuuper large structs?
             mm n_member_funcs = array_size(cltype.member_funcs);
             mm idx = 0;
             for (; idx < n_member_funcs; ++idx)
@@ -935,7 +933,7 @@ process_expr(Expr e)
     }
 
     NOTREACHED;
-};
+}
 
 static processed_stmt
 process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
@@ -971,7 +969,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         (void)ee;
 
         retval.all_branches_return = 0;
-        return retval; // TODO:
+        return retval; // TODO(ir)
     }
 
     case is_Decl:
@@ -991,8 +989,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             error(get_lnum(var_type), "Cannot declare a variable of type \"void%s\"",
                   type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
 
-            // TODO: Defaulting to \"int\"
-            type_id = TYPEID_INT; // If void[] change to void, to aVOID errors
+            type_id = TYPEID_INT; // TODO: Defaulting to int
         } break;
         default:
         {
@@ -1216,7 +1213,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         {
             error(get_lnum(e), "Type in the \"for\" expresion must not be a void[]");
 
-            // TODO: Change type to int to avoid error cascade?
+            // TODO: Change type to int[] to avoid error cascade?
             //       For example, when RHS of the for loop is void
         }
 
@@ -1263,7 +1260,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
         Stmt lbody = s->u.for_.stmt_;
         processed_stmt lbody_e = process_stmt(lbody, return_type, block_id);
-        (void)lbody_e; // TODO(ir): Generate code from evaluated stmt
+        (void)lbody_e; // TODO(ir)
 
         pop_block();
         pop_block();
@@ -1273,7 +1270,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     }
     }
 
-    NOTREACHED; // TODO: Should not be reached?
+    NOTREACHED; // Should not reach
 }
 
 static void
@@ -1283,13 +1280,12 @@ process_func_body(char* fnname, Block b, void* node)
     assert(f_id != FUNCID_NOTFOUND); // Already added
 
     i32 param_block_id = push_block(); // Block in which params get defined
-    i32 node_lnum = get_lnum(node);
     d_func_arg* args = g_funcs[f_id].args;
     mm n_args = array_size(args);
     for (mm i = 0; i < n_args; ++i)
     {
         d_var var;
-        var.lnum = node_lnum; // TODO: lnum for funargs
+        var.lnum = args[i].lnum;
         var.type_id = args[i].type_id;
         var.block_id = param_block_id;
 
@@ -1326,7 +1322,7 @@ get_args_for_function(ListArg args, i32 this_param)
     d_func_arg* fun_args = 0;
     if (this_param != -1)
     {
-        d_func_arg arg = { .name = "self", .type_id = (u32)this_param };
+        d_func_arg arg = { .name = "self", .type_id = (u32)this_param, .lnum = 0 };
         array_push(fun_args, arg);
     }
 
@@ -1352,7 +1348,7 @@ get_args_for_function(ListArg args, i32 this_param)
             arg_type_id = TYPEID_INT; // TODO: assuming int
         }
 
-        d_func_arg arg = { .name = aname, .type_id = arg_type_id };
+        d_func_arg arg = { .name = aname, .type_id = arg_type_id, .lnum = get_lnum(a->u.ar_.type_) };
         array_push(fun_args, arg);
     }
 
@@ -1371,7 +1367,10 @@ get_args_for_function(ListArg args, i32 this_param)
             if (UNLIKELY(strcmp(arg_names[i], arg_names[i + 1]) == 0))
             {
                 error(get_lnum(args), "Redefinition of parameter \"%s\"", arg_names[i]);
-                break; // TODO: Report all redefinitions, not just first one
+                if (this_param != -1 && strcmp(arg_names[i], "self") == 0)
+                    note(get_lnum(args), "\"self\" is a implicite param of the member function");
+
+                break;
             }
         }
 
@@ -1475,10 +1474,13 @@ add_class_members(Program p)
             } break;
             }
 
-            d_class_mem clmem;
-            clmem.name = member_name;
-            clmem.offset = n_members++;
-            clmem.type_id = type_id;
+            d_class_mem clmem = {
+                .name = member_name,
+                .offset = n_members++,
+                .type_id = type_id,
+                .lnum = get_lnum(member_type),
+            };
+
             array_push(members, clmem);
         }
 

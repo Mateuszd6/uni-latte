@@ -7,7 +7,6 @@
 #include "array.h"
 #include "hashmap.h"
 
-typedef enum symbol_t symbol_t;
 enum symbol_t
 {
     S_NONE, // Means there is no symbol
@@ -15,6 +14,7 @@ enum symbol_t
     S_FUN,
     S_TYPE,
 };
+typedef enum symbol_t symbol_t;
 
 typedef struct symbol symbol;
 struct symbol
@@ -37,6 +37,7 @@ struct d_class_mem
     char* name;
     i32 offset; // Offset from the start of the struct in qwords, first has 0
     u32 type_id;
+    i32 lnum;
 };
 
 typedef struct d_func_arg d_func_arg;
@@ -44,6 +45,7 @@ struct d_func_arg
 {
     char* name;
     u32 type_id;
+    i32 lnum;
 };
 
 typedef struct d_func d_func;

@@ -127,7 +127,6 @@ typedef char hashmap_size_t_size[(sizeof(size_t) == 4) ? 1 : -1];
         char ignr_pad_;                                                        \
     }
 
-// TODO: Check if windows requires byteswap here.
 #  define HASHMAP_LOADU_WORD(DESTPTR, SRCPTR)                                  \
     HASHMAP_MEMCPY((DESTPTR), (SRCPTR), sizeof(size_t))
 

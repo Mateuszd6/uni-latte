@@ -26,11 +26,10 @@ static symboltab_kvp* g_symtab = 0;
 static d_var* g_vars = 0;
 static char** g_local_symbols = 0; // symbols to pop, when leaving a scope
 static d_func* g_funcs = 0;
-static d_func* g_local_funcs = 0; // Functions defined in classes ("self" param)
 static d_type* g_types = 0;
 static string_const* g_str_consts = 0;
 
-static b32 // TODO: Rename -> push global func?
+static b32
 create_func(d_func f)
 {
     symbol s = {
@@ -92,11 +91,11 @@ define_primitive_functions(void)
     assert(array_size(g_funcs) == 0);
 
     d_func_arg* argsof_printInt = 0;
-    d_func_arg a1 = { .name = "_int", .type_id = TYPEID_INT };
+    d_func_arg a1 = { .name = "_int", .type_id = TYPEID_INT, .lnum = 0 };
     array_push(argsof_printInt, a1);
 
     d_func_arg* argsof_printString = 0;
-    d_func_arg a2 = { .name = "_string", .type_id = TYPEID_STRING };
+    d_func_arg a2 = { .name = "_string", .type_id = TYPEID_STRING, .lnum = 0 };
     array_push(argsof_printString, a2);
 
     d_func f[] = {
@@ -260,7 +259,7 @@ static inline u32
 symbol_resolve_func(char* name, void* node)
 {
     symbol sym = symbol_get(name, node, 1);
-    if (LIKELY(sym.type == S_FUN)) // TODO: Local function as well?
+    if (LIKELY(sym.type == S_FUN))
     {
         return (u32)sym.id;
     }

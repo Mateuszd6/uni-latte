@@ -132,6 +132,7 @@ struct node_lnum
 
 static node_lnum* node_lnums = 0;
 
+// TODO: Replace with a hasmap!!
 extern void*
 alloc_ast_node(size_t size)
 {
