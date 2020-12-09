@@ -1897,8 +1897,8 @@ yy_switch_to_buffer(YY_BUFFER_STATE new_buffer)
 
     /* TODO. We should be able to replace this entire function body
      * with
-     *		yypop_buffer_state();
-     *		yypush_buffer_state(new_buffer);
+     *      yypop_buffer_state();
+     *      yypush_buffer_state(new_buffer);
      */
     yyensure_buffer_stack();
     if (YY_CURRENT_BUFFER == new_buffer)

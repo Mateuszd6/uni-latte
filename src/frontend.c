@@ -664,18 +664,18 @@ process_expr(Expr e)
     {
         Ident var_name = e->u.evar_.ident_;
         u32 var_id = symbol_resolve_var(var_name, e);
-        if (LIKELY(var_id != VARID_NOTFOUND))
+        if (UNLIKELY(var_id == VARID_NOTFOUND))
         {
-            d_var var = g_vars[var_id];
-            retval.type_id = var.type_id;
+            note(get_lnum(e), "Assuming type \"int\"");
+            retval.type_id = TYPEID_INT;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 1;
             return retval; // TODO(ir)
         }
         else
         {
-            // TODO: Defaults to "int"
-            retval.type_id = TYPEID_INT;
+            d_var var = g_vars[var_id];
+            retval.type_id = var.type_id;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 1;
             return retval; // TODO(ir)
@@ -688,7 +688,7 @@ process_expr(Expr e)
         if (func_id == FUNCID_NOTFOUND)
         {
             // Can't do anything reasonable, so just asume that type is int
-            // TODO: Defaults to "int"
+            note(get_lnum(e), "Assuming return type \"int\"");
             retval.is_lvalue = 0;
             retval.type_id = TYPEID_INT;
             retval.kind = EET_COMPUTE;
@@ -827,10 +827,10 @@ process_expr(Expr e)
             {
                 error(get_lnum(e->u.eclmem_.expr_),
                       "Class \"%s\" does not have a member named \"%s\"",
-                      cltype.name,
-                      e->u.eclmem_.ident_);
+                      cltype.name, e->u.eclmem_.ident_);
+                note(get_lnum(e->u.eclmem_.expr_), "Assuming type \"int\"");
 
-                retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
+                retval.type_id = TYPEID_INT;
             }
 
             retval.is_lvalue = e_struct.is_lvalue;
@@ -851,7 +851,8 @@ process_expr(Expr e)
         {
             error(get_lnum(e->u.eclapp_.expr_), "Builtin types does not have a member functions");
             note(get_lnum(e->u.eclapp_.expr_), "Expresion evaluated to type \"%s\"", cltype.name);
-            retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
+            note(get_lnum(e->u.eclapp_.expr_), "Assuming return type \"int\"");
+            retval.type_id = TYPEID_INT;
         }
         else
         {
@@ -869,7 +870,9 @@ process_expr(Expr e)
                 error(get_lnum(e->u.eclapp_.expr_), "Function \"%s\" is not a member of class \"%s\"",
                       fn_name, cltype.name);
                 note(cltype.lnum, "Class \"%s\" defined here", cltype.name);
-                retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
+                note(get_lnum(e->u.eclapp_.expr_), "Assuming type \"int\"");
+
+                retval.type_id = TYPEID_INT;
             }
             else
             {
@@ -900,7 +903,8 @@ process_expr(Expr e)
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
-            type_id = TYPEID_INT; // TODO: defaults to "int"
+            note(get_lnum(e), "Assuming type \"int\"");
+            type_id = TYPEID_INT;
         } break;
         case TYPEID_VOID:
         case TYPEID_INT:
@@ -909,7 +913,11 @@ process_expr(Expr e)
         case TYPEID_NULL:
         {
             error(get_lnum(e), "Casting to a builtin type is not allowed");
-            type_id = TYPEID_INT; // TODO: defaults to "int"
+
+            // Return the desired type anyway - maybe we'll have less errors
+            retval.type_id = type_id;
+            retval.kind = EET_COMPUTE;
+            return retval;
         } break;
         default:
         {
@@ -1000,7 +1008,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         switch (type_id) {
         case TYPEID_NOTFOUND:
         {
-            type_id = TYPEID_INT; // TODO: Defaults to "int"
+            note(get_lnum(var_type), "Assuming type \"int\"");
+            type_id = TYPEID_INT;
         } break;
         case TYPEID_VOID:
         case TYPEID_VOID | TYPEID_FLAG_ARRAY:
@@ -1008,7 +1017,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             error(get_lnum(var_type), "Cannot declare a variable of type \"void%s\"",
                   type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
 
-            type_id = TYPEID_INT; // TODO: Defaulting to int
+            note(get_lnum(var_type), "Assuming type \"int\"");
+            type_id = TYPEID_INT;
         } break;
         default:
         {
@@ -1222,16 +1232,18 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
             error(get_lnum(e), "Type in the \"for\" expresion must be a an array");
             note(get_lnum(e), "Given expression resolved to a type \"%s\"", t_given.name);
+            note(get_lnum(e), "Assuming type \"int\"");
 
-            // TODO: Change type to int to avoid error cascade?
-            //       For example, when RHS of the for loop is void
+            // To avoid error cascade. Since we've erorred anyway, it should work fine
+            e_expr.type_id |= TYPEID_FLAG_ARRAY;
+
         }
         else if ((TYPEID_UNMASK(e_expr.type_id)) == TYPEID_VOID)
         {
             error(get_lnum(e), "Type in the \"for\" expresion must not be a void[]");
 
-            // TODO: Change type to int[] to avoid error cascade?
-            //       For example, when RHS of the for loop is void
+            // To avoid error cascade. Since we've erorred anyway, it should work fine
+            e_expr.type_id = TYPEID_INT | TYPEID_FLAG_ARRAY;
         }
 
         u32 iter_type_id = symbol_resolve_type(type_name, 0, e);
@@ -1241,7 +1253,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         {
             // Default to good iterator type anyway
             iter_type_id = e_expr.type_id & ~TYPEID_FLAG_ARRAY;
-            // TODO: "Assuming type ..."
+            note(get_lnum(e), "Assuming type \"%s\"", g_types[iter_type_id].name);
         } break;
         case TYPEID_VOID:
         {
@@ -1249,7 +1261,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
             // Default to good iterator type anyway
             iter_type_id = e_expr.type_id & ~TYPEID_FLAG_ARRAY;
-            // TODO: "Assuming type ..."
+            note(get_lnum(e), "Assuming type \"%s\"", g_types[iter_type_id].name);
         } break;
         default:
         {
@@ -1358,8 +1370,9 @@ get_args_for_function(ListArg args, i32 this_param)
         {
             error(get_lnum(a), "Parameter type void%s is not allowed",
                   arg_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+            note(get_lnum(a), "Assuming type \"int\"");
 
-            arg_type_id = TYPEID_INT; // TODO: assuming int
+            arg_type_id = TYPEID_INT;
         }
 
         d_func_arg arg = { .name = aname, .type_id = arg_type_id, .lnum = get_lnum(a->u.ar_.type_) };
@@ -1444,7 +1457,7 @@ add_classes(Program p)
 }
 
 static void
-add_class_members(Program p)
+add_class_members_and_local_funcs(Program p)
 {
     LIST_FOREACH(it, p->u.prog_, listtopdef_)
     {
@@ -1472,8 +1485,8 @@ add_class_members(Program p)
             switch (type_id) {
             case TYPEID_NOTFOUND:
             {
+                note(get_lnum(cl->u.cbvar_.type_), "Assuming type \"int\"");
                 type_id = TYPEID_INT; // Default to int in order to avoid errors
-                // TODO: defaulting to "int"
             } break;
             case TYPEID_VOID:
             case TYPEID_VOID | TYPEID_FLAG_ARRAY:
@@ -1481,9 +1494,9 @@ add_class_members(Program p)
                 error(get_lnum(member_type),
                       "Cannot declare member field of type \"void%s\"",
                       type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+                note(get_lnum(member_type), "Assuming type \"int\"");
 
                 type_id = TYPEID_INT;
-                // TODO: defaulting to "int"
             } break;
             default:
             {
@@ -1514,10 +1527,6 @@ add_class_members(Program p)
             ClBody cl = cl_it->clbody_;
             if (cl->kind != is_CBFnDef)
                 continue;
-
-            //
-            // TODO: Copypaste from function. Merge?
-            //
 
             parsed_type retval_type = parse_type(cl->u.cbfndef_.type_);
             u32 type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, cl->u.cbfndef_.type_);
@@ -1636,5 +1645,74 @@ add_global_funcs(Program p)
     if (!has_main)
     {
         error(0, "No \"main\" function defined");
+    }
+}
+
+static void
+check_global_funcs(Program p)
+{
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_FnDef)
+            continue;
+
+        process_func_body(t->u.fndef_.ident_, t->u.fndef_.block_, t->u.fndef_.type_);
+    }
+}
+
+static void
+check_class_funcs(Program p)
+{
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_ClDef)
+            continue;
+
+        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        {
+            ClBody cl = cl_it->clbody_;
+            if (cl->kind != is_CBFnDef)
+                continue;
+
+            u32 type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, cl);
+            assert(type_id != TYPEID_NOTFOUND);
+
+            d_type type = g_types[type_id];
+            mm n_member_funcs = array_size(type.member_funcs);
+            for (mm i = 0; i < n_member_funcs; ++i)
+                create_func(type.member_funcs[i]);
+
+            push_block(); // Block for class memebers
+            mm n_members = array_size(type.members);
+            for (mm i = 0; i < n_members; ++i)
+            {
+                char* vname = type.members[i].name;
+                d_var var = {
+                    .lnum = type.members[i].lnum,
+                    .type_id = type.members[i].type_id,
+                    .block_id = -1,
+                };
+
+                mm var_id = array_size(g_vars);
+                symbol sym;
+                sym.type = S_VAR;
+                sym.id = (i32)var_id;
+                symbol_push(vname, sym);
+
+                array_push(g_vars, var);
+                array_push(g_local_symbols, vname);
+            }
+
+            process_func_body(cl->u.cbfndef_.ident_, cl->u.cbfndef_.block_, cl->u.cbfndef_.type_);
+
+            pop_block();
+
+            // Pop back the member functions
+            for (mm i = 0; i < n_member_funcs; ++i)
+                symbol_pop(type.member_funcs[i].name);
+            array_popn(g_funcs, n_member_funcs);
+        }
     }
 }
