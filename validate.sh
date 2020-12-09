@@ -18,7 +18,7 @@ for f in $(ls ./tests/good/*.lat ./tests/good/**/*.lat 2> /dev/null); do
     kcov $KOVNAME ./latc $f > /dev/null 2> temp.out
     ECODE=$?
 
-    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer|Unreachable code reached' < temp.out
+    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer|MemorySanitizer|Unreachable code reached' < temp.out
     SANITIZED=$?
 
     if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ] && [ $SANITIZED -eq 1 ]; then
@@ -38,7 +38,7 @@ for f in $(ls ./tests/bad/*.lat ./tests/bad/**/*.lat 2> /dev/null); do
     kcov $KOVNAME ./latc $f > /dev/null 2> temp.out
     ECODE=$?
 
-    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer|Unreachable code reached' < temp.out
+    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer|MemorySanitizer|Unreachable code reached' < temp.out
     SANITIZED=$?
 
     if [ "ERROR" == "`head -n1 temp.out`" ] && [ $ECODE -ne 0 ] && [ $SANITIZED -eq 1 ]; then
@@ -58,7 +58,7 @@ for f in $(ls ./tests/extensions/*.lat ./tests/extensions/**/*.lat 2> /dev/null)
     kcov $KOVNAME ./latc $f > /dev/null 2> temp.out
     ECODE=$?
 
-    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer|Unreachable code reached' < temp.out
+    grep -qE 'UndefinedBehaviorSanitizer|AddressSanitizer|MemorySanitizer|Unreachable code reached' < temp.out
     SANITIZED=$?
 
     if [ "OK" == "`head -n1 temp.out`" ] && [ $ECODE -eq 0 ]  && [ $SANITIZED -eq 1 ]; then

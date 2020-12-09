@@ -871,9 +871,11 @@ process_expr(Expr e)
                 note(cltype.lnum, "Class \"%s\" defined here", cltype.name);
                 retval.type_id = TYPEID_INT; // TODO: Defaulting to "int"
             }
-
-            d_func* f = cltype.member_funcs + idx;
-            process_params(e->u.eclapp_.listexpr_, f, e);
+            else
+            {
+                d_func* f = cltype.member_funcs + idx;
+                process_params(e->u.eclapp_.listexpr_, f, e);
+            }
         }
 
         retval.is_lvalue = 0; // Like in Java, functions always return rvalues
