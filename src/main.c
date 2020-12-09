@@ -11,15 +11,19 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include <string.h>
 
 #define ARRAY_STATIC
-#include "absyn.h"
+#define ARRAY_IMPLEMENTATION
 #include "array.h"
+
+#define HASHMAP_STATIC
+#define HASHMAP_IMPLEMENTATION
+#include "hashmap.h"
+
+#include "absyn.h"
 #include "frontend.h"
 #include "misc.h"
 #include "parser.h"
 #include "symtab.h"
 
-#define ARRAY_IMPLEMENTATION
-#include "array.h" // As implementation
 #include "misc.c"
 #include "symtab.c"
 #include "frontend.c"
@@ -37,9 +41,9 @@ parse_file(char* fname)
 
     FILE* input = fopen(in_name, "r");
     if (!input)
-        fatal("Could not open file %s for reading.", in_name);
+        fatal("Could not open file %s for reading", in_name);
 
-    array_reserve(node_lnums, 1024);
+    // lnumtab_reserve(g_lnumtab, 128);
     Program parse_tree = pProgram(input);
     fclose(input);
 
@@ -120,7 +124,6 @@ main(int argc, char** argv)
                 array_push(g_vars, var);
                 array_push(g_local_symbols, vname);
             }
-
 
             process_func_body(cl->u.cbfndef_.ident_, cl->u.cbfndef_.block_, cl->u.cbfndef_.type_);
 

@@ -316,7 +316,7 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node)
     if (n_given_args != fun->num_args)
     {
         error(get_lnum(node),
-              "Function \"%s\" takes %d arguments, but %d were provided.",
+              "Function \"%s\" takes %d arguments, but %d were provided",
               fun->name,
               fun->num_args - !!fun->is_local,
               n_given_args - !!fun->is_local);
@@ -908,7 +908,7 @@ process_expr(Expr e)
         case TYPEID_STRING:
         case TYPEID_NULL:
         {
-            error(get_lnum(e), "Casting to a builtin type is not allowed.");
+            error(get_lnum(e), "Casting to a builtin type is not allowed");
             type_id = TYPEID_INT; // TODO: defaults to "int"
         } break;
         default:
@@ -926,11 +926,28 @@ process_expr(Expr e)
         }
         default:
         {
-            // TODO(ex): Implement casting between types when inhericance is implemented
-            warn(get_lnum(e), "NOT IMPLEMENTED"); // TODO
-            NOTREACHED;
         } break;
         }
+
+        // Right now all types are incompatible.
+        // TODO(ex): Adjust when inhericance is implemented
+        if (expr_to_cast.type_id != type_id)
+        {
+            d_type* src_type = g_types + TYPEID_UNMASK(expr_to_cast.type_id);
+            d_type* dest_type = g_types + TYPEID_UNMASK(type_id);
+            error(get_lnum(e),
+                  "Casting expression of type \"%s%s\" to incompatible type \"%s%s\"",
+                  src_type->name,
+                  expr_to_cast.type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
+                  dest_type->name,
+                  type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+            // In case of an error return desired type to avoid further errors
+        }
+
+        retval.type_id = type_id;
+        retval.kind = EET_COMPUTE;
+        return retval;
     }
     }
 
@@ -1030,7 +1047,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                              "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
                              expected_t.name);
                         note(get_lnum(i),
-                             "This requirement is forced by the Author of the assignment. Sorry.");
+                             "This requirement is forced by the Author of the assignment. Sorry");
                     }
                 }
             } break;
@@ -1059,8 +1076,6 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         }
         else if (UNLIKELY(e1.type_id != e2.type_id)) // TODO(ex): Handle inheritance
         {
-            // TODO: Copypase from is_Decl
-
             d_type expected_t = g_types[TYPEID_UNMASK(e1.type_id)];
             d_type got_t = g_types[TYPEID_UNMASK(e2.type_id)];
             error(get_lnum(e2.node),
@@ -1074,7 +1089,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                      "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
                      expected_t.name);
                 note(get_lnum(e2.node),
-                     "This requirement is forced by the Author of the assignment. Sorry.");
+                     "This requirement is forced by the Author of the assignment. Sorry");
             }
         }
 
@@ -1172,7 +1187,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         i32 block_id = push_block();
         Stmt lbody = s->u.while_.stmt_;
         processed_stmt lbody_e = process_stmt(lbody, return_type, block_id);
-        (void)lbody_e; // TODO(ir): Generate code from evaluated stmt
+        (void)lbody_e; // TODO(ir)
 
         pop_block();
 
@@ -1318,9 +1333,6 @@ process_func_body(char* fnname, Block b, void* node)
 static d_func_arg*
 get_args_for_function(ListArg args, i32 this_param)
 {
-    // TODO: Make sure that if "self" is a param, no other param can be named
-    // this (OR is it done already)?
-
     d_func_arg* fun_args = 0;
     if (this_param != -1)
     {
@@ -1408,7 +1420,9 @@ add_classes(Program p)
         b32 shadows = symbol_push(t->u.cldef_.ident_, s);
         if (UNLIKELY(shadows))
         {
-            // TODO: Make sure there are no symbols for func/vars yet!
+            // Since classes are added first, we can be sure, that there only
+            // symbol that can collide here is other class' name
+
             symbol prev_sym = symbol_get_shadowed(t->u.cldef_.ident_);
             assert(prev_sym.type == S_TYPE);
 

@@ -70,24 +70,6 @@ error(mm line, char* fmt, ...) // line = 0 means skip line number (generic error
 
 NOINLINE PRINTF_FUNC(2, 3)
 extern void
-warn(mm line, char* fmt, ...) // line = 0 means skip line number (generic warning)
-{
-    va_list args;
-    fflush(stdout);
-
-    if (line > 0)
-        fprintf(stderr, "%s:%ld: warning: ", myfilename, line);
-    else
-        fprintf(stderr, "%s: warning: ", myfilename);
-
-    va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
-    va_end(args);
-    fprintf(stderr, "\n");
-}
-
-NOINLINE PRINTF_FUNC(2, 3)
-extern void
 note(mm line, char* fmt, ...) // line = 0 means skip line number (generic note)
 {
     va_list args;
@@ -123,24 +105,20 @@ no_recover(void)
 
 extern int yy_mylinenumber; // Defined by Bison parser / Flex lexer
 
-typedef struct node_lnum node_lnum;
-struct node_lnum
-{
-    umm ptr_val;
-    mm lnum;
-};
+HASHMAP_DECLARE(lnumtab, umm, i32);
+#define lnumtab_insert(HM, K, V) lnumtab_insert_((void**)&(HM), K, V)
+#define lnumtab_reserve(HM, N) lnumtab_reserve_((void**)&(HM), N)
 
-static node_lnum* node_lnums = 0;
+HASHMAP_DEFINE(lnumtab, umm, i32, HASHMAP_DEFAULT_COMPARE, HASHMAP_DEFAULT_HASH);
+static lnumtab_kvp* g_lnumtab = 0;
 
-// TODO: Replace with a hasmap!!
 extern void*
 alloc_ast_node(size_t size)
 {
     void* mem = malloc(size);
     if (!mem) fatal("Out of memory");
 
-    node_lnum toadd = { .ptr_val = (umm)mem, .lnum = yy_mylinenumber + 1 };
-    array_push(node_lnums, toadd);
+    lnumtab_insert(g_lnumtab, (umm)mem, yy_mylinenumber + 1);
     return mem;
 }
 
@@ -148,15 +126,9 @@ extern i32
 get_lnum(void* ast_node)
 {
     umm val = (umm)ast_node;
-    mm nnode_lnums = array_size(node_lnums);
-    mm i = 0;
-    for (; i < nnode_lnums; ++i)
-    {
-        if (node_lnums[i].ptr_val == val)
-            return (i32)node_lnums[i].lnum;
-    }
+    mm idx = lnumtab_findi(g_lnumtab, val);
 
-    return -1; // When used in report function, lnum won't be provided
+    return idx >= 0 ? g_lnumtab[idx].value : -1;
 }
 
 //

@@ -4,8 +4,6 @@
 #define HASHMAP_STATIC
 
 #include "misc.h"
-#include "array.h"
-#include "hashmap.h"
 
 enum symbol_t
 {

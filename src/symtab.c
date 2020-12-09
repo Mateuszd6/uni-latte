@@ -1,8 +1,5 @@
 #include "symtab.h"
 
-#define HASHMAP_IMPLEMENTATION
-#include "hashmap.h" // As implementation
-
 static inline int
 str_cmp(void const* lhs, void const* rhs)
 {

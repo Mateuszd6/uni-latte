@@ -3,18 +3,6 @@
 #ifndef MISC_H_
 #define MISC_H_
 
-#ifdef DEBUG
-#  undef DEBUG
-#  undef RELEASE
-#  define DEBUG 1
-#  define RELEASE 0
-#else
-#  undef DEBUG
-#  undef RELEASE
-#  define DEBUG 0
-#  define RELEASE 1
-#endif
-
 #include <stddef.h>
 #include <stdint.h>
 
@@ -51,7 +39,7 @@ typedef i32 b32;
 #  define NOINLINE
 #endif
 
-#if DEBUG
+#ifdef DEBUG
 #    define NOTREACHED assert(!(mm)(void*)"Unreachable code reached!")
 #else
 #  if (defined(__GNUC__) || defined(__clang__))
@@ -95,7 +83,6 @@ typedef i32 b32;
 extern void accept_input(void);
 extern void fatal(char* fmt, ...);
 extern void error(mm line, char* fmt, ...);
-extern void warn(mm line, char* fmt, ...);
 extern void note(mm line, char* fmt, ...);
 extern void no_recover(void);
 
