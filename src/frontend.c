@@ -162,11 +162,11 @@ pop_block(void)
     while (1)
     {
         mm size = array_size(g_local_symbols);
+        (void)size;
         assert(size > 0);
         char* popped = array_pop(g_local_symbols);
         if (!popped) break;
 
-        printf("Popping variable: %s\n", popped);
         symbol_pop(popped);
     }
 }
@@ -186,7 +186,7 @@ push_var(d_var var, char* vname, void* node)
         if (UNLIKELY(v.block_id) == var.block_id) // Redefinition, not just shadowing
         {
             error(get_lnum(node), "Variable \"%s\" redefined in the same block", vname);
-            note(v.lnum, "Variable \"%s\" declared here", vname);
+            note(v.lnum, "Variable \"%s\" previously declared here", vname);
 
             return; // Don't push the sumbol
         }
@@ -202,7 +202,7 @@ push_var(d_var var, char* vname, void* node)
     {
         d_func f = g_funcs[prev_decl.id];
         error(get_lnum(node), "Variable \"%s\" cannot be named after a function", vname);
-        note(f.lnum, "Function \"%s\" declared here", vname);
+        note(f.lnum, "Function \"%s\" defined here", vname);
 
         return; // Don't push the sumbol
     } break;
@@ -217,7 +217,7 @@ push_var(d_var var, char* vname, void* node)
         {
             d_type t = g_types[prev_decl.id];
             error(get_lnum(node), "Variable \"%s\" cannot be named after a class", vname);
-            note(t.lnum, "Class \"%s\" declared here", vname);
+            note(t.lnum, "Class \"%s\" defined here", vname);
         }
 
         return;
@@ -329,8 +329,8 @@ process_expr(Expr e)
     processed_expr retval;
     Expr binarg1; // To be set for binary expressions
     Expr binarg2;
-    binary_int_op_t binintop;
-    binary_bool_op_t binboolop;
+    binary_int_op_t binintop = BIOP_ADD;
+    binary_bool_op_t binboolop = BBOP_AND;
 
     retval.node = e;
     retval.is_lvalue = 0;
@@ -557,7 +557,7 @@ process_expr(Expr e)
     {
         processed_expr e1 = process_expr(e->u.eeq_.expr_1);
         processed_expr e2 = process_expr(e->u.eeq_.expr_2);
-        binary_eq_op_t bineqop;
+        binary_eq_op_t bineqop = BEOP_EQ;
         switch (e->u.eeq_.eqop_->kind) {
         case is_NE: bineqop = BEOP_NEQ; break;
         case is_EQU: bineqop = BEOP_EQ; break;
@@ -1028,7 +1028,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         LIST_FOREACH(it, s->u.decl_, listitem_)
         {
             Item i = it->item_;
-            char* vname;
+            char* vname = 0;
             processed_expr vval;
             switch (i->kind) {
             case is_NoInit:
@@ -1062,6 +1062,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
                 }
             } break;
             }
+
+            assert(vname);
 
             // Regardless of whether or not inicializing errored declare the
             // variable with a type defined on the left, to avoid error cascade.
@@ -1232,15 +1234,20 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
             error(get_lnum(e), "Type in the \"for\" expresion must be a an array");
             note(get_lnum(e), "Given expression resolved to a type \"%s\"", t_given.name);
-            note(get_lnum(e), "Assuming type \"int\"");
 
             // To avoid error cascade. Since we've erorred anyway, it should work fine
+            // Make sure we don't create a void[] type by accident!
+            if (e_expr.type_id == TYPEID_VOID)
+                e_expr.type_id = TYPEID_INT;
+
+            note(get_lnum(e), "Assuming type \"%s[]\"", g_types[e_expr.type_id].name);
             e_expr.type_id |= TYPEID_FLAG_ARRAY;
 
         }
         else if ((TYPEID_UNMASK(e_expr.type_id)) == TYPEID_VOID)
         {
             error(get_lnum(e), "Type in the \"for\" expresion must not be a void[]");
+            note(get_lnum(e), "Assuming type \"int[]\"");
 
             // To avoid error cascade. Since we've erorred anyway, it should work fine
             e_expr.type_id = TYPEID_INT | TYPEID_FLAG_ARRAY;
@@ -1477,8 +1484,43 @@ add_class_members_and_local_funcs(Program p)
             if (cl->kind != is_CBVar)
                 continue;
 
-            char* member_name = cl->u.cbvar_.ident_;
             Type member_type = cl->u.cbvar_.type_;
+            char* member_name = cl->u.cbvar_.ident_;
+
+            symbol shad_sym = symbol_check(member_name);
+            if (UNLIKELY(shad_sym.type != S_NONE))
+            {
+                switch (shad_sym.type) {
+                case S_TYPE:
+                {
+                    d_type* type = g_types + shad_sym.id;
+                    error(get_lnum(member_type), "Class member \"%s\" cannot be named after a class",
+                          member_name);
+
+                    if (shad_sym.id > TYPEID_LAST_BUILTIN_TYPE)
+                        note(type->lnum, "Class \"%s\" defined here", member_name);
+                    else
+                        note(0, "\"%s\" is a builtin type", member_name);
+                } break;
+
+                case S_FUN:
+                {
+                    d_func* func = g_funcs + shad_sym.id;
+                    error(get_lnum(member_type), "Class member \"%s\" cannot be named after a function",
+                          member_name);
+
+                    if (shad_sym.id > FUNCID_LAST_BUILTIN_FUNC)
+                        note(func->lnum, "Function \"%s\" defined here", member_name);
+                    else
+                        note(0, "\"%s\" is a builtin function", member_name);
+                } break;
+
+                case S_VAR:
+                case S_NONE:
+                    break; // Should not reach
+                }
+            }
+
             parsed_type mem_type = parse_type(cl->u.cbvar_.type_);
             u32 type_id = symbol_resolve_type(mem_type.name, mem_type.is_array, cl->u.cbvar_.type_);
 
@@ -1527,6 +1569,32 @@ add_class_members_and_local_funcs(Program p)
             ClBody cl = cl_it->clbody_;
             if (cl->kind != is_CBFnDef)
                 continue;
+
+            void* node = cl->u.cbfndef_.type_;
+            char* func_name = cl->u.cbfndef_.ident_;
+
+            symbol shad_sym = symbol_check(func_name);
+            if (UNLIKELY(shad_sym.type != S_NONE && shad_sym.type != S_FUN))
+            {
+                switch (shad_sym.type) {
+                case S_TYPE:
+                {
+                    d_type* type = g_types + shad_sym.id;
+                    error(get_lnum(node), "Class method \"%s\" cannot be named after a class",
+                          func_name);
+
+                    if (shad_sym.id > TYPEID_LAST_BUILTIN_TYPE)
+                        note(type->lnum, "Class \"%s\" defined here", func_name);
+                    else
+                        note(0, "\"%s\" is a builtin type", func_name);
+                } break;
+
+                case S_FUN:
+                case S_VAR:
+                case S_NONE:
+                    break; // Should not reach
+                }
+            }
 
             parsed_type retval_type = parse_type(cl->u.cbfndef_.type_);
             u32 type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, cl->u.cbfndef_.type_);

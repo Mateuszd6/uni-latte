@@ -1,9 +1,12 @@
-CC = clang
-CCFLAGS = -std=c99 -O0 -ggdb -DDEBUG
-CWARNINGS = -Wall -Wextra -Wshadow -pedantic -Wno-unused-function -Weverything -Wno-padded -Wno-c++-compat -Wno-gnu-empty-struct -Wno-reserved-id-macro -Wno-missing-noreturn
+DEBUG=YES
+USE_SANITIZERS=YES
+
+CC = gcc
+CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L
+CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
+CFLAGS_RELEASE = -O3 -DNDEBUG
+CWARNINGS = -Wall -Wextra -Wno-unused-function
 CSANITIZERS = -fsanitize=address,undefined
-CPLATFORM = -D_POSIX_C_SOURCE=200809L
-CFORMAT = clang-format -style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
 
 BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
 BNFC_FLAGS = --c
@@ -14,7 +17,25 @@ FLEX_FLAGS = -Platte
 BISON = bison
 BISON_FLAGS = -t -platte
 
+CFORMAT = clang-format \
+	-style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
+
 OBJS = ./obj/absyn.o ./obj/lexer.o ./obj/parser.o
+
+ifeq ($(DEBUG),YES)
+	CFLAGS += $(CFLAGS_DEBUG)
+else
+	CFLAGS += $(CFLAGS_RELEASE)
+endif
+
+ifeq ($(USE_SANITIZERS),YES)
+	CFLAGS += $(CSANITIZERS)
+endif
+
+ifeq ($(CC),clang)
+	CWARNINGS += -Weverything -Wno-padded -Wno-c++-compat -Wno-reserved-id-macro \
+				 -Wno-gnu-empty-struct -Wno-unused-function -Wno-missing-noreturn
+endif
 
 .PHONY: all clean grammar validate
 
@@ -24,11 +45,11 @@ clean:
 	@-rm -rf ./outs ./obj ./cov latc
 
 latc: ${OBJS} src/*.c src/*.h
-	${CC} ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${CPLATFORM} ${OBJS} ./src/main.c -o latc
+	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc
 
 obj/%.o: src/%.c
 	@-mkdir -p obj
-	${CC} -c ${CCFLAGS} ${CWARNINGS} ${CSANITIZERS} ${CPLATFORM} $< -o $@
+	${CC} -c ${CFLAGS} ${CWARNINGS} $< -o $@
 
 src/lexer.c: src/latte.l
 	${FLEX} ${FLEX_FLAGS} -osrc/lexer.c src/latte.l

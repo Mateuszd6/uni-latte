@@ -53,7 +53,7 @@ parse_file(char* fname)
 static void
 usage(char* argv0)
 {
-    printf("Usage: %s FILE\n", argv0);
+    fprintf(stderr, "ERROR\nUsage: %s FILE\n", argv0);
     exit(1);
 }
 

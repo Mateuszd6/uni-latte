@@ -112,6 +112,7 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 
 #define EMPTY_STRING_CONSTANT_ID (0)
 
+static inline symbol symbol_check(char* name);
 static symbol symbol_get(char* name, void* node, b32 report_error);
 static symbol symbol_get_shadowed(char* name);
 static b32 symbol_push(char* name, symbol s);

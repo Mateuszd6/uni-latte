@@ -143,6 +143,7 @@ define_primitive_functions(void)
     for (mm i = 0; i < COUNT_OF(f); ++i)
     {
         b32 shadows = create_func(f[i]);
+        (void)shadows;
         assert(!shadows);
     }
 }
@@ -165,6 +166,22 @@ symbol_get_shadowed(char* name)
     symbol prev_sym = all_symbols[array_size(all_symbols) - 2];
     return prev_sym;
 
+}
+
+static inline symbol
+symbol_check(char* name)
+{
+    symbol_stack* stack = symboltab_findp(g_symtab, name);
+    if (!stack)
+    {
+        symbol dummy_sym = { .type = S_NONE };
+        return dummy_sym;
+    }
+
+    symbol* symbols = stack->symbols;
+    assert(symbols); // If there are no symbols, entire node should be deleted
+
+    return symbols[array_size(symbols) - 1];
 }
 
 static inline symbol
@@ -274,7 +291,7 @@ symbol_resolve_func(char* name, void* node)
         } break;
         case S_VAR:
         {
-            error(get_lnum(node), "\"%s\" resolved to a variable, when type was expected", name);
+            error(get_lnum(node), "\"%s\" resolved to a variable, when function was expected", name);
             note(g_vars[sym.id].lnum, "Variable \"%s\" defined here", name);
         } break;
 
