@@ -16,14 +16,17 @@ Compilation:
   user can regenerate them using 'make grammar' and they should work just fine.
 
 Libraries:
-  There are two single-file header only libraries used in the project;
+  There are two single-file header only libraries used in the project, both in
+  the ./src/lib catalogue (libs are header-only, no linking required):
+
   * array.h - simple expandable array for C (like std::vector for C++)
   * hashmap.h - my old hacky version of the Robin-Hood hash table
+
   Both libraries are _heavily_ inspired by: github.com/nothings/stb , but
   written by me, a long time ago. Also hashmap is using a murmur3 - a public
   domain hash by Austin Appleby slightly adjusted to work in plain C. Original
   implementation can be found on: github.com/aappleby/smhasher . Except that,
-  the only thing the project relies on is a C99 standard library.
+  the project relies only on C99 standard library.
 
 Catalogues:
   Source code (bnfc files included) is in 'src' directory, object files are

@@ -12,11 +12,11 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 
 #define ARRAY_STATIC
 #define ARRAY_IMPLEMENTATION
-#include "array.h"
+#include "lib/array.h"
 
 #define HASHMAP_STATIC
 #define HASHMAP_IMPLEMENTATION
-#include "hashmap.h"
+#include "lib/hashmap.h"
 
 #include "absyn.h"
 #include "frontend.h"

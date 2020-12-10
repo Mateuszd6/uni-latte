@@ -302,10 +302,12 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node)
                 d_type t_expected = g_types[TYPEID_UNMASK(expected_type_id)];
                 d_type t_provided = g_types[TYPEID_UNMASK(argexpr_e.type_id)];
 
-                error(get_lnum(argexpr), "Function \"%s\" expects argument %d to have a type \"%s\"",
+                error(get_lnum(argexpr),
+                      "Function \"%s\" expects argument %d to have a type \"%s\"",
                       fun->name, n_given_args + 1 - !!(fun->is_local), t_expected.name);
 
-                note(get_lnum(argexpr), "Given expression of type \"%s\", which is not assignable to type \"%s\"",
+                note(get_lnum(argexpr),
+                     "Given expression of type \"%s\", which is not assignable to type \"%s\"",
                      t_provided.name, t_expected.name);
             }
         }
@@ -316,10 +318,18 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node)
     if (n_given_args != fun->num_args)
     {
         error(get_lnum(node),
-              "Function \"%s\" takes %d arguments, but %d were provided",
+              "Function \"%s\" takes %d argument%s, but %d %s provided",
               fun->name,
               fun->num_args - !!fun->is_local,
-              n_given_args - !!fun->is_local);
+              (fun->num_args - !!fun->is_local) != 1 ? "s" : "",
+              n_given_args - !!fun->is_local,
+              (fun->num_args - !!fun->is_local) != 1 ? "were" : "was");
+
+
+        if (fun - g_funcs > FUNCID_LAST_BUILTIN_FUNC)
+            note(fun->lnum, "Function \"%s\" defined here", fun->name);
+        else
+            note(0, "\"%s\" is a builtin function", fun->name);
     }
 }
 

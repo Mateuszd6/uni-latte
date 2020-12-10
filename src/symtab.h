@@ -106,7 +106,7 @@ HASHMAP_DECLARE(symboltab, char*, symbol_stack);
 #define TYPEID_UNMASK(TID) (TID & (~TYPEID_FLAG_ARRAY))
 
 #define FUNCID_NOTFOUND ((u32)-1)
-#define FUNCID_LAST_BUILTIN_FUNC (5)
+#define FUNCID_LAST_BUILTIN_FUNC (4)
 
 #define VARID_NOTFOUND ((u32)-1)
 

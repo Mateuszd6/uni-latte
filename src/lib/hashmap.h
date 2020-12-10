@@ -570,11 +570,7 @@ HASHMAP_FUNC_DECORATOR size_t hashmap_murmur3(void const* key, ptrdiff_t len);
 HASHMAP_FUNC_DECORATOR inline size_t
 hashmap_hashbytes(void const* key, ptrdiff_t const len)
 {
-    if (HASHMAP_LIKELY((size_t)len > 2 * sizeof(size_t)))
-    {
-        return hashmap_murmur3(key, len);
-    }
-    else
+    if ((size_t)len <= 2 * sizeof(size_t))
     {
         union
         {
@@ -607,6 +603,10 @@ hashmap_hashbytes(void const* key, ptrdiff_t const len)
             size_t result = HASHMAP_COMBINE_HASHES(u.x[0], u.x[1]);
             return result;
         }
+    }
+    else
+    {
+        return hashmap_murmur3(key, len);
     }
 }
 #endif // HASHMAP_DEFAULT_HASH_FUNCTION_PROVIDED

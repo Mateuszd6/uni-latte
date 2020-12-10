@@ -138,7 +138,7 @@ define_primitive_functions(void)
         },
     };
 
-    assert(COUNT_OF(f) == FUNCID_LAST_BUILTIN_FUNC);
+    assert(COUNT_OF(f) == FUNCID_LAST_BUILTIN_FUNC + 1);
 
     for (mm i = 0; i < COUNT_OF(f); ++i)
     {
