@@ -1,7 +1,7 @@
 DEBUG = NO
 USE_SANITIZERS = NO
 
-CC = clang
+CC = gcc
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L
 CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
 CFLAGS_RELEASE = -O3 -DNDEBUG
@@ -102,4 +102,4 @@ grammar:
 	${CFORMAT} ./src/absyn.h
 
 validate: latc
-	@-./validate.sh 2> /dev/null
+	@-./tests/validate.sh 2> /dev/null

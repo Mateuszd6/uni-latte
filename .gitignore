@@ -5,3 +5,4 @@ main
 latc
 tests
 cov
+misc/**
