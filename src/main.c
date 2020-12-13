@@ -1,3 +1,9 @@
+//
+// TODO: Right now, it is possible to write to "self" variable in the memfunc
+// TODO: Cleanup process_expr and try to remove is_lvalue from there
+// TODO: Maybe the first param of IR_PUSH should be entire expression, not just .val
+//
+
 // Disable leak checking for asan in debug mode
 #ifdef DEBUG
 extern char const* __asan_default_options(void);

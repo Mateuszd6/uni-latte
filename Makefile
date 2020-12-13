@@ -1,7 +1,8 @@
-DEBUG = NO
-USE_SANITIZERS = NO
+DEBUG = YES
+USE_SANITIZERS = YES
+USE_PROFILER = NO
 
-CC = gcc
+CC = clang
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L
 CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
 CFLAGS_RELEASE = -O3 -DNDEBUG
@@ -30,6 +31,10 @@ endif
 
 ifeq ($(USE_SANITIZERS),YES)
 	CFLAGS += $(CSANITIZERS)
+endif
+
+ifeq ($(USE_PROFILER),YES)
+	CFLAGS += -fno-omit-frame-pointer
 endif
 
 ifeq ($(CC),clang)

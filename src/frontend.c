@@ -3,6 +3,8 @@
 #include "misc.h"
 #include "symtab.h"
 
+static int g_temp_reg = 1;
+
 static parsed_type
 parse_type(Type type)
 {
@@ -42,12 +44,12 @@ get_default_expr(u32 type_id, void* node)
     case TYPEID_INT:
     case TYPEID_BOOL:
     {
-        retval.u.cnst.numeric_val = 0;
+        retval.u.numeric_val = 0;
         return retval;
     }
     case TYPEID_STRING:
     {
-        retval.u.cnst.str_const_id = EMPTY_STRING_CONSTANT_ID;
+        retval.u.str_const_id = EMPTY_STRING_CONSTANT_ID;
         return retval;
     }
     default:
@@ -80,8 +82,8 @@ compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
     retval.is_lvalue = 0;
     retval.node = node;
     switch (op) {
-    case BBOP_AND: retval.u.cnst.numeric_val = !!(v1) && !!(v2); break;
-    case BBOP_OR: retval.u.cnst.numeric_val = !!(v1) || !!(v2); break;
+    case BBOP_AND: retval.u.numeric_val = !!(v1) && !!(v2); break;
+    case BBOP_OR: retval.u.numeric_val = !!(v1) || !!(v2); break;
     }
 
     return retval;
@@ -96,23 +98,23 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
     retval.is_lvalue = 0;
     retval.node = node;
     switch (op) {
-    case BIOP_ADD: retval.u.cnst.numeric_val = v1 + v2; break;
-    case BIOP_SUB: retval.u.cnst.numeric_val = v1 - v2; break;
-    case BIOP_MUL: retval.u.cnst.numeric_val = v1 * v2; break;
-    case BIOP_DIV: retval.u.cnst.numeric_val = v1 / v2; break;
-    case BIOP_MOD: retval.u.cnst.numeric_val = v1 % v2; break;
-    case BIOP_LTH: retval.u.cnst.numeric_val = (v1 < v2); retval.type_id = TYPEID_BOOL; break;
-    case BIOP_LE: retval.u.cnst.numeric_val = (v1 <= v2); retval.type_id = TYPEID_BOOL; break;
-    case BIOP_GTH: retval.u.cnst.numeric_val = (v1 > v2); retval.type_id = TYPEID_BOOL; break;
-    case BIOP_GE: retval.u.cnst.numeric_val = (v1 >= v2); retval.type_id = TYPEID_BOOL; break;
+    case BIOP_ADD: retval.u.numeric_val = v1 + v2; break;
+    case BIOP_SUB: retval.u.numeric_val = v1 - v2; break;
+    case BIOP_MUL: retval.u.numeric_val = v1 * v2; break;
+    case BIOP_DIV: retval.u.numeric_val = v1 / v2; break;
+    case BIOP_MOD: retval.u.numeric_val = v1 % v2; break;
+    case BIOP_LTH: retval.u.numeric_val = (v1 < v2); retval.type_id = TYPEID_BOOL; break;
+    case BIOP_LE: retval.u.numeric_val = (v1 <= v2); retval.type_id = TYPEID_BOOL; break;
+    case BIOP_GTH: retval.u.numeric_val = (v1 > v2); retval.type_id = TYPEID_BOOL; break;
+    case BIOP_GE: retval.u.numeric_val = (v1 >= v2); retval.type_id = TYPEID_BOOL; break;
     }
 
     // Safe for booleans becasue they never overflow. In case of overflow, leave
     // 0 to have something reasonable for computations, we won't compile anyway
-    if (UNLIKELY(overflows_32bit(retval.u.cnst.numeric_val)))
+    if (UNLIKELY(overflows_32bit(retval.u.numeric_val)))
     {
         error(get_lnum(node), "Integer constant overflows");
-        retval.u.cnst.numeric_val = 0;
+        retval.u.numeric_val = 0;
     }
 
     return retval;
@@ -142,7 +144,7 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     s.data = new_string;
     s.len = s1.len + s2.len;
 
-    retval.u.cnst.str_const_id = array_size(g_str_consts);
+    retval.u.str_const_id = array_size(g_str_consts);
     array_push(g_str_consts, s);
 
     return retval;
@@ -242,7 +244,7 @@ compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, binary_eq_op_t op,
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
     retval.node = node;
-    retval.u.cnst.numeric_val = !((op == BEOP_EQ) ^ (v1 == v2));
+    retval.u.numeric_val = !((op == BEOP_EQ) ^ (v1 == v2));
 
     return retval;
 }
@@ -256,7 +258,7 @@ compute_binary_string_equality_expr(mm str1, mm str2, binary_eq_op_t op, void* n
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
     retval.node = node;
-    retval.u.cnst.numeric_val = !((op == BEOP_EQ) ^ compre);
+    retval.u.numeric_val = !((op == BEOP_EQ) ^ compre);
 
     return retval;
 }
@@ -280,7 +282,7 @@ enforce_type(processed_expr* e, u32 type_id)
 }
 
 static void
-process_params(ListExpr arg_exprs, d_func* fun, void* node)
+process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
 {
     // 1st param "self" for local func. So for local functions we start
     // evaluating params from the second arg. Error messages needs to be
@@ -294,7 +296,7 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node)
         if (LIKELY(n_given_args < fun->num_args)) // if not too many args given
         {
             Expr argexpr = it->expr_;
-            processed_expr argexpr_e = process_expr(argexpr);
+            processed_expr argexpr_e = process_expr(argexpr, ir);
             u32 expected_type_id = fun->args[n_given_args].type_id;
 
             if (argexpr_e.type_id != expected_type_id) // TODO(ex): Handle inheritance
@@ -334,7 +336,7 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node)
 }
 
 static processed_expr
-process_expr(Expr e)
+process_expr(Expr e, ir_quadr** ir)
 {
     processed_expr retval;
     Expr binarg1; // To be set for binary expressions
@@ -348,10 +350,7 @@ process_expr(Expr e)
     case is_ELitTrue:
     case is_ELitFalse:
     {
-        retval.type_id = TYPEID_BOOL;
-        retval.kind = EET_CONSTANT;
-        retval.is_lvalue = 0;
-        retval.u.cnst.numeric_val = (e->kind == is_ELitTrue); // true/false
+        IR_SET_CONSTANT(retval, TYPEID_BOOL, (e->kind == is_ELitTrue));
         return retval;
     }
 
@@ -365,10 +364,7 @@ process_expr(Expr e)
             e->u.elitint_.integer_ = 0;
         }
 
-        retval.type_id = TYPEID_INT;
-        retval.kind = EET_CONSTANT;
-        retval.is_lvalue = 0;
-        retval.u.cnst.numeric_val = (i64)e->u.elitint_.integer_;
+        IR_SET_CONSTANT(retval, TYPEID_INT, (i64)e->u.elitint_.integer_);
         return retval;
     }
 
@@ -382,52 +378,50 @@ process_expr(Expr e)
         retval.type_id = TYPEID_STRING;
         retval.kind = EET_CONSTANT;
         retval.is_lvalue = 0;
-        retval.u.cnst.str_const_id = idx;
+        retval.u.str_const_id = idx;
         return retval;
     }
 
     case is_Not:
     {
-        processed_expr e1 = process_expr(e->u.not_.expr_);
+        processed_expr e1 = process_expr(e->u.not_.expr_, ir);
         enforce_type(&e1, TYPEID_BOOL);
 
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
-            e1.u.cnst.numeric_val = !e1.u.cnst.numeric_val;
+            e1.u.numeric_val = !e1.u.numeric_val;
             return e1;
         }
 
-        retval.type_id = TYPEID_BOOL;
-        retval.kind = EET_COMPUTE;
-        retval.is_lvalue = 0;
-        return retval; // TODO(ir)
+        IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(retval.val, NEG, e1.val);
+        return retval;
     }
 
     case is_Neg:
     {
-        processed_expr e1 = process_expr(e->u.not_.expr_);
+        processed_expr e1 = process_expr(e->u.not_.expr_, ir);
         enforce_type(&e1, TYPEID_INT);
 
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
-            e1.u.cnst.numeric_val = -e1.u.cnst.numeric_val;
+            e1.u.numeric_val = -e1.u.numeric_val;
 
             // In case when we have -(INT_MIN):
-            if (UNLIKELY(overflows_32bit(e1.u.cnst.numeric_val)))
+            if (UNLIKELY(overflows_32bit(e1.u.numeric_val)))
             {
                 error(get_lnum(e1.node), "Integer constant overflows");
-                retval.u.cnst.numeric_val = 0;
+                retval.u.numeric_val = 0;
             }
 
             return e1;
         }
 
-        retval.type_id = TYPEID_INT;
-        retval.kind = EET_COMPUTE;
-        retval.is_lvalue = 0;
-        return retval; // TODO(ir)
+        IR_SET_EXPR(retval, TYPEID_INT, 0, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(retval.val, NEG, e1.val);
+        return retval;
     }
 
     case is_EMul:
@@ -489,8 +483,8 @@ process_expr(Expr e)
 
     binary_boolean_expr:
     {
-        processed_expr e1 = process_expr(binarg1);
-        processed_expr e2 = process_expr(binarg2);
+        processed_expr e1 = process_expr(binarg1, ir);
+        processed_expr e2 = process_expr(binarg2, ir);
         enforce_type(&e1, TYPEID_BOOL);
         enforce_type(&e2, TYPEID_BOOL);
         if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
@@ -498,8 +492,8 @@ process_expr(Expr e)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm v1 = e1.u.cnst.numeric_val;
-            mm v2 = e2.u.cnst.numeric_val;
+            mm v1 = e1.u.numeric_val;
+            mm v2 = e2.u.numeric_val;
             return compute_binary_boolean_expr(v1, v2, binboolop, e1.node);
         }
 
@@ -511,8 +505,8 @@ process_expr(Expr e)
 
     binary_integer_expr:
     {
-        processed_expr e1 = process_expr(binarg1);
-        processed_expr e2 = process_expr(binarg2);
+        processed_expr e1 = process_expr(binarg1, ir);
+        processed_expr e2 = process_expr(binarg2, ir);
 
         // This is the only case when an operator other that == and != is
         // overloaded. IMO string concatenation should have separate operator
@@ -525,8 +519,8 @@ process_expr(Expr e)
                 assert(!e1.is_lvalue);
                 assert(!e2.is_lvalue);
 
-                mm str1 = e1.u.cnst.str_const_id;
-                mm str2 = e2.u.cnst.str_const_id;
+                mm str1 = e1.u.str_const_id;
+                mm str2 = e2.u.str_const_id;
                 return compute_binary_string_expr(str1, str2, e1.node);
             }
 
@@ -543,8 +537,8 @@ process_expr(Expr e)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm v1 = e1.u.cnst.numeric_val;
-            mm v2 = e2.u.cnst.numeric_val;
+            mm v1 = e1.u.numeric_val;
+            mm v2 = e2.u.numeric_val;
             return compute_binary_integer_expr(v1, v2, binintop, e1.node);
         }
 
@@ -565,8 +559,8 @@ process_expr(Expr e)
 
     case is_EEq:
     {
-        processed_expr e1 = process_expr(e->u.eeq_.expr_1);
-        processed_expr e2 = process_expr(e->u.eeq_.expr_2);
+        processed_expr e1 = process_expr(e->u.eeq_.expr_1, ir);
+        processed_expr e2 = process_expr(e->u.eeq_.expr_2, ir);
         binary_eq_op_t bineqop = BEOP_EQ;
         switch (e->u.eeq_.eqop_->kind) {
         case is_NE: bineqop = BEOP_NEQ; break;
@@ -621,8 +615,8 @@ process_expr(Expr e)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm v1 = e1.u.cnst.numeric_val;
-            mm v2 = e2.u.cnst.numeric_val;
+            mm v1 = e1.u.numeric_val;
+            mm v2 = e2.u.numeric_val;
             return compute_binary_integer_or_boolean_equality_expr(v1, v2, bineqop, e1.node);
         }
 
@@ -631,8 +625,8 @@ process_expr(Expr e)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm str1 = e1.u.cnst.str_const_id;
-            mm str2 = e2.u.cnst.str_const_id;
+            mm str1 = e1.u.str_const_id;
+            mm str2 = e2.u.str_const_id;
             return compute_binary_string_equality_expr(str1, str2, bineqop, e1.node);
         }
 
@@ -682,14 +676,16 @@ process_expr(Expr e)
             retval.is_lvalue = 1;
             return retval; // TODO(ir)
         }
-        else
-        {
-            d_var var = g_vars[var_id];
-            retval.type_id = var.type_id;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 1;
-            return retval; // TODO(ir)
-        }
+
+        d_var var = g_vars[var_id];
+        retval.type_id = var.type_id;
+        retval.kind = EET_COMPUTE;
+        retval.is_lvalue = 1;
+
+        ir_val val = { .type = IRVT_VAR, .u = { .reg_id = 0 } };
+        retval.val = val;
+
+        return retval;
     }
 
     case is_EApp:
@@ -706,7 +702,7 @@ process_expr(Expr e)
         }
 
         d_func* f = g_funcs + func_id;
-        process_params(e->u.eapp_.listexpr_, f, e);
+        process_params(e->u.eapp_.listexpr_, f, e, ir);
 
         retval.is_lvalue = 0; // Like in Java, functions always return rvalues
         retval.type_id = f->ret_type_id;
@@ -764,7 +760,7 @@ process_expr(Expr e)
         }
         type_id |= TYPEID_FLAG_ARRAY; // The resulting type of the expr is array
 
-        processed_expr e_esize = process_expr(esize);
+        processed_expr e_esize = process_expr(esize, ir);
         enforce_type(&e_esize, TYPEID_INT);
 
         retval.type_id = type_id;
@@ -774,14 +770,14 @@ process_expr(Expr e)
 
     case is_EArrApp:
     {
-        processed_expr e_array = process_expr(e->u.earrapp_.expr_1);
+        processed_expr e_array = process_expr(e->u.earrapp_.expr_1, ir);
         if (!(e_array.type_id & TYPEID_FLAG_ARRAY))
         {
             error(get_lnum(e->u.earrapp_.expr_1),
                   "Non-array cannot be a left-hand-side of the array subscript");
         }
 
-        processed_expr e_idx = process_expr(e->u.earrapp_.expr_2);
+        processed_expr e_idx = process_expr(e->u.earrapp_.expr_2, ir);
         enforce_type(&e_idx, TYPEID_INT);
 
         // If given array is lvalue then it's subscript also is
@@ -793,7 +789,7 @@ process_expr(Expr e)
 
     case is_EClMem:
     {
-        processed_expr e_struct = process_expr(e->u.eclmem_.expr_);
+        processed_expr e_struct = process_expr(e->u.eclmem_.expr_, ir);
         if (e_struct.type_id & TYPEID_FLAG_ARRAY)
         {
             // In case of array, only .length is possible
@@ -853,7 +849,7 @@ process_expr(Expr e)
 
     case is_EClApp:
     {
-        processed_expr e_struct = process_expr(e->u.eclapp_.expr_);
+        processed_expr e_struct = process_expr(e->u.eclapp_.expr_, ir);
         d_type cltype = g_types[e_struct.type_id];
         char* fn_name = e->u.eclapp_.ident_;
 
@@ -887,7 +883,7 @@ process_expr(Expr e)
             else
             {
                 d_func* f = cltype.member_funcs + idx;
-                process_params(e->u.eclapp_.listexpr_, f, e);
+                process_params(e->u.eclapp_.listexpr_, f, e, ir);
             }
         }
 
@@ -901,7 +897,7 @@ process_expr(Expr e)
         retval.type_id = TYPEID_NULL;
         retval.kind = EET_CONSTANT;
         retval.is_lvalue = 0;
-        retval.u.cnst.numeric_val = 0;
+        retval.u.numeric_val = 0;
         return retval;
     }
 
@@ -934,7 +930,7 @@ process_expr(Expr e)
         } break;
         }
 
-        processed_expr expr_to_cast = process_expr(e->u.ecast_.expr_);
+        processed_expr expr_to_cast = process_expr(e->u.ecast_.expr_, ir);
         switch (expr_to_cast.type_id) {
         case TYPEID_NULL: // Null is always castable to desired type
         {
@@ -973,7 +969,7 @@ process_expr(Expr e)
 }
 
 static processed_stmt
-process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
+process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 {
     processed_stmt retval;
     switch (s->kind) {
@@ -991,7 +987,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         i32 new_block_id = push_block();
         LIST_FOREACH(it, b->u.blk_, liststmt_)
         {
-            processed_stmt ev_s = process_stmt(it->stmt_, return_type, new_block_id);
+            processed_stmt ev_s = process_stmt(it->stmt_, return_type, new_block_id, ir);
             all_branches_return |= ev_s.all_branches_return;
         }
         pop_block();
@@ -1002,7 +998,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
     case is_SExp:
     {
-        processed_expr ee = process_expr(s->u.sexp_.expr_);
+        processed_expr ee = process_expr(s->u.sexp_.expr_, ir);
         (void)ee;
 
         retval.all_branches_return = 0;
@@ -1049,7 +1045,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
             case is_Init:
             {
                 vname = i->u.init_.ident_;
-                vval = process_expr(i->u.init_.expr_);
+                vval = process_expr(i->u.init_.expr_, ir);
 
                 if (type_id != vval.type_id) // TODO(ex): Handle inheritance
                 {
@@ -1090,8 +1086,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
 
     case is_Ass:
     {
-        processed_expr e1 = process_expr(s->u.ass_.expr_1);
-        processed_expr e2 = process_expr(s->u.ass_.expr_2);
+        processed_expr e1 = process_expr(s->u.ass_.expr_1, ir);
+        processed_expr e2 = process_expr(s->u.ass_.expr_2, ir);
         if (UNLIKELY(!e1.is_lvalue))
         {
             error(get_lnum(e1.node), "Left side of assingment must be an lvalue");
@@ -1132,7 +1128,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         }
         else
         {
-            e = process_expr(s->u.ret_.expr_);
+            e = process_expr(s->u.ret_.expr_, ir);
         }
 
         if (UNLIKELY(e.type_id != return_type)) // TODO(ex): Handle inheritance
@@ -1161,26 +1157,26 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         processed_stmt s2;
         if (s->kind == is_CondElse)
         {
-            condex = process_expr(s->u.condelse_.expr_);
+            condex = process_expr(s->u.condelse_.expr_, ir);
             i32 blk1 = push_block();
-            s1 = process_stmt(s->u.condelse_.stmt_1, return_type, blk1);
+            s1 = process_stmt(s->u.condelse_.stmt_1, return_type, blk1, ir);
             pop_block();
             i32 blk2 = push_block();
-            s2 = process_stmt(s->u.condelse_.stmt_2, return_type, blk2);
+            s2 = process_stmt(s->u.condelse_.stmt_2, return_type, blk2, ir);
             pop_block();
         }
         else
         {
-            condex = process_expr(s->u.condelse_.expr_);
+            condex = process_expr(s->u.condelse_.expr_, ir);
             i32 blk = push_block();
-            s1 = process_stmt(s->u.condelse_.stmt_1, return_type, blk);
+            s1 = process_stmt(s->u.condelse_.stmt_1, return_type, blk, ir);
             pop_block();
             s2 = create_empty_statement();
         }
 
         retval.all_branches_return =
-            ((condex.kind == EET_CONSTANT && condex.u.cnst.numeric_val == 1 && s1.all_branches_return)
-             || (condex.kind == EET_CONSTANT && condex.u.cnst.numeric_val == 0 && s2.all_branches_return)
+            ((condex.kind == EET_CONSTANT && condex.u.numeric_val == 1 && s1.all_branches_return)
+             || (condex.kind == EET_CONSTANT && condex.u.numeric_val == 0 && s2.all_branches_return)
              || (s1.all_branches_return && s2.all_branches_return));
 
         return retval;
@@ -1190,7 +1186,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     case is_Decr:
     {
         Expr e = s->kind == is_Incr ? s->u.incr_.expr_ : s->u.decr_.expr_;
-        processed_expr processed_e = process_expr(e);
+        processed_expr processed_e = process_expr(e, ir);
         if (processed_e.type_id != TYPEID_INT || !processed_e.is_lvalue)
         {
             error(get_lnum(e), "Left-hand-side of %s must be an lvalue of type \"int\"",
@@ -1204,11 +1200,11 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
     case is_While:
     {
         Expr condexpr = s->u.while_.expr_;
-        processed_expr condexpr_e = process_expr(condexpr);
+        processed_expr condexpr_e = process_expr(condexpr, ir);
 
         i32 block_id = push_block();
         Stmt lbody = s->u.while_.stmt_;
-        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id);
+        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id, ir);
         (void)lbody_e; // TODO(ir)
 
         pop_block();
@@ -1226,7 +1222,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         // in the body, because we may still never enter the loop itself.
         retval.all_branches_return = (condexpr_e.kind == EET_CONSTANT
                                       && condexpr_e.type_id == TYPEID_BOOL
-                                      && condexpr_e.u.cnst.numeric_val == 1);
+                                      && condexpr_e.u.numeric_val == 1);
 
         return retval;
     }
@@ -1236,7 +1232,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         char* type_name = s->u.for_.ident_1;
         char* vname = s->u.for_.ident_2;
         Expr e = s->u.for_.expr_;
-        processed_expr e_expr = process_expr(e);
+        processed_expr e_expr = process_expr(e, ir);
 
         if (!(e_expr.type_id & TYPEID_FLAG_ARRAY))
         {
@@ -1305,7 +1301,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id)
         i32 block_id = push_block(); // For body
 
         Stmt lbody = s->u.for_.stmt_;
-        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id);
+        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id, ir);
         (void)lbody_e; // TODO(ir)
 
         pop_block();
@@ -1341,11 +1337,13 @@ process_func_body(char* fnname, Block b, void* node)
     u32 f_rettype_id = g_funcs[f_id].ret_type_id;
     b32 all_branches_return = 0;
     i32 body_block_id = push_block(); // Block where body is parsed (so args can be shadowed)
+    ir_quadr* ircode = 0;
+
     assert(b->kind == is_Blk);
     LIST_FOREACH(it, b->u.blk_, liststmt_)
     {
         Stmt st = it->stmt_;
-        processed_stmt ev_s = process_stmt(st, f_rettype_id, body_block_id);
+        processed_stmt ev_s = process_stmt(st, f_rettype_id, body_block_id, &ircode);
         all_branches_return |= ev_s.all_branches_return;
     }
 
