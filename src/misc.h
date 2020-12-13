@@ -62,6 +62,8 @@ typedef i32 b32;
 
 #define COUNT_OF(ARRAY) ((mm)(sizeof(ARRAY) / sizeof(ARRAY[0])))
 
+#define STATIC_ASSERT(COND, MSG) typedef char static_assertion_##MSG[(COND)?1:-1]
+
 #define MIN(LHS, RHS) (((LHS) < (RHS)) ? (LHS) : (RHS))
 #define MAX(LHS, RHS) (((LHS) > (RHS)) ? (LHS) : (RHS))
 #define SWAP(LHS, RHS)                                                         \

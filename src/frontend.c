@@ -5,6 +5,25 @@
 
 static int g_temp_reg = 1;
 
+// TODO: Try to remove this, just use ir_op directly
+static ir_op
+binintop_to_ir_op(binary_int_op_t op)
+{
+    static ir_op ops[] = {
+        ADD,
+        SUB,
+        MUL,
+        DIV,
+        MOD,
+        CMP_LTH,
+        CMP_LE,
+        CMP_GTH,
+        CMP_GE,
+    };
+
+    return ops[(mm)op];
+}
+
 static parsed_type
 parse_type(Type type)
 {
@@ -375,10 +394,7 @@ process_expr(Expr e, ir_quadr** ir)
         mm idx = array_size(g_str_consts);
         array_push(g_str_consts, c);
 
-        retval.type_id = TYPEID_STRING;
-        retval.kind = EET_CONSTANT;
-        retval.is_lvalue = 0;
-        retval.u.str_const_id = idx;
+        IR_SET_CONSTANT(retval, TYPEID_STRING, idx);
         return retval;
     }
 
@@ -487,7 +503,25 @@ process_expr(Expr e, ir_quadr** ir)
         processed_expr e2 = process_expr(binarg2, ir);
         enforce_type(&e1, TYPEID_BOOL);
         enforce_type(&e2, TYPEID_BOOL);
-        if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
+
+        if (LIKELY(e1.kind != EET_CONSTANT && e2.kind != EET_CONSTANT))
+        binary_boolean_expr_ret:
+        {
+            IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, (binboolop == BBOP_OR ? OR : AND), e1.val, e2.val);
+            return retval;
+        }
+
+        //
+        // Optimize constant boolean expressions:
+        //
+        // TODO: Optimize also(?):
+        //
+        // EPRP || true -> eval(EXPR) -> true
+        // EXPR && false -> eval(EXPR) -> false
+        //
+
+        if (e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT)
         {
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
@@ -496,11 +530,41 @@ process_expr(Expr e, ir_quadr** ir)
             mm v2 = e2.u.numeric_val;
             return compute_binary_boolean_expr(v1, v2, binboolop, e1.node);
         }
+        else if (e1.kind == EET_CONSTANT && !!(e1.u.numeric_val) && binboolop == BBOP_OR)
+        {
+            // true || EXPR -> true
+            IR_SET_CONSTANT(retval, TYPEID_BOOL, 1);
+            return retval;
+        }
+        else if (e1.kind == EET_CONSTANT && !(e1.u.numeric_val) && binboolop == BBOP_OR)
+        {
+            // false || EXPR -> EXPR
+            return e2;
+        }
+        else if (e2.kind == EET_CONSTANT && !(e2.u.numeric_val) && binboolop == BBOP_OR)
+        {
+            // EXPR || false -> EXPR
+            return e1;
+        }
+        else if (e2.kind == EET_CONSTANT && !!(e2.u.numeric_val) && binboolop == BBOP_AND)
+        {
+            // EXPR && true -> EXPR
+            return e1;
+        }
 
-        retval.type_id = TYPEID_BOOL;
-        retval.kind = EET_COMPUTE;
-        retval.is_lvalue = 0;
-        return retval; // TODO(ir)
+        else if (e1.kind == EET_CONSTANT && !!(e1.u.numeric_val) && binboolop == BBOP_AND)
+        {
+            // true && EXPR -> EXPR
+            return e2;
+        }
+        else if (e1.kind == EET_CONSTANT && !(e1.u.numeric_val) && binboolop == BBOP_AND)
+        {
+            // false && EXPR -> false
+            IR_SET_CONSTANT(retval, TYPEID_BOOL, 0);
+            return retval;
+        }
+        else
+            goto binary_boolean_expr_ret; // Like a normal expression
     }
 
     binary_integer_expr:
@@ -527,7 +591,7 @@ process_expr(Expr e, ir_quadr** ir)
             retval.type_id = TYPEID_STRING;
             retval.kind = EET_COMPUTE;
             retval.is_lvalue = 0;
-            return retval; // TODO(ir)
+            return retval; // TODO(ir): String addition
         }
 
         enforce_type(&e1, TYPEID_INT);
@@ -542,19 +606,15 @@ process_expr(Expr e, ir_quadr** ir)
             return compute_binary_integer_expr(v1, v2, binintop, e1.node);
         }
 
-        if (binintop == BIOP_LTH || binintop == BIOP_LE
-            || binintop == BIOP_GTH || binintop == BIOP_GE)
-        {
-            retval.type_id = TYPEID_BOOL;
-        }
-        else
-        {
-            retval.type_id = TYPEID_INT;
-        }
+        u32 typeid = (
+            (binintop == BIOP_LTH || binintop == BIOP_LE
+             || binintop == BIOP_GTH || binintop == BIOP_GE)
+            ? TYPEID_BOOL
+            : TYPEID_INT);
 
-        retval.kind = EET_COMPUTE;
-        retval.is_lvalue = 0;
-        return retval; // TODO(ir)
+        IR_SET_EXPR(retval, typeid, 0, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(retval.val, binintop_to_ir_op(binintop), e1.val, e2.val);
+        return retval;
     }
 
     case is_EEq:
@@ -576,10 +636,9 @@ process_expr(Expr e, ir_quadr** ir)
             if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
                 goto compute_contant_equality_int_or_bool;
 
-            retval.type_id = TYPEID_BOOL;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 0;
-            return retval; // TODO(ir)
+            IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? CMP_EQ : CMP_NEQ), e1.val, e2.val);
+            return retval;
         }
 
         case TYPEID_BOOL:
@@ -590,10 +649,9 @@ process_expr(Expr e, ir_quadr** ir)
             if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
                 goto compute_contant_equality_int_or_bool;
 
-            retval.type_id = TYPEID_BOOL;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 0;
-            return retval; // TODO(ir)
+            IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? CMP_EQ : CMP_NEQ), e1.val, e2.val);
+            return retval;
         }
 
         case TYPEID_STRING:
@@ -604,9 +662,8 @@ process_expr(Expr e, ir_quadr** ir)
             if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
                 goto compute_contant_equality_string;
 
-            retval.type_id = TYPEID_BOOL;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 0;
+            IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? STR_EQ : STR_NEQ), e1.val, e2.val);
             return retval; // TODO(ir)
         }
 
@@ -682,7 +739,10 @@ process_expr(Expr e, ir_quadr** ir)
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 1;
 
-        ir_val val = { .type = IRVT_VAR, .u = { .reg_id = 0 } };
+        // TODO: Not exactly var_id, b/c we have other "variables", which are
+        //       not stack allicated, like function params, and class members
+        // TODO: Macro to create a variable?
+        ir_val val = { .type = IRVT_VAR, .u = { .reg_id = var_id } };
         retval.val = val;
 
         return retval;
@@ -704,9 +764,11 @@ process_expr(Expr e, ir_quadr** ir)
         d_func* f = g_funcs + func_id;
         process_params(e->u.eapp_.listexpr_, f, e, ir);
 
-        retval.is_lvalue = 0; // Like in Java, functions always return rvalues
-        retval.type_id = f->ret_type_id;
-        retval.kind = EET_COMPUTE;
+        ir_val fn_to_call = { .type = IRVT_FN, .u = { .constant = func_id }};
+
+        // Like in Java, functions always return rvalues
+        IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(retval.val, CALL, fn_to_call);
         return retval;
     }
 
@@ -733,8 +795,10 @@ process_expr(Expr e, ir_quadr** ir)
         } break;
         }
 
-        retval.type_id = type_id;
-        retval.kind = EET_COMPUTE;
+        // TODO: Calc size of the allocation
+        ir_val alloc_size = { .type = IRVT_CONST, .u = { .reg_id = 16 } };
+        IR_SET_EXPR(retval, type_id, 0, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(retval.val, ALLOC, alloc_size);
         return retval;
     }
 
@@ -763,8 +827,13 @@ process_expr(Expr e, ir_quadr** ir)
         processed_expr e_esize = process_expr(esize, ir);
         enforce_type(&e_esize, TYPEID_INT);
 
-        retval.type_id = type_id;
-        retval.kind = EET_COMPUTE;
+        // TODO: Calc size of the allocation
+        ir_val single_size = { .type = IRVT_CONST, .u = { .reg_id = 16 } };
+        ir_val alloc_size = IR_NEXT_TEMP_REGISTER();
+
+        IR_SET_EXPR(retval, type_id, 0, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(alloc_size, MUL, single_size, e_esize.val);
+        IR_PUSH(retval.val, ALLOC, alloc_size);
         return retval;
     }
 
@@ -780,10 +849,8 @@ process_expr(Expr e, ir_quadr** ir)
         processed_expr e_idx = process_expr(e->u.earrapp_.expr_2, ir);
         enforce_type(&e_idx, TYPEID_INT);
 
-        // If given array is lvalue then it's subscript also is
-        retval.is_lvalue = e_array.is_lvalue;
-        retval.type_id = TYPEID_UNMASK(e_array.type_id);
-        retval.kind = EET_COMPUTE;
+        IR_SET_EXPR(retval, TYPEID_UNMASK(e_array.type_id), e_array.is_lvalue, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(retval.val, SUBSCR, e_array.val, e_idx.val);
         return retval;
     }
 
@@ -800,9 +867,9 @@ process_expr(Expr e, ir_quadr** ir)
                       e->u.eclmem_.ident_);
             }
 
-            retval.is_lvalue = 0;
-            retval.type_id = TYPEID_INT;
-            retval.kind = EET_COMPUTE;
+            ir_val offset = { .type = IRVT_CONST, .u = { .reg_id = -1 } };
+            IR_SET_EXPR(retval, TYPEID_INT, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, SUBSCR, e_struct.val, offset);
             return retval;
         }
         else if (e_struct.type_id <= TYPEID_LAST_BUILTIN_TYPE)
@@ -815,7 +882,7 @@ process_expr(Expr e, ir_quadr** ir)
 
             retval.type_id = TYPEID_INT;
             retval.kind = EET_COMPUTE;
-            return retval;
+            return retval; // TODO(ir):
         }
         else
         {
@@ -841,7 +908,7 @@ process_expr(Expr e, ir_quadr** ir)
 
             retval.is_lvalue = e_struct.is_lvalue;
             retval.kind = EET_COMPUTE;
-            return retval;
+            return retval; // TODO(ir).
         }
 
         NOTREACHED;
@@ -889,7 +956,7 @@ process_expr(Expr e, ir_quadr** ir)
 
         retval.is_lvalue = 0; // Like in Java, functions always return rvalues
         retval.kind = EET_COMPUTE;
-        return retval;
+        return retval; // TODO(ir)
     }
 
     case is_ENull:
@@ -1318,6 +1385,9 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 static void
 process_func_body(char* fnname, Block b, void* node)
 {
+    array_clear(g_vars);
+    g_temp_reg = 1;
+
     u32 f_id = symbol_resolve_func(fnname, node);
     assert(f_id != FUNCID_NOTFOUND); // Already added
 
@@ -1353,6 +1423,29 @@ process_func_body(char* fnname, Block b, void* node)
 
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
         error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
+
+#if DUMP_IR
+    // Write IR generated for the function:
+
+    fprintf(ir_dest, "G.FUNC %s:\n", fnname);
+    for (mm i = 0, size = array_size(ircode); i < size; ++i)
+    {
+        fprintf(ir_dest, "    %s_%ld = %s",
+               ir_val_type_name[ircode[i].target.type],
+               ircode[i].target.u.reg_id, // TODO: OR CONSTANT?
+               ir_op_name[ircode[i].op]);
+
+        for (mm a = 0; a < ir_op_n_args[ircode[i].op]; ++a)
+            fprintf(ir_dest, " %s_%ld",
+                    ir_val_type_name[ircode[i].u.args[a].type],
+                    ircode[i].u.args[a].u.reg_id);
+
+        fprintf(ir_dest, "\n");
+    }
+
+    fprintf(ir_dest, "\n");
+
+#endif
 }
 
 // Get arguments for function. TopDef is assumed to be of the type is_FnDef. If

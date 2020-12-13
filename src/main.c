@@ -30,6 +30,12 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include "parser.h"
 #include "symtab.h"
 
+// TODO: Move below all includes
+static FILE* asm_dest;
+#if DUMP_IR
+static FILE* ir_dest;
+#endif
+
 #include "misc.c"
 #include "symtab.c"
 #include "frontend.c"
@@ -38,6 +44,25 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 // Used to get a filename when error reporting in parser in extern parser
 //
 char* myfilename = 0;
+
+// Returned string is HEAP ALLOCATED.
+static char*
+repl_extension(char* in_fname, char* expected_ext, char* dest_ext)
+{
+    char* retval = malloc(strlen(in_fname) + strlen(dest_ext) + 1);
+    retval[0] = 0;
+    strcat(retval, in_fname);
+
+    // If input filename ends with desired extension (which it should) replace
+    // it with dest_ext. Otherwise instead of just bailing out just append
+    // desired extension to the filename.
+    char* ext = strrchr(retval, '.');
+    if (ext && strcmp(ext, expected_ext) == 0)
+        *ext = 0;
+
+    strcat(retval, dest_ext);
+    return retval;
+}
 
 static Program
 parse_file(char* fname)
@@ -73,6 +98,11 @@ main(int argc, char** argv)
     if (!parse_tree)
         no_recover();
 
+    asm_dest = fopen(repl_extension(argv[1], ".lat", ".s"), "w");
+#if DUMP_IR
+    ir_dest = fopen(repl_extension(argv[1], ".lat", ".ir"), "w");
+#endif
+
     define_primitives();
     add_classes(parse_tree);
     add_global_funcs(parse_tree);
@@ -83,6 +113,11 @@ main(int argc, char** argv)
 
     check_global_funcs(parse_tree);
     check_class_funcs(parse_tree);
+
+    fclose(asm_dest);
+#if DUMP_IR
+    fclose(ir_dest);
+#endif
 
     if (has_error)
         no_recover();

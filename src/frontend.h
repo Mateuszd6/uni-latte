@@ -14,43 +14,59 @@ typedef enum processed_expr_t processed_expr_t;
 
 enum ir_op
 {
-    IR_MOV,
-    IR_ADD,
-    IR_SUB,
-    IR_MUL,
-    IR_DIV,
-    IR_MOD,
-    IR_AND,
-    IR_OR,
-    IR_NEG,
-    IR_CMP_LTH,
-    IR_CMP_LE,
-    IR_CMP_GTH,
-    IR_CMP_GE,
-    IR_EQ,
-    IR_STR_EQ,
-    IR_LABEL,
-    IR_JUMP,
-    IR_PARAM,
-    IR_CALL,
-    IR_RET,
-    IR_SUBSCR, // Array subscript arr[x] or class member obj.x
-    IR_ARR_LEN,
-    IR_ALLOC, // new
+    MOV = 0,
+    ADD = 1,
+    SUB = 2,
+    MUL = 3,
+    DIV = 4,
+    MOD = 5,
+    AND = 6,
+    OR = 7,
+    NEG = 8,
+    CMP_LTH = 9,
+    CMP_LE = 10,
+    CMP_GTH = 11,
+    CMP_GE = 12,
+    CMP_EQ = 13,
+    CMP_NEQ = 14,
+    STR_EQ = 15,
+    STR_NEQ = 16,
+    LABEL = 17,
+    JUMP = 18,
+    PARAM = 19,
+    CALL = 20,
+    RET = 21,
+    SUBSCR = 22, // Array subscript arr[x] or class member obj.x
+    ARR_LEN = 23,
+    ALLOC = 24, // new
 };
 typedef enum ir_op ir_op;
 
+static char const* const ir_op_name[] = {
+    "MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "NEG",
+    "CMP_LTH", "CMP_LE", "CMP_GTH", "CMP_GE", "CMP_EQ", "CMP_NEQ", "STR_EQ", "STR_NEQ",
+    "LABEL", "JUMP", "PARAM", "CALL", "RET",
+    "SUBSCR", "ARR_LEN", "ALLOC",
+};
+
+static int const ir_op_n_args[] = {
+    2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1, 1, 1, 0, 2, 1, 1,
+};
+
+STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
+
+// TODO: Try to remove this, just use ir_op
 enum binary_int_op_t
 {
-    BIOP_ADD,
-    BIOP_SUB,
-    BIOP_MUL,
-    BIOP_DIV,
-    BIOP_MOD,
-    BIOP_LTH,
-    BIOP_LE,
-    BIOP_GTH,
-    BIOP_GE,
+    BIOP_ADD = 0,
+    BIOP_SUB = 1,
+    BIOP_MUL = 2,
+    BIOP_DIV = 3,
+    BIOP_MOD = 4,
+    BIOP_LTH = 5,
+    BIOP_LE = 6,
+    BIOP_GTH = 7,
+    BIOP_GE = 8,
 };
 typedef enum binary_int_op_t binary_int_op_t;
 
@@ -70,12 +86,18 @@ typedef enum binary_eq_op_t binary_eq_op_t;
 
 enum ir_val_type
 {
-    IRVT_VAR,
-    IRVT_FNPARAM,
-    IRVT_TEMP,
-    IRVT_CONST,
+    IRVT_VAR = 0,
+    IRVT_FNPARAM = 1,
+    IRVT_TEMP = 2,
+    IRVT_FN = 3,
+    IRVT_CONST = 4,
 };
 typedef enum ir_val_type ir_val_type;
+
+static char const* const ir_val_type_name[] =
+{
+    "v", "p", "t", "gfn", "c"
+};
 
 typedef struct ir_val ir_val;
 struct ir_val
@@ -94,8 +116,16 @@ struct ir_quadr
     // The single IR quadruple like: target = arg1 `op` arg2
     ir_op op; // The opcode
     ir_val target; // taget can be only variable or temp (not constant)
-    ir_val arg1;
-    ir_val arg2;
+
+    union
+    {
+        struct
+        {
+            ir_val arg1;
+            ir_val arg2;
+        } a;
+        ir_val args[2];
+    } u;
 };
 
 typedef struct processed_expr processed_expr;
@@ -165,10 +195,10 @@ static void check_class_funcs(Program p);
     do                                                                         \
     {                                                                          \
         ir_quadr quadr_impl_;                                                  \
-        quadr_impl_.op = IR_ ## OPCODE;                                        \
+        quadr_impl_.op = OPCODE;                                               \
         quadr_impl_.target = (TARG);                                           \
-        quadr_impl_.arg1 = (ARG1);                                             \
-        quadr_impl_.arg2 = (ARG2);                                             \
+        quadr_impl_.u.a.arg1 = (ARG1);                                         \
+        quadr_impl_.u.a.arg2 = (ARG2);                                         \
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
 
@@ -176,9 +206,9 @@ static void check_class_funcs(Program p);
     do                                                                         \
     {                                                                          \
         ir_quadr quadr_impl_;                                                  \
-        quadr_impl_.op = IR_ ## OPCODE;                                        \
+        quadr_impl_.op = OPCODE;                                               \
         quadr_impl_.target = (TARG);                                           \
-        quadr_impl_.arg1 = (ARG1);                                             \
+        quadr_impl_.u.a.arg1 = (ARG1);                                         \
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
 
@@ -186,7 +216,7 @@ static void check_class_funcs(Program p);
     do                                                                         \
     {                                                                          \
         ir_quadr quadr_impl_;                                                  \
-        quadr_impl_.op = IR_ ## OPCODE;                                        \
+        quadr_impl_.op = OPCODE;                                               \
         quadr_impl_.target = (TARG);                                           \
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
