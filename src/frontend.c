@@ -940,7 +940,8 @@ process_expr(Expr e, ir_quadr** ir)
 
             if (UNLIKELY(idx == n_member_funcs))
             {
-                error(get_lnum(e->u.eclapp_.expr_), "Function \"%s\" is not a member of class \"%s\"",
+                error(get_lnum(e->u.eclapp_.expr_),
+                      "Function \"%s\" is not a member of class \"%s\"",
                       fn_name, cltype.name);
                 note(cltype.lnum, "Class \"%s\" defined here", cltype.name);
                 note(get_lnum(e->u.eclapp_.expr_), "Assuming type \"int\"");
@@ -1177,6 +1178,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
                      "This requirement is forced by the Author of the assignment. Sorry");
             }
         }
+
+        IR_PUSH(e1.val, MOV, e2.val);
 
         retval.all_branches_return = 0;
         return retval;

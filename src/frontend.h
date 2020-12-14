@@ -50,7 +50,7 @@ static char const* const ir_op_name[] = {
 };
 
 static int const ir_op_n_args[] = {
-    2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1, 1, 1, 0, 2, 1, 1,
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1, 1, 1, 0, 2, 1, 1,
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
@@ -163,6 +163,9 @@ static void add_class_members_and_local_funcs(Program p);
 static void check_global_funcs(Program p);
 static void check_class_funcs(Program p);
 
+#define IR_LOCAL_VARIABLE(VAR_ID)                                              \
+    { .type = IRVT_VAR, .u = { .reg_id = VAR_ID } }
+
 #define IR_NEXT_TEMP_REGISTER()                                                \
     { .type = IRVT_TEMP, .u = { .reg_id = g_temp_reg++ } }
 
@@ -195,8 +198,9 @@ static void check_class_funcs(Program p);
     do                                                                         \
     {                                                                          \
         ir_quadr quadr_impl_;                                                  \
+        ir_val targ_ = TARG;                                                   \
         quadr_impl_.op = OPCODE;                                               \
-        quadr_impl_.target = (TARG);                                           \
+        quadr_impl_.target = targ_;                                            \
         quadr_impl_.u.a.arg1 = (ARG1);                                         \
         quadr_impl_.u.a.arg2 = (ARG2);                                         \
         array_push(*ir, quadr_impl_);                                          \
@@ -206,8 +210,9 @@ static void check_class_funcs(Program p);
     do                                                                         \
     {                                                                          \
         ir_quadr quadr_impl_;                                                  \
+        ir_val targ_ = TARG;                                                   \
         quadr_impl_.op = OPCODE;                                               \
-        quadr_impl_.target = (TARG);                                           \
+        quadr_impl_.target = targ_;                                            \
         quadr_impl_.u.a.arg1 = (ARG1);                                         \
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
