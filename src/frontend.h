@@ -87,17 +87,18 @@ typedef enum binary_eq_op_t binary_eq_op_t;
 
 enum ir_val_type
 {
-    IRVT_VAR = 0,
-    IRVT_FNPARAM = 1,
-    IRVT_TEMP = 2,
-    IRVT_FN = 3,
-    IRVT_CONST = 4,
+    IRVT_NONE = 0,
+    IRVT_VAR = 1,
+    IRVT_FNPARAM = 2,
+    IRVT_TEMP = 3,
+    IRVT_FN = 4,
+    IRVT_CONST = 5,
 };
 typedef enum ir_val_type ir_val_type;
 
 static char const* const ir_val_type_name[] =
 {
-    "v", "p", "t", "gfn", "c"
+    "NONE" , "v", "p", "t", "gf", "c",
 };
 
 typedef struct ir_val ir_val;
@@ -170,6 +171,9 @@ static void check_class_funcs(Program p);
 #define IR_NEXT_TEMP_REGISTER()                                                \
     { .type = IRVT_TEMP, .u = { .reg_id = g_temp_reg++ } }
 
+#define IR_EMPTY()                                                             \
+    { .type = IRVT_NONE }
+
 // Used when we've reported error, and won't generate IR anyway, but we want to
 // continue the flow (as we assume, that most programs won't have errors, and we
 // optimize of the most frequent operations anyway)
@@ -219,10 +223,12 @@ static void check_class_funcs(Program p);
     {                                                                          \
         ir_quadr quadr_impl_;                                                  \
         ir_val targ_ = TARG;                                                   \
+        ir_val arg1_ = ARG1;                                                   \
+        ir_val arg2_ = ARG2;                                                   \
         quadr_impl_.op = OPCODE;                                               \
         quadr_impl_.target = targ_;                                            \
-        quadr_impl_.u.a.arg1 = (ARG1);                                         \
-        quadr_impl_.u.a.arg2 = (ARG2);                                         \
+        quadr_impl_.u.a.arg1 = arg1_;                                          \
+        quadr_impl_.u.a.arg2 = arg2_;                                          \
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
 
@@ -233,7 +239,7 @@ static void check_class_funcs(Program p);
         ir_val targ_ = TARG;                                                   \
         quadr_impl_.op = OPCODE;                                               \
         quadr_impl_.target = targ_;                                            \
-        quadr_impl_.u.a.arg1 = (ARG1);                                         \
+        quadr_impl_.u.a.arg1 = ARG1;                                           \
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
 
@@ -242,7 +248,7 @@ static void check_class_funcs(Program p);
     {                                                                          \
         ir_quadr quadr_impl_;                                                  \
         quadr_impl_.op = OPCODE;                                               \
-        quadr_impl_.target = (TARG);                                           \
+        quadr_impl_.target = TARG;                                             \
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
 

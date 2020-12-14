@@ -2,6 +2,9 @@
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
 // TODO: Maybe the first param of IR_PUSH should be entire expression, not just .val
+// TODO: Different type for string constant, b/c when we lose type info,
+//       assmeber wouldn't know what to do (like PARAM c3 is not const 3, but 3rd string)
+// TODO: Don't allow division by 0!!!!
 //
 
 // Disable leak checking for asan in debug mode

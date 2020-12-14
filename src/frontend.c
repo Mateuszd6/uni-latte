@@ -53,6 +53,8 @@ get_default_expr(u32 type_id, void* node)
     retval.type_id = type_id;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.val.type = IRVT_CONST;
+    retval.val.u.constant = 0;
 
     switch (type_id) {
     case TYPEID_VOID:
@@ -60,24 +62,18 @@ get_default_expr(u32 type_id, void* node)
         // Probably will never happen, but just for safety:
         return retval;
     }
-    case TYPEID_INT:
-    case TYPEID_BOOL:
-    {
-        retval.u.numeric_val = 0;
-        return retval;
-    }
     case TYPEID_STRING:
     {
+        // TODO: Try to make so that empty string is always the same as null
+        retval.val.u.constant = EMPTY_STRING_CONSTANT_ID;
         retval.u.str_const_id = EMPTY_STRING_CONSTANT_ID;
         return retval;
     }
-    default:
+    case TYPEID_INT:
+    case TYPEID_BOOL:
+    default: // null for reference types
     {
-        retval.node = node;
-        retval.type_id = type_id;
-        retval.kind = EET_COMPUTE;
-        retval.is_lvalue = 1;
-
+        retval.u.numeric_val = 0;
         return retval;
     }
     }
@@ -104,6 +100,9 @@ compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
     case BBOP_AND: retval.u.numeric_val = !!(v1) && !!(v2); break;
     case BBOP_OR: retval.u.numeric_val = !!(v1) || !!(v2); break;
     }
+
+    retval.val.type = IRVT_CONST;
+    retval.val.u.constant = retval.u.numeric_val;
 
     return retval;
 }
@@ -136,6 +135,9 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
         retval.u.numeric_val = 0;
     }
 
+    retval.val.type = IRVT_CONST;
+    retval.val.u.constant = retval.u.numeric_val;
+
     return retval;
 }
 
@@ -165,6 +167,9 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
 
     retval.u.str_const_id = array_size(g_str_consts);
     array_push(g_str_consts, s);
+
+    retval.val.type = IRVT_CONST;
+    retval.val.u.constant = retval.u.str_const_id;
 
     return retval;
 }
@@ -331,6 +336,9 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                      "Given expression of type \"%s\", which is not assignable to type \"%s\"",
                      t_provided.name, t_expected.name);
             }
+
+            ir_val temp_ = IR_NEXT_TEMP_REGISTER();
+            IR_PUSH(temp_, PARAM, argexpr_e.val);
         }
 
         n_given_args++;
@@ -407,6 +415,7 @@ process_expr(Expr e, ir_quadr** ir)
         {
             assert(!e1.is_lvalue);
             e1.u.numeric_val = !e1.u.numeric_val;
+            e1.val.u.constant = e1.u.numeric_val;
             return e1;
         }
 
@@ -424,6 +433,7 @@ process_expr(Expr e, ir_quadr** ir)
         {
             assert(!e1.is_lvalue);
             e1.u.numeric_val = -e1.u.numeric_val;
+            e1.val.u.constant = e1.u.numeric_val;
 
             // In case when we have -(INT_MIN):
             if (UNLIKELY(overflows_32bit(e1.u.numeric_val)))
@@ -737,7 +747,7 @@ process_expr(Expr e, ir_quadr** ir)
         // TODO: Not exactly var_id, b/c we have other "variables", which are
         //       not stack allicated, like function params, and class members
         // TODO: Macro to create a variable?
-        ir_val val = { .type = IRVT_VAR, .u = { .reg_id = var_id } };
+        ir_val val = IR_LOCAL_VARIABLE(var_id);
         retval.val = val;
 
         return retval;
@@ -956,10 +966,7 @@ process_expr(Expr e, ir_quadr** ir)
 
     case is_ENull:
     {
-        retval.type_id = TYPEID_NULL;
-        retval.kind = EET_CONSTANT;
-        retval.is_lvalue = 0;
-        retval.u.numeric_val = 0;
+        IR_SET_CONSTANT(retval, TYPEID_NULL, 0);
         return retval;
     }
 
@@ -996,8 +1003,7 @@ process_expr(Expr e, ir_quadr** ir)
         switch (expr_to_cast.type_id) {
         case TYPEID_NULL: // Null is always castable to desired type
         {
-            retval.type_id = type_id;
-            retval.kind = EET_COMPUTE;
+            IR_SET_CONSTANT(retval, type_id, 0); // TODO: Allow it to be lvalue?
             return retval;
         }
         default:
@@ -1023,7 +1029,7 @@ process_expr(Expr e, ir_quadr** ir)
 
         retval.type_id = type_id;
         retval.kind = EET_COMPUTE;
-        return retval;
+        return retval; // TODO(ir): _OR_ copy from the expr_to_cast ?
     }
     }
 
@@ -1064,7 +1070,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         (void)ee;
 
         retval.all_branches_return = 0;
-        return retval; // TODO(ir)
+        return retval;
     }
 
     case is_Decl:
@@ -1135,11 +1141,16 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
             // Regardless of whether or not inicializing errored declare the
             // variable with a type defined on the left, to avoid error cascade.
+
+            mm var_id = array_size(g_vars);
             d_var var;
             var.lnum = get_lnum(i);
             var.type_id = type_id;
             var.block_id = cur_block_id;
             push_var(var, vname, i);
+
+            ir_val target_variable = IR_LOCAL_VARIABLE(var_id);
+            IR_PUSH(target_variable, MOV, vval.val);
         }
 
         retval.all_branches_return = 0;
@@ -1189,6 +1200,9 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             e.type_id = TYPEID_VOID;
             e.kind = EET_CONSTANT;
             e.is_lvalue = 0;
+
+            ir_val empty_val = IR_EMPTY();
+            e.val = empty_val;
         }
         else
         {
@@ -1208,6 +1222,15 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
                 note(got_t.lnum, "Type \"%s\" defined here", got_t.name);
             }
         }
+
+#if 0
+        // TODO, FIXUP: No param ever, when returning from a void function
+        if (return_type == TYPEID_VOID)
+        {
+        }
+#endif
+
+        IR_PUSH(IR_EMPTY(), RET, e.val);
 
         retval.all_branches_return = 1;
         return retval;
@@ -1256,6 +1279,9 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             error(get_lnum(e), "Left-hand-side of %s must be an lvalue of type \"int\"",
                   s->kind == is_Incr ? "incrementation" : "decrementation");
         }
+
+        ir_val toadd = { .type = IRVT_CONST, .u = { .constant = 1 } };
+        IR_PUSH(processed_e.val, (s->kind == is_Incr ? ADD : SUB), processed_e.val, toadd);
 
         retval.all_branches_return = 0;
         return retval;
@@ -1382,7 +1408,6 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 static void
 process_func_body(char* fnname, Block b, void* node)
 {
-    array_clear(g_vars);
     g_temp_reg = 1;
 
     u32 f_id = symbol_resolve_func(fnname, node);
@@ -1424,13 +1449,21 @@ process_func_body(char* fnname, Block b, void* node)
 #if DUMP_IR
     // Write IR generated for the function:
 
-    fprintf(ir_dest, "G.FUNC %s:\n", fnname);
+    fprintf(ir_dest, ".GF%u: ; %s\n", f_id, fnname);
     for (mm i = 0, size = array_size(ircode); i < size; ++i)
     {
-        fprintf(ir_dest, "    %s_%ld = %s",
-               ir_val_type_name[ircode[i].target.type],
-               ircode[i].target.u.reg_id, // TODO: OR CONSTANT?
-               ir_op_name[ircode[i].op]);
+        if (ircode[i].target.type != IRVT_NONE)
+        {
+            fprintf(ir_dest, "    %s_%ld = ",
+                    ir_val_type_name[ircode[i].target.type],
+                    ircode[i].target.u.reg_id); // TODO: OR CONSTANT?
+        }
+        else
+        {
+            fprintf(ir_dest, "    _ = ");
+        }
+
+        fprintf(ir_dest, "%s", ir_op_name[ircode[i].op]);
 
         for (mm a = 0; a < ir_op_n_args[ircode[i].op]; ++a)
             fprintf(ir_dest, " %s_%ld",
@@ -1823,6 +1856,7 @@ check_global_funcs(Program p)
         if (t->kind != is_FnDef)
             continue;
 
+        array_clear(g_vars);
         process_func_body(t->u.fndef_.ident_, t->u.fndef_.block_, t->u.fndef_.type_);
     }
 }
@@ -1841,6 +1875,8 @@ check_class_funcs(Program p)
             ClBody cl = cl_it->clbody_;
             if (cl->kind != is_CBFnDef)
                 continue;
+
+            array_clear(g_vars);
 
             u32 type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, cl);
             assert(type_id != TYPEID_NOTFOUND);
