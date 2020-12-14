@@ -9,6 +9,7 @@ int main()
     int x = i + j; */
 
     int i = main();
+    string x = readString() + readString();
 
     return 0;
 }

@@ -39,6 +39,7 @@ enum ir_op
     SUBSCR = 22, // Array subscript arr[x] or class member obj.x
     ARR_LEN = 23,
     ALLOC = 24, // new
+    STR_ADD = 25,
 };
 typedef enum ir_op ir_op;
 
@@ -46,11 +47,11 @@ static char const* const ir_op_name[] = {
     "MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "NEG",
     "CMP_LTH", "CMP_LE", "CMP_GTH", "CMP_GE", "CMP_EQ", "CMP_NEQ", "STR_EQ", "STR_NEQ",
     "LABEL", "JUMP", "PARAM", "CALL", "RET",
-    "SUBSCR", "ARR_LEN", "ALLOC",
+    "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD",
 };
 
 static int const ir_op_n_args[] = {
-    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1, 1, 1, 0, 2, 1, 1,
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1, 1, 1, 0, 2, 1, 1, 2,
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
@@ -168,6 +169,25 @@ static void check_class_funcs(Program p);
 
 #define IR_NEXT_TEMP_REGISTER()                                                \
     { .type = IRVT_TEMP, .u = { .reg_id = g_temp_reg++ } }
+
+// Used when we've reported error, and won't generate IR anyway, but we want to
+// continue the flow (as we assume, that most programs won't have errors, and we
+// optimize of the most frequent operations anyway)
+#define IR_UNDEFINED_EXPR(EXPR, TYPE, IS_LVALUE)                               \
+    do                                                                         \
+    {                                                                          \
+        ir_val val_ = {                                                        \
+            .type = IRVT_CONST,                                                \
+            .u = { .constant = 0 }                                             \
+        };                                                                     \
+                                                                               \
+        EXPR.u.numeric_val = 0;                                                \
+        EXPR .type_id = TYPE;                                                  \
+        EXPR .kind = EET_COMPUTE;                                              \
+        EXPR .is_lvalue = IS_LVALUE;                                           \
+        EXPR .val = val_;                                                      \
+        IR_PUSH(EXPR .val, MOV, val_);                                         \
+    } while (0)
 
 #define IR_SET_CONSTANT(EXPR, TYPE, CONSTANT_VALUE)                            \
     do                                                                         \

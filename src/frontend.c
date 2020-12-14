@@ -588,10 +588,9 @@ process_expr(Expr e, ir_quadr** ir)
                 return compute_binary_string_expr(str1, str2, e1.node);
             }
 
-            retval.type_id = TYPEID_STRING;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 0;
-            return retval; // TODO(ir): String addition
+            IR_SET_EXPR(retval, TYPEID_STRING, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, STR_ADD, e1.val, e2.val);
+            return retval;
         }
 
         enforce_type(&e1, TYPEID_INT);
@@ -664,7 +663,7 @@ process_expr(Expr e, ir_quadr** ir)
 
             IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
             IR_PUSH(retval.val, (bineqop == BEOP_EQ ? STR_EQ : STR_NEQ), e1.val, e2.val);
-            return retval; // TODO(ir)
+            return retval;
         }
 
         compute_contant_equality_int_or_bool:
@@ -696,10 +695,8 @@ process_expr(Expr e, ir_quadr** ir)
             note(get_lnum(e1.node), "Left hand side evalutes to \"%s\"", lhs_t.name);
             note(get_lnum(e2.node), "Right hand side evalutes to \"%s\"", rhs_t.name);
 
-            retval.type_id = TYPEID_BOOL;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 0;
-            return retval; // TODO(ir)
+            IR_UNDEFINED_EXPR(retval, TYPEID_BOOL, 0);
+            return retval;
         }
 
         //
@@ -713,10 +710,9 @@ process_expr(Expr e, ir_quadr** ir)
             if (e1.type_id != e2.type_id)
                 goto type_missmatch;
 
-            retval.type_id = TYPEID_BOOL;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 0;
-            return retval; // TODO(ir)
+            IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? CMP_EQ : CMP_NEQ), e1.val, e2.val);
+            return retval;
         }
         }
     }
@@ -728,10 +724,9 @@ process_expr(Expr e, ir_quadr** ir)
         if (UNLIKELY(var_id == VARID_NOTFOUND))
         {
             note(get_lnum(e), "Assuming type \"int\"");
-            retval.type_id = TYPEID_INT;
-            retval.kind = EET_COMPUTE;
-            retval.is_lvalue = 1;
-            return retval; // TODO(ir)
+
+            IR_UNDEFINED_EXPR(retval, TYPEID_INT, 1);
+            return retval;
         }
 
         d_var var = g_vars[var_id];
@@ -880,9 +875,8 @@ process_expr(Expr e, ir_quadr** ir)
             note(get_lnum(e->u.eclmem_.expr_),
                  "Expression type evaluates to \"%s\"", t_provided.name);
 
-            retval.type_id = TYPEID_INT;
-            retval.kind = EET_COMPUTE;
-            return retval; // TODO(ir):
+            IR_UNDEFINED_EXPR(retval, TYPEID_INT, e_struct.is_lvalue);
+            return retval;
         }
         else
         {
