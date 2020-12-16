@@ -32,7 +32,7 @@ enum ir_op
     STR_EQ = 15,
     STR_NEQ = 16,
     LABEL = 17,
-    JUMP = 18,
+    JMP = 18,
     PARAM = 19,
     CALL = 20,
     RET = 21,
@@ -40,18 +40,21 @@ enum ir_op
     ARR_LEN = 23,
     ALLOC = 24, // new
     STR_ADD = 25,
+    JMP_TRUE = 26, // For logical operations
+    JMP_FALSE = 27, // For logical operations
+
 };
 typedef enum ir_op ir_op;
 
 static char const* const ir_op_name[] = {
     "MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "NEG",
     "CMP_LTH", "CMP_LE", "CMP_GTH", "CMP_GE", "CMP_EQ", "CMP_NEQ", "STR_EQ", "STR_NEQ",
-    "LABEL", "JUMP", "PARAM", "CALL", "RET",
-    "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD",
+    "LABEL", "JMP", "PARAM", "CALL", "RET",
+    "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
 };
 
 static int const ir_op_n_args[] = {
-    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1, 1, 1, 0, 2, 1, 1, 2,
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 0, 2, 1, 1, 2, 2, 2
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
@@ -98,7 +101,7 @@ typedef enum ir_val_type ir_val_type;
 
 static char const* const ir_val_type_name[] =
 {
-    "NONE" , "v", "p", "t", "gf", "c",
+    "NONE" , "v", "p", "t", "gf", "",
 };
 
 typedef struct ir_val ir_val;
@@ -148,10 +151,45 @@ struct processed_expr
     } u;
 };
 
+typedef struct preprocessed_jump_expr preprocessed_jump_expr;
+struct preprocessed_jump_expr
+{
+    enum
+    {
+        PRJE_EXPR,
+        PRJE_CONST,
+        PRJE_BIN,
+    } kind;
+    union
+    {
+        Expr expr;
+        u64 constant;
+        struct
+        {
+            mm b1; // Offset in the buffer, where evaluated expressions are
+            mm b2;
+            enum
+            {
+                BIN_OP_AND,
+                BIN_OP_OR,
+            } op;
+        } bin;
+    } u;
+    i32 l_id;
+};
+
+
 typedef struct processed_stmt processed_stmt;
 struct processed_stmt
 {
     b32 all_branches_return;
+};
+
+typedef struct jump_ctx jump_ctx;
+struct jump_ctx
+{
+    i32 l_true;
+    i32 l_false;
 };
 
 static processed_expr process_expr(Expr e, ir_quadr** ir);

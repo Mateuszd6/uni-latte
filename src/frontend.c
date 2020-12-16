@@ -4,6 +4,7 @@
 #include "symtab.h"
 
 static int g_temp_reg = 1;
+static int g_label = 1;
 
 // TODO: Try to remove this, just use ir_op directly
 static ir_op
@@ -115,6 +116,13 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
     retval.node = node;
+
+    if (UNLIKELY((op == BIOP_DIV || op == BIOP_MOD) && v2 == 0))
+    {
+        error(get_lnum(node), "Constant division by 0");
+        v2 = 1;
+    }
+
     switch (op) {
     case BIOP_ADD: retval.u.numeric_val = v1 + v2; break;
     case BIOP_SUB: retval.u.numeric_val = v1 - v2; break;
@@ -709,6 +717,14 @@ process_expr(Expr e, ir_quadr** ir)
             return retval;
         }
 
+        compare_voids:
+        {
+            error(get_lnum(e1.node), "Comparing expressions of type \"void\" is not allowed");
+
+            IR_UNDEFINED_EXPR(retval, TYPEID_BOOL, 0);
+            return retval;
+        }
+
         //
         // Latte is unspecified when it comes to comparing the reference type
         // other than strings, so we asssume that this is basically the equality
@@ -719,6 +735,9 @@ process_expr(Expr e, ir_quadr** ir)
             // TODO(ex): Make sure equality works when type A inherits from type B
             if (e1.type_id != e2.type_id)
                 goto type_missmatch;
+
+            if (e1.type_id == TYPEID_VOID)
+                goto compare_voids;
 
             IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
             IR_PUSH(retval.val, (bineqop == BEOP_EQ ? CMP_EQ : CMP_NEQ), e1.val, e2.val);
@@ -1036,6 +1055,186 @@ process_expr(Expr e, ir_quadr** ir)
     NOTREACHED;
 }
 
+static preprocessed_jump_expr
+preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf)
+{
+    switch (e->kind) {
+    case is_EAnd:
+    {
+        preprocessed_jump_expr ee1 = preprocess_jumping_expr(e->u.eand_.expr_1, buf);
+        preprocessed_jump_expr ee2 = preprocess_jumping_expr(e->u.eand_.expr_2, buf);
+
+        if (ee1.kind == PRJE_CONST && ee2.kind == PRJE_CONST)
+        {
+            ee1.u.constant = (!!ee1.u.constant) && (!!ee2.u.constant);
+            return ee1;
+        }
+
+        // TODO: Reduce if one is constant and other is not!
+
+        mm nees = array_size(*buf);
+        array_push(*buf, ee1);
+        array_push(*buf, ee2);
+
+        preprocessed_jump_expr retval = {
+            .kind = PRJE_BIN,
+            .u = { .bin = { .b1 = nees, .b2 = nees + 1, .op = BIN_OP_AND } },
+            .l_id = g_label++,
+        };
+
+        return retval;
+    } break;
+
+    case is_EOr:
+    {
+        preprocessed_jump_expr ee1 = preprocess_jumping_expr(e->u.eor_.expr_1, buf);
+        preprocessed_jump_expr ee2 = preprocess_jumping_expr(e->u.eor_.expr_2, buf);
+
+        if (ee1.kind == PRJE_CONST && ee2.kind == PRJE_CONST)
+        {
+            ee1.u.constant = (!!ee1.u.constant) || (!!ee2.u.constant);
+            return ee1;
+        }
+
+        // TODO: Reduce if one is constant and other is not!
+
+        mm nees = array_size(*buf);
+        array_push(*buf, ee1);
+        array_push(*buf, ee2);
+
+        preprocessed_jump_expr retval = {
+            .kind = PRJE_BIN,
+            .u = { .bin = { .b1 = nees, .b2 = nees + 1, .op = BIN_OP_OR } },
+            .l_id = g_label++,
+        };
+
+        return retval;
+    } break;
+
+    case is_Not:
+    {
+        preprocessed_jump_expr ee = preprocess_jumping_expr(e->u.not_.expr_, buf);
+
+        if (ee.kind == PRJE_CONST)
+        {
+            ee.u.constant = (!ee.u.constant);
+            return ee;
+        }
+
+        goto normal_expr;
+    }
+
+    // TODO: Check if is constant and later incorporate here, but for now leave,
+    // to check how the code looks with if ((boolean)(true))
+    case is_ECast:
+    case is_EVar:
+    case is_ERel:
+    case is_EEq:
+    case is_ELitTrue:
+    case is_ELitFalse:
+    case is_EClMem:
+    case is_EArrApp:
+    case is_EApp:
+    case is_EClApp:
+    case is_ENew:
+    case is_ENewArr:
+    case is_ELitInt:
+    case is_ELitStr:
+    case is_ENull:
+    case is_EAdd:
+    case is_EMul:
+    case is_Neg:
+    normal_expr:
+    {
+        ir_quadr* dummy_ir = 0;
+        processed_expr ee = process_expr(e, &dummy_ir);
+        // TODO: Validate expression type? Expected boolean
+
+        if (ee.kind == EET_CONSTANT)
+        {
+            assert(array_size(dummy_ir) == 0);
+            array_free(dummy_ir);
+
+            preprocessed_jump_expr retval = {
+                .kind = PRJE_CONST,
+                .u = { .constant = (u64)ee.u.numeric_val },
+                .l_id = g_label++,
+            };
+
+            return retval;
+        }
+        else
+        {
+            array_free(dummy_ir);
+
+            preprocessed_jump_expr retval = {
+                .kind = PRJE_EXPR,
+                .u = { .expr = e },
+                .l_id = g_label++,
+            };
+
+            return retval;
+        }
+    }
+    }
+}
+
+static void
+process_jumping_expr(ir_quadr** ir,
+                     preprocessed_jump_expr* e,
+                     preprocessed_jump_expr* const pre_buf,
+                     jump_ctx ctx)
+{
+    switch (e->kind) {
+    case PRJE_EXPR:
+    {
+        ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = e->l_id } };
+        IR_PUSH(IR_EMPTY(), LABEL, labl_true);
+
+        processed_expr pe = process_expr(e->u.expr, ir);
+        ir_val comparison_result = IR_NEXT_TEMP_REGISTER();
+        ir_val comparison_const = { .type = IRVT_CONST, .u = { .constant = 1 } };
+        ir_val t_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_true } };
+        ir_val f_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_false } };
+
+        IR_PUSH(comparison_result, CMP_EQ, pe.val, comparison_const);
+        IR_PUSH(IR_EMPTY(), JMP_TRUE, comparison_result, t_label);
+        IR_PUSH(IR_EMPTY(), JMP, f_label);
+    } break;
+
+    case PRJE_BIN:
+    {
+        preprocessed_jump_expr* lhs_e = pre_buf + e->u.bin.b1;
+        preprocessed_jump_expr* rhs_e = pre_buf + e->u.bin.b2;
+
+        ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = e->l_id } };
+        IR_PUSH(IR_EMPTY(), LABEL, labl_true);
+
+        jump_ctx ctx1;
+        jump_ctx ctx2 = { .l_true = ctx.l_true, .l_false = ctx.l_false };
+
+        if (e->u.bin.op == BIN_OP_OR)
+        {
+            ctx1.l_true = ctx.l_true;
+            ctx1.l_false = rhs_e->l_id;
+        }
+        else
+        {
+            ctx1.l_true = rhs_e->l_id;
+            ctx1.l_false = ctx.l_false;
+        }
+
+        process_jumping_expr(ir, lhs_e, pre_buf, ctx1);
+        process_jumping_expr(ir, rhs_e, pre_buf, ctx2);
+    } break;
+
+    case PRJE_CONST: // TODO: Shouldn't occur, just in case?
+    {
+        NOTREACHED;
+    } break;
+    }
+}
+
 static processed_stmt
 process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 {
@@ -1244,13 +1443,48 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         processed_stmt s2;
         if (s->kind == is_CondElse)
         {
+            i32 l_true = g_label++;
+            i32 l_false = g_label++;
+            i32 l_end = g_label++;
+
+            preprocessed_jump_expr* pre_buf = 0;
+            preprocessed_jump_expr pre = preprocess_jumping_expr(s->u.condelse_.expr_, &pre_buf);
+
+            // TODO: We _dont_ need to evaluate this expression any more! Make
+            //       sure that all typechecking is done in process_jumping_expr
+            //       Also make sure that chekcing if all branches return is
+            //       still corect
+#if 0
             condex = process_expr(s->u.condelse_.expr_, ir);
+#else
+            condex.node = 0;
+            condex.type_id = TYPEID_BOOL; // TODO: Try to remove condex, just store this info if constant
+            condex.kind = EET_COMPUTE;
+            condex.is_lvalue = 0;
+            condex.val.u.reg_id = 0;
+#endif
+
+            ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
+            ir_val labl_false = { .type = IRVT_CONST, .u = { .constant = l_false } };
+            ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
+
+            jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
+            process_jumping_expr(ir, &pre, pre_buf, ctx);
+
+            IR_PUSH(IR_EMPTY(), LABEL, labl_true);
+
             i32 blk1 = push_block();
             s1 = process_stmt(s->u.condelse_.stmt_1, return_type, blk1, ir);
             pop_block();
+
+            IR_PUSH(IR_EMPTY(), JMP, labl_end);
+            IR_PUSH(IR_EMPTY(), LABEL, labl_false);
+
             i32 blk2 = push_block();
             s2 = process_stmt(s->u.condelse_.stmt_2, return_type, blk2, ir);
             pop_block();
+
+            IR_PUSH(IR_EMPTY(), LABEL, labl_end);
         }
         else
         {
@@ -1466,8 +1700,9 @@ process_func_body(char* fnname, Block b, void* node)
         fprintf(ir_dest, "%s", ir_op_name[ircode[i].op]);
 
         for (mm a = 0; a < ir_op_n_args[ircode[i].op]; ++a)
-            fprintf(ir_dest, " %s_%ld",
+            fprintf(ir_dest, " %s%s%ld",
                     ir_val_type_name[ircode[i].u.args[a].type],
+                    ircode[i].u.args[a].type != IRVT_CONST ? "_" : "",
                     ircode[i].u.args[a].u.reg_id);
 
         fprintf(ir_dest, "\n");
