@@ -1,6 +1,22 @@
+boolean dontCallMe(int i)
+{
+    printInt(i);
+    return true;
+}
+
+boolean dontCallMeB(boolean dummy)
+{
+    int x = 5;
+    if (dummy) x = 7;
+
+    printInt(x);
+    return true;
+}
+
 int main()
 {
-    /* boolean b = true;
+    /*
+    boolean b = true;
     boolean c = false && b;
     boolean d = c || (b && c);
 
@@ -16,17 +32,22 @@ int main()
     string x = readString() + readString();
     */
 
-    boolean b1;
-    boolean b2;
-    boolean b3;
-    boolean b4;
+    /*
+    int i = 0;
+    int j = 10;
+    while (i < j)
+    {
+        printInt(i);
+        i++;
+    }
+    */
 
-    if (b1 || (b2 && b3) || b4)
-    {
-        return 1;
-    }
-    else
-    {
-        return 0;
-    }
+    // boolean b = dontCallMe(1) || dontCallMe(1);
+
+    boolean c = (dontCallMe(1) && dontCallMe(2)) && dontCallMeB(dontCallMe(3) && dontCallMe(4));
+
+    // boolean c;
+    // c = dontCallMe(1);
+
+    return 0;
 }

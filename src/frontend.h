@@ -203,6 +203,9 @@ static void add_class_members_and_local_funcs(Program p);
 static void check_global_funcs(Program p);
 static void check_class_funcs(Program p);
 
+#define IR_CONSTANT(VALUE)                                                     \
+    { .type = IRVT_CONST, .u = { .reg_id = (VALUE) } }
+
 #define IR_LOCAL_VARIABLE(VAR_ID)                                              \
     { .type = IRVT_VAR, .u = { .reg_id = VAR_ID } }
 

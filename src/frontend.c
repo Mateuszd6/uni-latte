@@ -313,6 +313,14 @@ enforce_type(processed_expr* e, u32 type_id)
     }
 }
 
+static b32
+expr_requires_jumping_code(Expr e)
+{
+    if (e->kind == is_EAnd || e->kind == is_EOr) return 1;
+    if (e->kind == is_Not) return expr_requires_jumping_code(e->u.not_.expr_);
+    return 0;
+}
+
 static void
 process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
 {
@@ -368,6 +376,12 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
         else
             note(0, "\"%s\" is a builtin function", fun->name);
     }
+}
+
+static void
+process_assignment_expr()
+{
+
 }
 
 static processed_expr
@@ -1148,7 +1162,13 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf)
     {
         ir_quadr* dummy_ir = 0;
         processed_expr ee = process_expr(e, &dummy_ir);
-        // TODO: Validate expression type? Expected boolean
+        if (UNLIKELY(ee.type_id != TYPEID_BOOL))
+        {
+            d_type t_got = g_types[ee.type_id];
+            error(get_lnum(ee.node),
+                  "Expected type \"boolean\" but got incompatible type \"%s\"",
+                  t_got.name);
+        }
 
         if (ee.kind == EET_CONSTANT)
         {
@@ -1326,30 +1346,29 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             {
                 vname = i->u.init_.ident_;
                 vval = process_expr(i->u.init_.expr_, ir);
-
-                if (type_id != vval.type_id) // TODO(ex): Handle inheritance
-                {
-                    d_type expected_t = g_types[TYPEID_UNMASK(type_id)];
-                    d_type got_t = g_types[TYPEID_UNMASK(vval.type_id)];
-                    error(get_lnum(i),
-                          "Expression of type \"%s%s\" is initialized with incompatible type \"%s%s\"",
-                          expected_t.name, type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
-                          got_t.name, vval.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
-
-                    // Clarify why null is not implicitely assignable to a reference type:
-                    if (vval.type_id == TYPEID_NULL && type_id > TYPEID_LAST_BUILTIN_TYPE)
-                    {
-                        note(get_lnum(i),
-                             "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
-                             expected_t.name);
-                        note(get_lnum(i),
-                             "This requirement is forced by the Author of the assignment. Sorry");
-                    }
-                }
             } break;
             }
 
             assert(vname);
+            if (UNLIKELY(type_id != vval.type_id)) // TODO(ex): Handle inheritance
+            {
+                d_type expected_t = g_types[TYPEID_UNMASK(type_id)];
+                d_type got_t = g_types[TYPEID_UNMASK(vval.type_id)];
+                error(get_lnum(i),
+                      "Expression of type \"%s%s\" is initialized with incompatible type \"%s%s\"",
+                      expected_t.name, type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
+                      got_t.name, vval.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+                // Clarify why null is not implicitely assignable to a reference type:
+                if (vval.type_id == TYPEID_NULL && type_id > TYPEID_LAST_BUILTIN_TYPE)
+                {
+                    note(get_lnum(i),
+                         "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
+                         expected_t.name);
+                    note(get_lnum(i),
+                         "This requirement is forced by the Author of the assignment. Sorry");
+                }
+            }
 
             // Regardless of whether or not inicializing errored declare the
             // variable with a type defined on the left, to avoid error cascade.
@@ -1372,31 +1391,86 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
     case is_Ass:
     {
         processed_expr e1 = process_expr(s->u.ass_.expr_1, ir);
-        processed_expr e2 = process_expr(s->u.ass_.expr_2, ir);
+        processed_expr e2;
+        mm lhs_lnum = get_lnum(s->u.ass_.expr_1);
+        mm rhs_lnum = get_lnum(s->u.ass_.expr_2);
+        u32 expr_type_id = 0; // For type checking
+        b8 condition_is_constant = 0;
+        b8 condition_is_true = 0;
+
+        //
+        // The assingment of the boolean expression can be expressed as:
+        // boolean b = false;
+        // if (compilcated_boolean_expr)
+        //     b = true;
+        //
+
+        if (expr_requires_jumping_code(s->u.ass_.expr_2))
+        {
+            note(get_lnum(s->u.ass_.expr_2), "Expresion requires jumping code!");
+
+            preprocessed_jump_expr* pre_buf = 0;
+            preprocessed_jump_expr pre = preprocess_jumping_expr(s->u.ass_.expr_2, &pre_buf);
+
+            // TODO: We _dont_ need to evaluate this expression any more! Make
+            //       sure that all typechecking is done in process_jumping_expr
+            //       Also make sure that chekcing if all branches return is
+            //       still corect
+
+            if (pre.kind == PRJE_CONST)
+            {
+                condition_is_constant = 1;
+                condition_is_true = !!(pre.u.constant);
+            }
+
+            // TODO(leak): pre_buf
+            ir_val c0 = IR_CONSTANT(0);
+            IR_PUSH(e1.val, MOV, c0);
+
+            i32 l_asgn = g_label++;
+            i32 l_skip = g_label++;
+            ir_val labl_asgn = { .type = IRVT_CONST, .u = { .constant = l_asgn } };
+            ir_val labl_skip = { .type = IRVT_CONST, .u = { .constant = l_skip } };
+
+            jump_ctx ctx = { .l_true = l_asgn, .l_false = l_skip };
+            process_jumping_expr(ir, &pre, pre_buf, ctx);
+
+            IR_PUSH(IR_EMPTY(), LABEL, labl_asgn);
+
+            ir_val c1 = IR_CONSTANT(1);
+            IR_PUSH(e1.val, MOV, c1);
+            IR_PUSH(IR_EMPTY(), LABEL, labl_skip);
+
+            expr_type_id = TYPEID_BOOL;
+        }
+        else
+        {
+            e2 = process_expr(s->u.ass_.expr_2, ir);
+            expr_type_id = e2.type_id;
+
+            IR_PUSH(e1.val, MOV, e2.val);
+        }
+
+        // Now leave the typechecking, which is unlikely anyway
         if (UNLIKELY(!e1.is_lvalue))
         {
-            error(get_lnum(e1.node), "Left side of assingment must be an lvalue");
+            error(lhs_lnum, "Left side of assingment must be an lvalue");
         }
-        else if (UNLIKELY(e1.type_id != e2.type_id)) // TODO(ex): Handle inheritance
+        else if (UNLIKELY(e1.type_id != expr_type_id)) // TODO(ex): Handle inheritance
         {
             d_type expected_t = g_types[TYPEID_UNMASK(e1.type_id)];
-            d_type got_t = g_types[TYPEID_UNMASK(e2.type_id)];
-            error(get_lnum(e2.node),
-                  "Variable of type \"%s\" is assigned with incompatible type \"%s\"",
+            d_type got_t = g_types[TYPEID_UNMASK(expr_type_id)];
+            error(rhs_lnum, "Variable of type \"%s\" is assigned with incompatible type \"%s\"",
                   expected_t.name, got_t.name);
 
             // Clarify why null is not implicitely assignable to a reference type:
-            if (e2.type_id == TYPEID_NULL && e1.type_id > TYPEID_LAST_BUILTIN_TYPE)
+            if (expr_type_id == TYPEID_NULL && e1.type_id > TYPEID_LAST_BUILTIN_TYPE)
             {
-                note(get_lnum(e2.node),
-                     "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
+                note(rhs_lnum, "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
                      expected_t.name);
-                note(get_lnum(e2.node),
-                     "This requirement is forced by the Author of the assignment. Sorry");
+                note(rhs_lnum, "This requirement is forced by the Author of the assignment. Sorry");
             }
         }
-
-        IR_PUSH(e1.val, MOV, e2.val);
 
         retval.all_branches_return = 0;
         return retval;
@@ -1451,69 +1525,67 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
     case is_Cond:
     case is_CondElse:
     {
-        processed_expr condex;
         processed_stmt s1;
         processed_stmt s2;
+        b8 condition_is_constant = 0;
+        b8 condition_is_true = 0;
+
+        Expr abs_expr = s->kind == is_CondElse ? s->u.condelse_.expr_ : s->u.cond_.expr_;
+        Stmt abs_s1 = s->kind == is_CondElse ? s->u.condelse_.stmt_1 : s->u.cond_.stmt_;
+        Stmt abs_s2 = s->kind == is_CondElse ? s->u.condelse_.stmt_2 : 0;
+
+        i32 l_true = g_label++;
+        i32 l_false = g_label++;
+        i32 l_end = g_label++;
+
+        preprocessed_jump_expr* pre_buf = 0;
+        preprocessed_jump_expr pre = preprocess_jumping_expr(abs_expr, &pre_buf);
+
+        // TODO: We _dont_ need to evaluate this expression any more! Make
+        //       sure that all typechecking is done in process_jumping_expr
+        //       Also make sure that chekcing if all branches return is
+        //       still corect
+
+        if (pre.kind == PRJE_CONST)
+        {
+            condition_is_constant = 1;
+            condition_is_true = !!(pre.u.constant);
+        }
+
+        ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
+        ir_val labl_false = { .type = IRVT_CONST, .u = { .constant = l_false } };
+        ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
+
+        jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
+        process_jumping_expr(ir, &pre, pre_buf, ctx);
+        // TODO(leak): pre_buf
+
+        IR_PUSH(IR_EMPTY(), LABEL, labl_true);
+
+        i32 blk1 = push_block();
+        s1 = process_stmt(abs_s1, return_type, blk1, ir);
+        pop_block();
+
+        if (s->kind == is_CondElse)
+            IR_PUSH(IR_EMPTY(), JMP, labl_end);
+
+        IR_PUSH(IR_EMPTY(), LABEL, labl_false);
+
         if (s->kind == is_CondElse)
         {
-            i32 l_true = g_label++;
-            i32 l_false = g_label++;
-            i32 l_end = g_label++;
-
-            preprocessed_jump_expr* pre_buf = 0;
-            preprocessed_jump_expr pre = preprocess_jumping_expr(s->u.condelse_.expr_, &pre_buf);
-
-            // TODO: Check pre. If it evaludates to constant true/false don't
-            //       emit code for if/else!
-
-            // TODO: We _dont_ need to evaluate this expression any more! Make
-            //       sure that all typechecking is done in process_jumping_expr
-            //       Also make sure that chekcing if all branches return is
-            //       still corect
-#if 0
-            condex = process_expr(s->u.condelse_.expr_, ir);
-#else
-            condex.node = 0;
-            condex.type_id = TYPEID_BOOL; // TODO: Try to remove condex, just store this info if constant
-            condex.kind = EET_COMPUTE;
-            condex.is_lvalue = 0;
-            condex.val.u.reg_id = 0;
-#endif
-
-            ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
-            ir_val labl_false = { .type = IRVT_CONST, .u = { .constant = l_false } };
-            ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
-
-            jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
-            process_jumping_expr(ir, &pre, pre_buf, ctx);
-
-            IR_PUSH(IR_EMPTY(), LABEL, labl_true);
-
-            i32 blk1 = push_block();
-            s1 = process_stmt(s->u.condelse_.stmt_1, return_type, blk1, ir);
-            pop_block();
-
-            IR_PUSH(IR_EMPTY(), JMP, labl_end);
-            IR_PUSH(IR_EMPTY(), LABEL, labl_false);
 
             i32 blk2 = push_block();
-            s2 = process_stmt(s->u.condelse_.stmt_2, return_type, blk2, ir);
+            s2 = process_stmt(abs_s2, return_type, blk2, ir);
             pop_block();
 
             IR_PUSH(IR_EMPTY(), LABEL, labl_end);
         }
         else
-        {
-            condex = process_expr(s->u.condelse_.expr_, ir);
-            i32 blk = push_block();
-            s1 = process_stmt(s->u.condelse_.stmt_1, return_type, blk, ir);
-            pop_block();
             s2 = create_empty_statement();
-        }
 
         retval.all_branches_return =
-            ((condex.kind == EET_CONSTANT && condex.u.numeric_val == 1 && s1.all_branches_return)
-             || (condex.kind == EET_CONSTANT && condex.u.numeric_val == 0 && s2.all_branches_return)
+            ((condition_is_constant && condition_is_true && s1.all_branches_return)
+             || (condition_is_constant && !condition_is_true && s2.all_branches_return)
              || (s1.all_branches_return && s2.all_branches_return));
 
         return retval;
@@ -1540,15 +1612,35 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
     case is_While:
     {
         Expr condexpr = s->u.while_.expr_;
-        processed_expr condexpr_e = process_expr(condexpr, ir);
-
-        i32 block_id = push_block();
         Stmt lbody = s->u.while_.stmt_;
-        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id, ir);
-        (void)lbody_e; // TODO(ir)
 
-        pop_block();
+        i32 l_loop = g_label++;
+        i32 l_cond = g_label++;
+        i32 l_end = g_label++;
+        ir_val labl_loop = { .type = IRVT_CONST, .u = { .constant = l_loop } };
+        ir_val labl_cond = { .type = IRVT_CONST, .u = { .constant = l_cond } };
+        ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
 
+        b8 condition_is_constant = 0;
+        b8 condition_is_true = 0;
+
+        preprocessed_jump_expr* pre_buf = 0;
+        preprocessed_jump_expr pre = preprocess_jumping_expr(condexpr, &pre_buf);
+
+        // TODO: We _dont_ need to evaluate this expression any more! Make
+        //       sure that all typechecking is done in process_jumping_expr
+        //       Also make sure that chekcing if all branches return is
+        //       still corect
+
+        if (pre.kind == PRJE_CONST)
+        {
+            condition_is_constant = 1;
+            condition_is_true = !!(pre.u.constant);
+        }
+
+        // TODO: Move typechking into preprocess_jumping_expr
+#if 0
+        processed_expr condexpr_e = process_expr(condexpr, ir);
         if (condexpr_e.type_id != TYPEID_BOOL)
         {
             d_type t_given = g_types[TYPEID_UNMASK(condexpr_e.type_id)];
@@ -1556,13 +1648,27 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
                   "Loop condition has a type %s, when boolean was expected",
                   t_given.name);
         }
+#endif
+
+        IR_PUSH(IR_EMPTY(), JMP, labl_cond);
+        IR_PUSH(IR_EMPTY(), LABEL, labl_loop);
+
+        i32 block_id = push_block();
+        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id, ir);
+        (void)lbody_e;
+        pop_block();
+
+        IR_PUSH(IR_EMPTY(), LABEL, labl_cond);
+
+        jump_ctx ctx = { .l_true = l_loop, .l_false = l_end };
+        process_jumping_expr(ir, &pre, pre_buf, ctx);
+
+        IR_PUSH(IR_EMPTY(), LABEL, labl_end);
 
         // Don't report missing reutrn if loop condition is always true -
         // function will never reach its end. We don't really care what returns
         // in the body, because we may still never enter the loop itself.
-        retval.all_branches_return = (condexpr_e.kind == EET_CONSTANT
-                                      && condexpr_e.type_id == TYPEID_BOOL
-                                      && condexpr_e.u.numeric_val == 1);
+        retval.all_branches_return = condition_is_constant && condition_is_true;
 
         return retval;
     }
@@ -1699,10 +1805,14 @@ process_func_body(char* fnname, Block b, void* node)
 #if DUMP_IR
     // Write IR generated for the function:
 
-    fprintf(ir_dest, ".GF%u: ; %s\n", f_id, fnname);
+    fprintf(ir_dest, "GLOBAL_FUNC_%u ; %s\n", f_id, fnname);
     for (mm i = 0, size = array_size(ircode); i < size; ++i)
     {
-        if (ircode[i].target.type != IRVT_NONE)
+        if (ircode[i].op == LABEL)
+        {
+            // NOP
+        }
+        else if (ircode[i].target.type != IRVT_NONE)
         {
             fprintf(ir_dest, "    %s_%ld = ",
                     ir_val_type_name[ircode[i].target.type],
@@ -1710,7 +1820,7 @@ process_func_body(char* fnname, Block b, void* node)
         }
         else
         {
-            fprintf(ir_dest, "    _ = ");
+            fprintf(ir_dest, "    ");
         }
 
         fprintf(ir_dest, "%s", ir_op_name[ircode[i].op]);
@@ -1725,7 +1835,6 @@ process_func_body(char* fnname, Block b, void* node)
     }
 
     fprintf(ir_dest, "\n");
-
 #endif
 }
 

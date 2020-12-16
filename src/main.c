@@ -6,6 +6,8 @@
 //       assmeber wouldn't know what to do (like PARAM c3 is not const 3, but 3rd string)
 // TODO: Don't allow division by 0!!!!
 // TODO: Fix not all code paths return value now, with new if evaluation
+// TODO: Remove evaluation of boolean expressions from process_expr ?
+// TODO: Give an arg to return!
 //
 
 // Disable leak checking for asan in debug mode
