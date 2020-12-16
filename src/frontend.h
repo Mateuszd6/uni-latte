@@ -107,12 +107,12 @@ static char const* const ir_val_type_name[] =
 typedef struct ir_val ir_val;
 struct ir_val
 {
-    ir_val_type type;
     union
     {
         mm reg_id; // In case of VARIABLE or TEMP
         i64 constant; // For CONSTANT; value or number of string constant
     } u;
+    ir_val_type type;
 };
 
 typedef struct ir_quadr ir_quadr;
@@ -192,6 +192,9 @@ struct jump_ctx
     i32 l_false;
 };
 
+static void process_jumping_expr(
+    ir_quadr** ir, preprocessed_jump_expr* e, preprocessed_jump_expr* const pre_buf, jump_ctx ctx);
+static preprocessed_jump_expr preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf);
 static processed_expr process_expr(Expr e, ir_quadr** ir);
 static processed_stmt process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir);
 static void process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir);

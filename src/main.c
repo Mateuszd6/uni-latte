@@ -8,6 +8,10 @@
 // TODO: Fix not all code paths return value now, with new if evaluation
 // TODO: Remove evaluation of boolean expressions from process_expr ?
 // TODO: Give an arg to return!
+// TODO: Create a test in which boolean func params are evaluated correctly
+// TODO: Don't emit jumping code, when condition is constant
+//
+// TODO: Code for boolean c = !(callMe(1) && dontCallMe(2)); is buggy.
 //
 
 // Disable leak checking for asan in debug mode

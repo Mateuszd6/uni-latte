@@ -1,3 +1,9 @@
+boolean callMe(int i)
+{
+    printInt(i);
+    return true;
+}
+
 boolean dontCallMe(int i)
 {
     printInt(i);
@@ -44,7 +50,10 @@ int main()
 
     // boolean b = dontCallMe(1) || dontCallMe(1);
 
-    boolean c = (dontCallMe(1) && dontCallMe(2)) && dontCallMeB(dontCallMe(3) && dontCallMe(4));
+    // boolean c;
+    // c = (dontCallMe(1) && dontCallMe(2)) || dontCallMeB(dontCallMe(3) && dontCallMe(4));
+
+    boolean c = !(callMe(1) && dontCallMe(2));
 
     // boolean c;
     // c = dontCallMe(1);

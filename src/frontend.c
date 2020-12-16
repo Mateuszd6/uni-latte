@@ -7,7 +7,7 @@ static int g_temp_reg = 1;
 static int g_label = 1;
 
 // TODO: Try to remove this, just use ir_op directly
-static ir_op
+static inline ir_op
 binintop_to_ir_op(binary_int_op_t op)
 {
     static ir_op ops[] = {
@@ -25,7 +25,7 @@ binintop_to_ir_op(binary_int_op_t op)
     return ops[(mm)op];
 }
 
-static parsed_type
+static inline parsed_type
 parse_type(Type type)
 {
     parsed_type retval;
@@ -45,8 +45,9 @@ parse_type(Type type)
     return retval;
 }
 
+#if 0 // TODO?
 // Assumes that the type exists
-static processed_expr
+static inline processed_expr
 get_default_expr(u32 type_id, void* node)
 {
     processed_expr retval;
@@ -66,6 +67,7 @@ get_default_expr(u32 type_id, void* node)
     case TYPEID_STRING:
     {
         // TODO: Try to make so that empty string is always the same as null
+        // TODO: At this point it's somewhat necesarry
         retval.val.u.constant = EMPTY_STRING_CONSTANT_ID;
         retval.u.str_const_id = EMPTY_STRING_CONSTANT_ID;
         return retval;
@@ -79,8 +81,9 @@ get_default_expr(u32 type_id, void* node)
     }
     }
 }
+#endif
 
-static processed_stmt
+static inline processed_stmt
 create_empty_statement(void)
 {
     processed_stmt retval;
@@ -89,7 +92,7 @@ create_empty_statement(void)
     return retval;
 }
 
-static processed_expr
+static inline processed_expr
 compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
 {
     processed_expr retval;
@@ -108,7 +111,7 @@ compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
     return retval;
 }
 
-static processed_expr
+static inline processed_expr
 compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
 {
     processed_expr retval;
@@ -149,7 +152,7 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
     return retval;
 }
 
-static processed_expr
+static inline processed_expr
 compute_binary_string_expr(mm str1, mm str2, void* node)
 {
     processed_expr retval;
@@ -183,14 +186,14 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
 }
 
 static i32 next_block_id = 1;
-static i32
+static inline i32
 push_block(void)
 {
     array_push(g_local_symbols, 0); // null is used to makr that the block ends
     return next_block_id++;
 }
 
-static void
+static inline void
 pop_block(void)
 {
     while (1)
@@ -268,7 +271,7 @@ push_var(d_var var, char* vname, void* node)
     array_push(g_local_symbols, vname);
 }
 
-static processed_expr
+static inline processed_expr
 compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, binary_eq_op_t op, void* node)
 {
     processed_expr retval;
@@ -281,7 +284,7 @@ compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, binary_eq_op_t op,
     return retval;
 }
 
-static processed_expr
+static inline processed_expr
 compute_binary_string_equality_expr(mm str1, mm str2, binary_eq_op_t op, void* node)
 {
     b32 compre = strcmp(g_str_consts[str1].data, g_str_consts[str2].data) == 0;
@@ -295,7 +298,7 @@ compute_binary_string_equality_expr(mm str1, mm str2, binary_eq_op_t op, void* n
     return retval;
 }
 
-static void
+static inline void
 enforce_type(processed_expr* e, u32 type_id)
 {
     if (UNLIKELY(e->type_id != type_id))
@@ -313,12 +316,36 @@ enforce_type(processed_expr* e, u32 type_id)
     }
 }
 
-static b32
+static inline b32
 expr_requires_jumping_code(Expr e)
 {
     if (e->kind == is_EAnd || e->kind == is_EOr) return 1;
     if (e->kind == is_Not) return expr_requires_jumping_code(e->u.not_.expr_);
     return 0;
+}
+
+static inline void
+typecheck_assigning(u32 type_id, processed_expr* vval, void* node)
+{
+    if (UNLIKELY(type_id != vval->type_id)) // TODO(ex): Handle inheritance
+    {
+        d_type expected_t = g_types[TYPEID_UNMASK(type_id)];
+        d_type got_t = g_types[TYPEID_UNMASK(vval->type_id)];
+        error(get_lnum(node),
+              "Expression of type \"%s%s\" is initialized with incompatible type \"%s%s\"",
+              expected_t.name, type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
+              got_t.name, vval->type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+
+        // Clarify why null is not implicitely assignable to a reference type:
+        if (vval->type_id == TYPEID_NULL && type_id > TYPEID_LAST_BUILTIN_TYPE)
+        {
+            note(get_lnum(node),
+                 "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
+                 expected_t.name);
+            note(get_lnum(node),
+                 "This requirement is forced by the Author of the assignment. Sorry");
+        }
+    }
 }
 
 static void
@@ -378,10 +405,73 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
     }
 }
 
-static void
-process_assignment_expr()
+static processed_expr
+process_assignment_expr(Expr e2, ir_val variable_val/*, processed_expr* pe2*/, ir_quadr** ir)
 {
+    //
+    // The assingment of the boolean expression can be expressed as:
+    // boolean b = false;
+    // if (compilcated_boolean_expr)
+    //     b = true;
+    //
 
+    if (!expr_requires_jumping_code(e2))
+    {
+        processed_expr retval = process_expr(e2, ir);
+        IR_PUSH(variable_val, MOV, retval.val);
+
+        return retval;
+    }
+    else
+    {
+        u32 expr_type_id = 0;
+        b8 condition_is_constant = 0;
+        b8 condition_is_true = 0;
+        preprocessed_jump_expr* pre_buf = 0;
+        preprocessed_jump_expr pre = preprocess_jumping_expr(e2, &pre_buf);
+
+        // TODO: We _dont_ need to evaluate this expression any more! Make
+        //       sure that all typechecking is done in process_jumping_expr
+        //       Also make sure that chekcing if all branches return is
+        //       still corect
+
+        if (pre.kind == PRJE_CONST)
+        {
+            condition_is_constant = 1;
+            condition_is_true = !!(pre.u.constant);
+        }
+
+        // TODO(leak): pre_buf
+        ir_val c0 = IR_CONSTANT(0);
+        IR_PUSH(variable_val, MOV, c0);
+
+        i32 l_asgn = g_label++;
+        i32 l_skip = g_label++;
+        ir_val labl_asgn = { .type = IRVT_CONST, .u = { .constant = l_asgn } };
+        ir_val labl_skip = { .type = IRVT_CONST, .u = { .constant = l_skip } };
+
+        jump_ctx ctx = { .l_true = l_asgn, .l_false = l_skip };
+        process_jumping_expr(ir, &pre, pre_buf, ctx);
+
+        IR_PUSH(IR_EMPTY(), LABEL, labl_asgn);
+
+        ir_val c1 = IR_CONSTANT(1);
+        IR_PUSH(variable_val, MOV, c1);
+        IR_PUSH(IR_EMPTY(), LABEL, labl_skip);
+
+        expr_type_id = TYPEID_BOOL;
+
+        processed_expr retval;
+        retval.node = e2;
+        retval.type_id = TYPEID_BOOL;
+        retval.kind = condition_is_constant ? EET_CONSTANT : EET_COMPUTE;
+        retval.is_lvalue = 1;
+        retval.u.numeric_val = !!(condition_is_true);
+        retval.val.type = IRVT_CONST;
+        retval.val.u.constant = !!(condition_is_true);
+
+        return retval;
+    }
 }
 
 static processed_expr
@@ -1141,6 +1231,7 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf)
     // TODO: Check if is constant and later incorporate here, but for now leave,
     // to check how the code looks with if ((boolean)(true))
     case is_ECast:
+
     case is_EVar:
     case is_ERel:
     case is_EEq:
@@ -1334,44 +1425,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         LIST_FOREACH(it, s->u.decl_, listitem_)
         {
             Item i = it->item_;
-            char* vname = 0;
+            char* vname = i->kind == is_NoInit ? i->u.noinit_.ident_ : i->u.init_.ident_;
             processed_expr vval;
-            switch (i->kind) {
-            case is_NoInit:
-            {
-                vname = i->u.noinit_.ident_;
-                vval = get_default_expr(type_id, i);
-            } break;
-            case is_Init:
-            {
-                vname = i->u.init_.ident_;
-                vval = process_expr(i->u.init_.expr_, ir);
-            } break;
-            }
-
-            assert(vname);
-            if (UNLIKELY(type_id != vval.type_id)) // TODO(ex): Handle inheritance
-            {
-                d_type expected_t = g_types[TYPEID_UNMASK(type_id)];
-                d_type got_t = g_types[TYPEID_UNMASK(vval.type_id)];
-                error(get_lnum(i),
-                      "Expression of type \"%s%s\" is initialized with incompatible type \"%s%s\"",
-                      expected_t.name, type_id & TYPEID_FLAG_ARRAY ? "[]" : "",
-                      got_t.name, vval.type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
-
-                // Clarify why null is not implicitely assignable to a reference type:
-                if (vval.type_id == TYPEID_NULL && type_id > TYPEID_LAST_BUILTIN_TYPE)
-                {
-                    note(get_lnum(i),
-                         "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
-                         expected_t.name);
-                    note(get_lnum(i),
-                         "This requirement is forced by the Author of the assignment. Sorry");
-                }
-            }
-
-            // Regardless of whether or not inicializing errored declare the
-            // variable with a type defined on the left, to avoid error cascade.
 
             mm var_id = array_size(g_vars);
             d_var var;
@@ -1381,7 +1436,18 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             push_var(var, vname, i);
 
             ir_val target_variable = IR_LOCAL_VARIABLE(var_id);
-            IR_PUSH(target_variable, MOV, vval.val);
+            switch (i->kind) {
+            case is_NoInit:
+            {
+                ir_val c0 = IR_CONSTANT(0);
+                IR_PUSH(target_variable, MOV, c0);
+            } break;
+            case is_Init:
+            {
+                vval = process_assignment_expr(i->u.init_.expr_, target_variable, ir);
+                typecheck_assigning(type_id, &vval, i);
+            } break;
+            }
         }
 
         retval.all_branches_return = 0;
@@ -1391,86 +1457,14 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
     case is_Ass:
     {
         processed_expr e1 = process_expr(s->u.ass_.expr_1, ir);
-        processed_expr e2;
-        mm lhs_lnum = get_lnum(s->u.ass_.expr_1);
-        mm rhs_lnum = get_lnum(s->u.ass_.expr_2);
-        u32 expr_type_id = 0; // For type checking
-        b8 condition_is_constant = 0;
-        b8 condition_is_true = 0;
+        processed_expr e2 = process_assignment_expr(s->u.ass_.expr_2, e1.val, ir);
 
-        //
-        // The assingment of the boolean expression can be expressed as:
-        // boolean b = false;
-        // if (compilcated_boolean_expr)
-        //     b = true;
-        //
-
-        if (expr_requires_jumping_code(s->u.ass_.expr_2))
-        {
-            note(get_lnum(s->u.ass_.expr_2), "Expresion requires jumping code!");
-
-            preprocessed_jump_expr* pre_buf = 0;
-            preprocessed_jump_expr pre = preprocess_jumping_expr(s->u.ass_.expr_2, &pre_buf);
-
-            // TODO: We _dont_ need to evaluate this expression any more! Make
-            //       sure that all typechecking is done in process_jumping_expr
-            //       Also make sure that chekcing if all branches return is
-            //       still corect
-
-            if (pre.kind == PRJE_CONST)
-            {
-                condition_is_constant = 1;
-                condition_is_true = !!(pre.u.constant);
-            }
-
-            // TODO(leak): pre_buf
-            ir_val c0 = IR_CONSTANT(0);
-            IR_PUSH(e1.val, MOV, c0);
-
-            i32 l_asgn = g_label++;
-            i32 l_skip = g_label++;
-            ir_val labl_asgn = { .type = IRVT_CONST, .u = { .constant = l_asgn } };
-            ir_val labl_skip = { .type = IRVT_CONST, .u = { .constant = l_skip } };
-
-            jump_ctx ctx = { .l_true = l_asgn, .l_false = l_skip };
-            process_jumping_expr(ir, &pre, pre_buf, ctx);
-
-            IR_PUSH(IR_EMPTY(), LABEL, labl_asgn);
-
-            ir_val c1 = IR_CONSTANT(1);
-            IR_PUSH(e1.val, MOV, c1);
-            IR_PUSH(IR_EMPTY(), LABEL, labl_skip);
-
-            expr_type_id = TYPEID_BOOL;
-        }
-        else
-        {
-            e2 = process_expr(s->u.ass_.expr_2, ir);
-            expr_type_id = e2.type_id;
-
-            IR_PUSH(e1.val, MOV, e2.val);
-        }
-
-        // Now leave the typechecking, which is unlikely anyway
         if (UNLIKELY(!e1.is_lvalue))
         {
-            error(lhs_lnum, "Left side of assingment must be an lvalue");
+            error(get_lnum(s->u.ass_.expr_1), "Left side of assingment must be an lvalue");
         }
-        else if (UNLIKELY(e1.type_id != expr_type_id)) // TODO(ex): Handle inheritance
-        {
-            d_type expected_t = g_types[TYPEID_UNMASK(e1.type_id)];
-            d_type got_t = g_types[TYPEID_UNMASK(expr_type_id)];
-            error(rhs_lnum, "Variable of type \"%s\" is assigned with incompatible type \"%s\"",
-                  expected_t.name, got_t.name);
 
-            // Clarify why null is not implicitely assignable to a reference type:
-            if (expr_type_id == TYPEID_NULL && e1.type_id > TYPEID_LAST_BUILTIN_TYPE)
-            {
-                note(rhs_lnum, "\"null\" is not implicitly assingable to a reference type. Use: \"(%s)null\"",
-                     expected_t.name);
-                note(rhs_lnum, "This requirement is forced by the Author of the assignment. Sorry");
-            }
-        }
+        typecheck_assigning(e1.type_id, &e2, s->u.ass_.expr_2);
 
         retval.all_branches_return = 0;
         return retval;
