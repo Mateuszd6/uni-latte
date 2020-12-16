@@ -1228,9 +1228,22 @@ process_jumping_expr(ir_quadr** ir,
         process_jumping_expr(ir, rhs_e, pre_buf, ctx2);
     } break;
 
-    case PRJE_CONST: // TODO: Shouldn't occur, just in case?
+    // In most cases should be optimized-out, but there are corner cases, like
+    // if (foo() || true), in which case this constant will be evaludated
+    case PRJE_CONST:
     {
-        NOTREACHED;
+        ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = e->l_id } };
+        IR_PUSH(IR_EMPTY(), LABEL, labl_true);
+
+        ir_val comparison_result = IR_NEXT_TEMP_REGISTER();
+        ir_val to_compare = { .type = IRVT_CONST, .u = { .constant = (i64)e->u.constant } };
+        ir_val comparison_const = { .type = IRVT_CONST, .u = { .constant = 1 } };
+        ir_val t_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_true } };
+        ir_val f_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_false } };
+
+        IR_PUSH(comparison_result, CMP_EQ, to_compare, comparison_const);
+        IR_PUSH(IR_EMPTY(), JMP_TRUE, comparison_result, t_label);
+        IR_PUSH(IR_EMPTY(), JMP, f_label);
     } break;
     }
 }
@@ -1449,6 +1462,9 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
             preprocessed_jump_expr* pre_buf = 0;
             preprocessed_jump_expr pre = preprocess_jumping_expr(s->u.condelse_.expr_, &pre_buf);
+
+            // TODO: Check pre. If it evaludates to constant true/false don't
+            //       emit code for if/else!
 
             // TODO: We _dont_ need to evaluate this expression any more! Make
             //       sure that all typechecking is done in process_jumping_expr
