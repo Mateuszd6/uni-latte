@@ -53,7 +53,7 @@ int main()
     // boolean c;
     // c = (dontCallMe(1) && dontCallMe(2)) || dontCallMeB(dontCallMe(3) && dontCallMe(4));
 
-    boolean c = !(callMe(1) && dontCallMe(2));
+    boolean c = !(callMe(1) && (dontCallMe(2) || dontCallMe(2)));
 
     // boolean c;
     // c = dontCallMe(1);

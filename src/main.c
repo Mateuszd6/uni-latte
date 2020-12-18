@@ -1,17 +1,15 @@
+// TODO: Create "p" registers for func params
+// TODO: Reuse vars which are out-of-scope
 //
+// TODO: Think about "a" registers
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
 // TODO: Maybe the first param of IR_PUSH should be entire expression, not just .val
-// TODO: Different type for string constant, b/c when we lose type info,
-//       assmeber wouldn't know what to do (like PARAM c3 is not const 3, but 3rd string)
-// TODO: Don't allow division by 0!!!!
 // TODO: Fix not all code paths return value now, with new if evaluation
 // TODO: Remove evaluation of boolean expressions from process_expr ?
-// TODO: Give an arg to return!
 // TODO: Create a test in which boolean func params are evaluated correctly
 // TODO: Don't emit jumping code, when condition is constant
-//
-// TODO: Code for boolean c = !(callMe(1) && dontCallMe(2)); is buggy.
+// TODO: Check if variables get correct numbers in nested blocks
 //
 
 // Disable leak checking for asan in debug mode

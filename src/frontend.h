@@ -22,7 +22,7 @@ enum ir_op
     MOD = 5,
     AND = 6,
     OR = 7,
-    NEG = 8,
+    NOT = 8,
     CMP_LTH = 9,
     CMP_LE = 10,
     CMP_GTH = 11,
@@ -47,14 +47,14 @@ enum ir_op
 typedef enum ir_op ir_op;
 
 static char const* const ir_op_name[] = {
-    "MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "NEG",
+    "MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "NOT",
     "CMP_LTH", "CMP_LE", "CMP_GTH", "CMP_GE", "CMP_EQ", "CMP_NEQ", "STR_EQ", "STR_NEQ",
     "LABEL", "JMP", "PARAM", "CALL", "RET",
     "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
 };
 
 static int const ir_op_n_args[] = {
-    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 0, 2, 1, 1, 2, 2, 2
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
@@ -96,12 +96,14 @@ enum ir_val_type
     IRVT_TEMP = 3,
     IRVT_FN = 4,
     IRVT_CONST = 5,
+    IRVT_STRCONST = 6,
+
 };
 typedef enum ir_val_type ir_val_type;
 
 static char const* const ir_val_type_name[] =
 {
-    "NONE" , "v", "p", "t", "gf", "",
+    "NONE" , "v_", "p_", "t_", "gf:", "", "str:"
 };
 
 typedef struct ir_val ir_val;
@@ -176,6 +178,7 @@ struct preprocessed_jump_expr
         } bin;
     } u;
     i32 l_id;
+    b32 reversed;
 };
 
 
@@ -194,7 +197,8 @@ struct jump_ctx
 
 static void process_jumping_expr(
     ir_quadr** ir, preprocessed_jump_expr* e, preprocessed_jump_expr* const pre_buf, jump_ctx ctx);
-static preprocessed_jump_expr preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf);
+static preprocessed_jump_expr preprocess_jumping_expr(
+    Expr e, preprocessed_jump_expr** buf, b32 reverse);
 static processed_expr process_expr(Expr e, ir_quadr** ir);
 static processed_stmt process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir);
 static void process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir);
@@ -242,6 +246,21 @@ static void check_class_funcs(Program p);
     {                                                                          \
         ir_val val_ = {                                                        \
             .type = IRVT_CONST,                                                \
+            .u = { .constant = CONSTANT_VALUE }                                \
+        };                                                                     \
+                                                                               \
+        EXPR.u.numeric_val = CONSTANT_VALUE;                                   \
+        EXPR .type_id = TYPE;                                                  \
+        EXPR .kind = EET_CONSTANT;                                             \
+        EXPR .is_lvalue = 0;                                                   \
+        EXPR .val = val_;                                                      \
+    } while (0)
+
+#define IR_SET_STRCONST(EXPR, TYPE, CONSTANT_VALUE)                            \
+    do                                                                         \
+    {                                                                          \
+        ir_val val_ = {                                                        \
+            .type = IRVT_STRCONST,                                             \
             .u = { .constant = CONSTANT_VALUE }                                \
         };                                                                     \
                                                                                \
