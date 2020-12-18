@@ -1,3 +1,7 @@
+//
+// TODO: Correct evaluation of boolean params
+// TODO: Remove lhs from PARAM and sometimes from CALL
+//
 // TODO: Create "p" registers for func params
 // TODO: Reuse vars which are out-of-scope
 //
