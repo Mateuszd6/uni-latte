@@ -1803,6 +1803,7 @@ process_func_body(char* fnname, Block b, void* node)
     b32 all_branches_return = 0;
     i32 body_block_id = push_block(); // Block where body is parsed (so args can be shadowed)
     ir_quadr* ircode = 0;
+    ir_quadr** ir = &ircode; // To make the hacky macros works
 
     assert(b->kind == is_Blk);
     LIST_FOREACH(it, b->u.blk_, liststmt_)
@@ -1818,6 +1819,18 @@ process_func_body(char* fnname, Block b, void* node)
 
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
         error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
+
+    // TODO: Decide whether or not do it here? Maybe optimizer will ba later
+    //       able to remove it, and this check would make more sens in a codegen
+    //       module?
+    //
+    // Make sure all blocks always end up with return
+    mm n_opcodes = array_size(ircode);
+    if (n_opcodes == 0 || ircode[n_opcodes - 1].op != RET)
+    {
+        ir_val empty = IR_EMPTY();
+        IR_PUSH(empty, RET, empty);
+    }
 
     g_funcs[f_id].code = ircode;
 }

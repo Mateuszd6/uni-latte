@@ -10,10 +10,10 @@ extern _start, printf, puts, exit, scanf, stdin, strlen, getline
     mov     esi, edi
     xor     eax, eax
     mov     edi, .LC0
-    jmp     printf
+    jmp     printf ; TODO: tailcall impossbile, b/c calling convention differs
 
 .GF1: ; printString
-    jmp     puts
+    jmp     puts ; TODO: tailcall impossbile, b/c calling convention differs
 
 .LC1:
     db "runtime error",0xA,0x0

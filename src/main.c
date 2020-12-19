@@ -46,10 +46,11 @@ static FILE* asm_dest;
 static FILE* ir_dest;
 #endif
 
-#include "codegen.c"
 #include "misc.c"
 #include "symtab.c"
 #include "frontend.c"
+
+#include "codegen.c"
 
 //
 // Used to get a filename when error reporting in parser in extern parser
@@ -180,6 +181,11 @@ main(int argc, char** argv)
         dump_ir_for_function((u32)i);
     }
 #endif
+
+    for (mm i = FUNCID_LAST_BUILTIN_FUNC + 1, size = array_size(g_funcs); i < size; ++i)
+    {
+        gen_glob_func((u32)i);
+    }
 
     fclose(asm_dest);
 #if DUMP_IR

@@ -115,3 +115,8 @@ grammar:
 
 validate: latc
 	@-./tests/validate.sh 2> /dev/null
+
+tempasm: latc
+	./latc test.lat
+	cat ./src/stdlib.s test.s | sed '/;;\(.*\)/d' > temp.s
+	nasm -f elf64 -F dwarf -g temp.s -o temp.o

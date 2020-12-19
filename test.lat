@@ -1,3 +1,7 @@
+void foobar()
+{
+}
+
 boolean callMe(int i)
 {
     printInt(i);
