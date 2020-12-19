@@ -1,12 +1,10 @@
 //
-// TODO: Correct evaluation of boolean params
-// TODO: Remove lhs from PARAM and sometimes from CALL
-//
 // TODO: Create "p" registers for func params
 // TODO: Reuse vars which are out-of-scope
 //
 // TODO: Think about "a" registers
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
+// TODO: Sometimes remove lhs from CALL ??
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
 // TODO: Maybe the first param of IR_PUSH should be entire expression, not just .val
 // TODO: Fix not all code paths return value now, with new if evaluation
@@ -48,6 +46,7 @@ static FILE* asm_dest;
 static FILE* ir_dest;
 #endif
 
+#include "codegen.c"
 #include "misc.c"
 #include "symtab.c"
 #include "frontend.c"
@@ -100,6 +99,52 @@ usage(char* argv0)
     exit(1);
 }
 
+#if DUMP_IR
+
+// Write IR generated for the function
+static void
+dump_ir_for_function(u32 f_id)
+{
+    ir_quadr* ircode = g_funcs[f_id].code;
+    char* fname = g_funcs[f_id].name;
+
+    fprintf(ir_dest, "GLOBAL_FUNC_%u ; %s\n", f_id, fname);
+    for (mm i = 0, size = array_size(ircode); i < size; ++i)
+    {
+        if (ircode[i].op == LABEL)
+        {
+            // NOP
+        }
+        else if (ircode[i].target.type != IRVT_NONE)
+        {
+            fprintf(ir_dest, "    %s%ld = ",
+                    ir_val_type_name[ircode[i].target.type],
+                    ircode[i].target.u.reg_id); // TODO: OR CONSTANT?
+        }
+        else
+        {
+            fprintf(ir_dest, "    ");
+        }
+
+        fprintf(ir_dest, "%s", ir_op_name[ircode[i].op]);
+
+        for (mm a = 0; a < ir_op_n_args[ircode[i].op]; ++a)
+        {
+            if (ircode[i].u.args[a].type == IRVT_NONE)
+                fprintf(ir_dest, " _");
+            else
+                fprintf(ir_dest, " %s%ld",
+                        ir_val_type_name[ircode[i].u.args[a].type],
+                        ircode[i].u.args[a].u.reg_id);
+        }
+
+        fprintf(ir_dest, "\n");
+    }
+
+    fprintf(ir_dest, "\n");
+}
+#endif
+
 int
 main(int argc, char** argv)
 {
@@ -126,13 +171,20 @@ main(int argc, char** argv)
     check_global_funcs(parse_tree);
     check_class_funcs(parse_tree);
 
+    if (has_error)
+        no_recover();
+
+#if DUMP_IR
+    for (mm i = FUNCID_LAST_BUILTIN_FUNC + 1, size = array_size(g_funcs); i < size; ++i)
+    {
+        dump_ir_for_function((u32)i);
+    }
+#endif
+
     fclose(asm_dest);
 #if DUMP_IR
     fclose(ir_dest);
 #endif
-
-    if (has_error)
-        no_recover();
 
     accept_input();
     return 0;

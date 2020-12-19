@@ -363,13 +363,69 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
         if (LIKELY(n_given_args < fun->num_args)) // if not too many args given
         {
             Expr argexpr = it->expr_;
-            processed_expr argexpr_e = process_expr(argexpr, ir);
             u32 expected_type_id = fun->args[n_given_args].type_id;
+            u32 got_type_id;
 
-            if (argexpr_e.type_id != expected_type_id) // TODO(ex): Handle inheritance
+            if (!expr_requires_jumping_code(argexpr))
+            {
+                processed_expr argexpr_e = process_expr(argexpr, ir);
+                IR_PUSH(IR_EMPTY(), PARAM, argexpr_e.val);
+
+                got_type_id = argexpr_e.type_id;
+            }
+            else
+            {
+                b8 condition_is_constant = 0;
+                b8 condition_is_true = 0;
+                preprocessed_jump_expr* pre_buf = 0;
+                preprocessed_jump_expr pre = preprocess_jumping_expr(argexpr, &pre_buf, 0);
+
+                // TODO: We _dont_ need to evaluate this expression any more! Make
+                //       sure that all typechecking is done in process_jumping_expr
+                //       Also make sure that chekcing if all branches return is
+                //       still corect
+
+                if (pre.kind == PRJE_CONST)
+                {
+                    condition_is_constant = 1;
+                    condition_is_true = !!(pre.u.constant);
+
+                    // TODO: Optimize for contant branch
+                }
+
+                // TODO: Copypasted form is_Cond
+
+                i32 l_true = g_label++;
+                i32 l_false = g_label++;
+                i32 l_end = g_label++;
+
+                ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
+                ir_val labl_false = { .type = IRVT_CONST, .u = { .constant = l_false } };
+                ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
+
+                ir_val c0 = IR_CONSTANT(0);
+                ir_val c1 = IR_CONSTANT(1);
+
+                jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
+                process_jumping_expr(ir, &pre, pre_buf, ctx);
+                // TODO(leak): pre_buf
+
+                IR_PUSH(IR_EMPTY(), LABEL, labl_true);
+                IR_PUSH(IR_EMPTY(), PARAM, c1);
+                IR_PUSH(IR_EMPTY(), JMP, labl_end);
+                IR_PUSH(IR_EMPTY(), LABEL, labl_false);
+                IR_PUSH(IR_EMPTY(), PARAM, c0);
+                IR_PUSH(IR_EMPTY(), LABEL, labl_end);
+
+                // TODO: Ensure that the expression is of type bool? Shouldn't this
+                //       be done in expr_requires... ?
+                got_type_id = TYPEID_BOOL;
+            }
+
+            if (got_type_id != expected_type_id) // TODO(ex): Handle inheritance
             {
                 d_type t_expected = g_types[TYPEID_UNMASK(expected_type_id)];
-                d_type t_provided = g_types[TYPEID_UNMASK(argexpr_e.type_id)];
+                d_type t_provided = g_types[TYPEID_UNMASK(got_type_id)];
 
                 error(get_lnum(argexpr),
                       "Function \"%s\" expects argument %d to have a type \"%s\"",
@@ -379,9 +435,6 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                      "Given expression of type \"%s\", which is not assignable to type \"%s\"",
                      t_provided.name, t_expected.name);
             }
-
-            ir_val temp_ = IR_NEXT_TEMP_REGISTER();
-            IR_PUSH(temp_, PARAM, argexpr_e.val);
         }
 
         n_given_args++;
@@ -439,6 +492,8 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
         {
             condition_is_constant = 1;
             condition_is_true = !!(pre.u.constant);
+
+            // TODO: Optimize for contant branch
         }
 
         // TODO(leak): pre_buf
@@ -1764,44 +1819,7 @@ process_func_body(char* fnname, Block b, void* node)
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
         error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
 
-#if DUMP_IR
-    // Write IR generated for the function:
-
-    fprintf(ir_dest, "GLOBAL_FUNC_%u ; %s\n", f_id, fnname);
-    for (mm i = 0, size = array_size(ircode); i < size; ++i)
-    {
-        if (ircode[i].op == LABEL)
-        {
-            // NOP
-        }
-        else if (ircode[i].target.type != IRVT_NONE)
-        {
-            fprintf(ir_dest, "    %s%ld = ",
-                    ir_val_type_name[ircode[i].target.type],
-                    ircode[i].target.u.reg_id); // TODO: OR CONSTANT?
-        }
-        else
-        {
-            fprintf(ir_dest, "    ");
-        }
-
-        fprintf(ir_dest, "%s", ir_op_name[ircode[i].op]);
-
-        for (mm a = 0; a < ir_op_n_args[ircode[i].op]; ++a)
-        {
-            if (ircode[i].u.args[a].type == IRVT_NONE)
-                fprintf(ir_dest, " _");
-            else
-                fprintf(ir_dest, " %s%ld",
-                        ir_val_type_name[ircode[i].u.args[a].type],
-                        ircode[i].u.args[a].u.reg_id);
-        }
-
-        fprintf(ir_dest, "\n");
-    }
-
-    fprintf(ir_dest, "\n");
-#endif
+    g_funcs[f_id].code = ircode;
 }
 
 // Get arguments for function. TopDef is assumed to be of the type is_FnDef. If
