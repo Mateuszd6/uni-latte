@@ -117,6 +117,7 @@ validate: latc
 	@-./tests/validate.sh 2> /dev/null
 
 tempasm: latc
-	./latc test.lat
-	cat ./src/stdlib.s test.s | sed '/;;\(.*\)/d' > temp.s
+	./latc test-asm-simple.lat
+	cat ./src/stdlib.s test-asm-simple.s | sed '/;;\(.*\)/d' > temp.s
 	nasm -f elf64 -F dwarf -g temp.s -o temp.o
+	ld -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o temp -lc temp.o

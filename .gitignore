@@ -6,3 +6,5 @@ latc
 tests
 cov
 misc/**
+*.ir
+*.s

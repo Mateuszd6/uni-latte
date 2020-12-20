@@ -7,9 +7,9 @@ extern _start, printf, puts, exit, scanf, stdin, strlen, getline
 .LC0:
     db "%d",0xA,0x0
 .GF0: ; printInt
-    mov     esi, edi
-    xor     eax, eax
-    mov     edi, .LC0
+    mov     rsi, rdi
+    xor     rax, rax
+    mov     rdi, .LC0
     jmp     printf ; TODO: tailcall impossbile, b/c calling convention differs
 
 .GF1: ; printString
@@ -18,19 +18,19 @@ extern _start, printf, puts, exit, scanf, stdin, strlen, getline
 .LC1:
     db "runtime error",0xA,0x0
 .GF2: ; error
-    mov     edi, .LC1
+    mov     rdi, .LC1
     sub     rsp, 8
-    xor     eax, eax
+    xor     rax, rax
     call    printf
-    mov     edi, 1
+    mov     rdi, 1
     call    exit ; tailcall
 
 .LC2:
     db "%d"
 .GF3: ; readInt
     sub     rsp, 24
-    mov     edi, .LC2
-    xor     eax, eax
+    mov     rdi, .LC2
+    xor     rax, rax
     lea     rsi, [rsp+12]
     call    scanf
     mov     eax, DWORD [rsp+12]

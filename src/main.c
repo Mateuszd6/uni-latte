@@ -1,6 +1,7 @@
 //
-// TODO: Create "p" registers for func params
 // TODO: Reuse vars which are out-of-scope
+// TODO: Create "p" registers for func params
+// TODO: Reverse the evaluation of params
 //
 // TODO: Think about "a" registers
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
@@ -182,10 +183,15 @@ main(int argc, char** argv)
     }
 #endif
 
+    mm main_id = 0;
     for (mm i = FUNCID_LAST_BUILTIN_FUNC + 1, size = array_size(g_funcs); i < size; ++i)
     {
         gen_glob_func((u32)i);
+        if (strcmp(g_funcs[i].name, "main") == 0)
+            main_id = i;
     }
+
+    gen_entry_point((i32)main_id);
 
     fclose(asm_dest);
 #if DUMP_IR
