@@ -1,0 +1,6 @@
+int main()
+{
+    int[] fooz;
+
+    return 0;
+}

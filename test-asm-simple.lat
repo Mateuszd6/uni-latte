@@ -1,0 +1,10 @@
+int main()
+{
+    int v = 5;
+    int f = 17;
+
+    boolean b, c;
+    b && c;
+
+    return f / v;
+}

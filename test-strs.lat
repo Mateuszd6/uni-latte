@@ -1,0 +1,14 @@
+int main()
+{
+    string hello = "hello";
+    string world = "world";
+    string empty = "";
+    string single_space = " ";
+    string exclem = "!";
+
+    printString("This is Latte");
+    printString(world);
+    printString(hello + single_space + empty + world + empty + exclem);
+
+    return 0;
+}

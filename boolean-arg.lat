@@ -1,0 +1,15 @@
+int tricky(boolean b)
+{
+    return 15;
+}
+
+int main()
+{
+    boolean a;
+    boolean b;
+    int i = tricky(a || b);
+
+    tricky(a);
+
+    return i;
+}

@@ -1,0 +1,21 @@
+void foobar(boolean b)
+{
+    foobar(b);
+
+    return;
+}
+
+int main()
+{
+    boolean a;
+    boolean b;
+    boolean c;
+
+    foobar(a || (b && c));
+
+    return 0;
+
+    // c = !(a || !b); // (!a && b)
+
+    // return 1 + main();
+}
