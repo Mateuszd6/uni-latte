@@ -13,6 +13,8 @@
 // TODO: Create a test in which boolean func params are evaluated correctly
 // TODO: Don't emit jumping code, when condition is constant
 // TODO: Check if variables get correct numbers in nested blocks
+// TODO: Make NOREACH IR instruction and emit a single ret with this comment
+//       there? Or remove appending the 'ret' at the end?
 //
 
 // Disable leak checking for asan in debug mode

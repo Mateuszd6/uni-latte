@@ -69,10 +69,6 @@ gen_func_epilogue(i32 n_locals)
     fprintf(asm_dest, "    pop     rbp\n");
 }
 
-//
-// TODO: Evaluate
-//
-
 static void
 gen_codefor_const(char* buf, i64 constant)
 {
@@ -101,6 +97,7 @@ static void
 gen_get_address_of(char* buf, ir_val* v, i32 n_locals)
 {
     switch (v->type) {
+    case IRVT_FNPARAM: // TODO: Treat them separately
     case IRVT_VAR:
     {
         gen_codefor_local_variable(buf, v->u.constant);
@@ -118,17 +115,12 @@ gen_get_address_of(char* buf, ir_val* v, i32 n_locals)
         NOTREACHED; // TODO
     } break;
     case IRVT_NONE:
-    case IRVT_FNPARAM:
     case IRVT_FN:
     {
         NOTREACHED; // Should not reach, TODO?
     } break;
     }
 }
-
-//
-// TODO: endof: Evaluate
-//
 
 static void
 gen_simple_op(x64_reg r, ir_val* v, char const* op, i32 n_locals) // TODO: replace n_locals with ctx
@@ -212,6 +204,7 @@ gen_sub(ir_quadr* q, i32 n_locals)
     gen_arithm_bin(q, "sub", n_locals);
 }
 
+// TODO: Use LEA for faster constant multiplication
 static void
 gen_mul(ir_quadr* q, i32 n_locals)
 {
@@ -244,6 +237,22 @@ gen_or(ir_quadr* q, i32 n_locals)
     gen_arithm_bin(q, "or ", n_locals);
 }
 
+static void
+gen_not(ir_quadr* q, i32 n_locals)
+{
+    // TODO: Instead of loading to RDX test can be alredy performed on the
+    //       allocated register if that is the case
+
+    gen_load(RDX, q->u.args + 0, n_locals);
+
+    fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
+    fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[RDX], x64_reg_name[RDX]);
+    fprintf(asm_dest, "    sete    al\n"); // TODO: Name of the bottom parts of regs
+
+    // TODO: Same case wil allocated register, probably not needed
+    gen_store(&q->target, RAX, n_locals);
+}
+
 static mm
 count_locals(ir_quadr* ir)
 {
@@ -253,6 +262,7 @@ count_locals(ir_quadr* ir)
         if (ir[i].target.type == IRVT_VAR)
             retval = MAX(retval, ir[i].target.u.reg_id);
     }
+
 
     return retval + 1;
 }
@@ -303,6 +313,9 @@ gen_glob_func(u32 f_id)
             gen_or(&q, (i32)n_locals);
         } break;
         case NOT:
+        {
+            gen_not(&q, (i32)n_locals);
+        } break;
         case CMP_LTH:
         case CMP_LE:
         case CMP_GTH:
@@ -347,7 +360,8 @@ gen_glob_func(u32 f_id)
         } break;
         case RET:
         {
-            gen_load(RAX, ir[i].u.args + 0, (i32)n_locals);
+            if (ir[i].u.args[0].type != IRVT_NONE)
+                gen_load(RAX, ir[i].u.args + 0, (i32)n_locals);
 
             gen_func_epilogue((i32)n_locals);
             fprintf(asm_dest, "    ret\n");

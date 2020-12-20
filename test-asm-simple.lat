@@ -4,7 +4,7 @@ int main()
     int f = 17;
 
     boolean b, c;
-    b && c;
+    c = !b;
 
     return f / v;
 }
