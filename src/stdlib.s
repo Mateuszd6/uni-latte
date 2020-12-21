@@ -4,6 +4,7 @@
 ;;
 extern _start, printf, puts, exit, scanf, stdin, strlen, getline
 
+SECTION .TEXT
 .LC0:
     db "%d",0xA,0x0
 .GF0: ; printInt
@@ -26,7 +27,7 @@ extern _start, printf, puts, exit, scanf, stdin, strlen, getline
     call    exit ; tailcall
 
 .LC2:
-    db "%d"
+    db "%d",0x0
 .GF3: ; readInt
     sub     rsp, 24
     mov     rdi, .LC2
@@ -49,9 +50,9 @@ extern _start, printf, puts, exit, scanf, stdin, strlen, getline
     mov     rbx, QWORD [rsp]
     mov     rdi, rbx
     call    strlen
-    cmp     byte [rbx+rax-1], 10
+    cmp     BYTE [rbx+rax-1], 10
     jne     .GF4_L0
-    mov     byte [rbx+rax-1], 0
+    mov     BYTE [rbx+rax-1], 0
 .GF4_L0:
     mov     rax, QWORD [rsp]
     add     rsp, 16

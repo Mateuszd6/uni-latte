@@ -1,10 +1,13 @@
 int main()
 {
-    int v = 5;
-    int f = 17;
+    string spc = " ";
+    string s1 = "hello";
+    string s2 = "there";
+    string s3 = "handsome";
+    string s4 = "!";
 
-    boolean b, c;
-    c = !b;
+    string hello_word = s1 + s2;
+    printString(hello_word);
 
-    return f / v;
+    return 0;
 }

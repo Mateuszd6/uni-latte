@@ -5,6 +5,19 @@
 // super aware when interacting with C)
 //
 
+enum compar_op
+{
+    COP_EQ = 0,
+    COP_NE = 1,
+    COP_L = 2,
+    COP_G = 3,
+    COP_LE = 4,
+    COP_GE = 5,
+};
+typedef enum compar_op compar_op;
+
+static char const* compar_op_name[] = { "e ", "ne", "l ", "g ", "le", "ge", };
+
 enum x64_reg
 {
     // Internal - used for arithmetic operations & frame magagement
@@ -42,8 +55,9 @@ static char const* x64_reg_name[] =
 #define PROGRAM_ENTRY_POINT                                                    \
     "_start:\n"                                                                \
     "    call    .GF%d ; main\n"                                               \
-    "    mov     rdi, rax ; TODO: Should be 0 (or xor), but just for testing\n" \
-    "    jmp     exit ; tailcall\n"
+    "    mov     rdi, rax\n"                                                   \
+    "    jmp     exit ; tailcall\n"                                            \
+    "\n"
 
 static void
 gen_entry_point(i32 main_f_id)
@@ -94,6 +108,12 @@ gen_codefor_temp_variable(char* buf, i64 temp_id, i32 n_locals)
 }
 
 static void
+gen_codefor_data_segment(char* buf, char const* seg, i64 constant)
+{
+    sprintf(buf, "%s%ld", seg, constant);
+}
+
+static void
 gen_get_address_of(char* buf, ir_val* v, i32 n_locals)
 {
     switch (v->type) {
@@ -112,7 +132,8 @@ gen_get_address_of(char* buf, ir_val* v, i32 n_locals)
     } break;
     case IRVT_STRCONST:
     {
-        NOTREACHED; // TODO
+        // Offset to the string in the .DATA segment
+        gen_codefor_data_segment(buf, ".BS", v->u.constant);
     } break;
     case IRVT_NONE:
     case IRVT_FN:
@@ -249,8 +270,84 @@ gen_not(ir_quadr* q, i32 n_locals)
     fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[RDX], x64_reg_name[RDX]);
     fprintf(asm_dest, "    sete    al\n"); // TODO: Name of the bottom parts of regs
 
-    // TODO: Same case wil allocated register, probably not needed
+    // TODO: Same case: if allocated register probably not needed, need to xor
+    // different reg though
     gen_store(&q->target, RAX, n_locals);
+}
+
+static void
+gen_compare(ir_quadr* q, compar_op op, i32 n_locals)
+{
+    // TODO: Instead of loading to RDX test can be alredy performed on the
+    //       allocated register if that is the case
+
+    // Here RDX gets loaded with the second operand, first _can_ be in memory,
+    // THE ORDER MATTERS, otherwise we would have to swap the comparison
+    // operator (swap != negate, so <= becomes >=)
+
+    char buf[64];
+    gen_get_address_of(buf, q->u.args + 0, n_locals);
+
+    gen_load(RDX, q->u.args + 1, n_locals);
+
+    fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
+    fprintf(asm_dest, "    cmp     %s, %s\n", buf, x64_reg_name[RDX]);
+    fprintf(asm_dest, "    set%s   al\n", compar_op_name[op]); // TODO: Name of the bottom parts of regs
+
+    // TODO: Same case: if allocated register probably not needed, need to xor
+    // different reg though
+    gen_store(&q->target, RAX, n_locals);
+}
+
+// TODO: gen jump, extract from code to JMP
+
+static void
+gen_label(ir_quadr* q)
+{
+    fprintf(asm_dest, ".L%ld:\n", q->u.args[0].u.constant);
+}
+
+static void
+gen_jump(ir_quadr* q)
+{
+    fprintf(asm_dest, "    jmp     .L%ld\n", q->u.args[0].u.constant);
+}
+
+static void
+gen_conditional_jump(ir_quadr* q, b32 is_negated, i32 n_locals)
+{
+    // TODO: Instead of loading to RAX test can be alredy performed on the
+    //       allocated register if that is the case
+
+    gen_load(RAX, q->u.args + 0, n_locals);
+    fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
+    fprintf(asm_dest, "    j%s     .L%ld\n",
+            is_negated ? "e " : "ne", q->u.args[1].u.constant);
+
+    // yes, it's JE if is_negated, becasue you test against 0, which means false
+}
+
+static void
+gen_param(ir_quadr* q, i32 n_locals)
+{
+    char buf[64];
+    gen_get_address_of(buf, q->u.args + 0, n_locals);
+
+    fprintf(asm_dest, "    push    QWORD %s\n", buf);
+}
+
+static void
+gen_call(ir_quadr* q)
+{
+    if (q->u.args[0].type == IRVT_FN)
+    {
+        fprintf(asm_dest, "    call    .GF%ld\n", q->u.args[0].u.constant);
+    }
+    else
+    {
+        // TODO: Something else for local functions
+        NOTREACHED; // TODO
+    }
 }
 
 static mm
@@ -262,7 +359,6 @@ count_locals(ir_quadr* ir)
         if (ir[i].target.type == IRVT_VAR)
             retval = MAX(retval, ir[i].target.u.reg_id);
     }
-
 
     return retval + 1;
 }
@@ -280,6 +376,7 @@ gen_glob_func(u32 f_id)
     {
         ir_quadr q = ir[i];
         switch(q.op) {
+
         case MOV:
         {
             gen_mov(&q, (i32)n_locals);
@@ -316,47 +413,63 @@ gen_glob_func(u32 f_id)
         {
             gen_not(&q, (i32)n_locals);
         } break;
+
         case CMP_LTH:
+        {
+            gen_compare(&q, COP_L, (i32)n_locals);
+        } break;
         case CMP_LE:
+        {
+            gen_compare(&q, COP_LE, (i32)n_locals);
+        } break;
         case CMP_GTH:
+        {
+            gen_compare(&q, COP_G, (i32)n_locals);
+        } break;
         case CMP_GE:
+        {
+            gen_compare(&q, COP_GE, (i32)n_locals);
+        } break;
         case CMP_EQ:
+        {
+            gen_compare(&q, COP_EQ, (i32)n_locals);
+        } break;
         case CMP_NEQ:
+        {
+            gen_compare(&q, COP_NE, (i32)n_locals);
+        } break;
+
         case STR_EQ:
         case STR_NEQ:
+        case STR_ADD:
         {
             // TODO
         } break;
 
         case LABEL:
         {
-            fprintf(asm_dest, ".L%ld:\n", ir[i].u.args[0].u.constant);
+            gen_label(&q);
         } break;
         case JMP:
         {
-            fprintf(asm_dest, "    jmp     .L%ld\n", ir[i].u.args[0].u.constant);
+            gen_jump(&q);
         } break;
+        case JMP_TRUE:
+        {
+            gen_conditional_jump(&q, 0, (i32)n_locals);
+        } break;
+        case JMP_FALSE:
+        {
+            gen_conditional_jump(&q, 1, (i32)n_locals);
+        } break;
+
         case PARAM:
         {
-            if (ir[i].u.args[0].type == IRVT_CONST)
-            {
-                fprintf(asm_dest, "    push    %ld\n", ir[i].u.args[0].u.constant);
-            }
-            else
-            {
-                // TODO
-            }
+            gen_param(&q, (i32)n_locals);
         } break;
         case CALL:
         {
-            if (ir[i].u.args[0].type == IRVT_FN)
-            {
-                fprintf(asm_dest, "    call    .GF%ld\n", ir[i].u.args[0].u.constant);
-            }
-            else
-            {
-                // TODO
-            }
+            gen_call(&q);
         } break;
         case RET:
         {
@@ -370,11 +483,8 @@ gen_glob_func(u32 f_id)
         case SUBSCR:
         case ARR_LEN:
         case ALLOC:
-        case STR_ADD:
-        case JMP_TRUE:
-        case JMP_FALSE:
         {
-            // TODO
+            // TODO:
         } break;
         }
     }

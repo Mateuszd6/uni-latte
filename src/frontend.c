@@ -1333,13 +1333,10 @@ process_jumping_expr(ir_quadr** ir,
         IR_PUSH(IR_EMPTY(), LABEL, labl_true);
 
         processed_expr pe = process_expr(e->u.expr, ir);
-        ir_val comparison_result = IR_NEXT_TEMP_REGISTER();
-        ir_val comparison_const = { .type = IRVT_CONST, .u = { .constant = 1 } };
         ir_val t_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_true } };
         ir_val f_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_false } };
 
-        IR_PUSH(comparison_result, CMP_EQ, pe.val, comparison_const);
-        IR_PUSH(IR_EMPTY(), e->reversed ? JMP_FALSE : JMP_TRUE, comparison_result, t_label);
+        IR_PUSH(IR_EMPTY(), e->reversed ? JMP_FALSE : JMP_TRUE, pe.val, t_label);
         IR_PUSH(IR_EMPTY(), JMP, f_label);
     } break;
 

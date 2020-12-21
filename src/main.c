@@ -3,7 +3,9 @@
 // TODO: Create "p" registers for func params
 // TODO: Reverse the evaluation of params
 //
-// TODO: Think about "a" registers
+// TODO: Add explicite LOAD/STORE for writing to arrays and class members
+// TODO: Add IRVT for local functions
+// TODO: Write builtin functions for adding and comparing strings
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 // TODO: Sometimes remove lhs from CALL ??
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
@@ -15,6 +17,13 @@
 // TODO: Check if variables get correct numbers in nested blocks
 // TODO: Make NOREACH IR instruction and emit a single ret with this comment
 //       there? Or remove appending the 'ret' at the end?
+// TODO: Optimize:
+//
+//       t_2 = CMP_LTH v_0 v_1
+//       JMP_TRUE t_2 LAB ; t_2 is last time alive
+//
+//       CMP v_1 v_1
+//       JMP_FLAGS_LTH LAB
 //
 
 // Disable leak checking for asan in debug mode
@@ -194,6 +203,13 @@ main(int argc, char** argv)
     }
 
     gen_entry_point((i32)main_id);
+
+    // TODO: extract to gen_constants:
+    fprintf(asm_dest, "SECTION .DATA\n");
+    for (mm i = 0, size = array_size(g_str_consts); i < size; ++i)
+    {
+        fprintf(asm_dest, ".BS%ld:\n    db \"%s\",0x0\n", i, g_str_consts[i].data);
+    }
 
     fclose(asm_dest);
 #if DUMP_IR
