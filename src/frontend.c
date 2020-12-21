@@ -185,12 +185,12 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     return retval;
 }
 
-static i32 next_block_id = 1;
+static i32 g_next_block_id = 1;
 static inline i32
 push_block(void)
 {
     array_push(g_local_symbols, 0); // null is used to makr that the block ends
-    return next_block_id++;
+    return g_next_block_id++;
 }
 
 static inline void
@@ -950,11 +950,17 @@ process_expr(Expr e, ir_quadr** ir)
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 1;
 
-        // TODO: Not exactly var_id, b/c we have other "variables", which are
-        //       not stack allicated, like function params, and class members
-        // TODO: Macro to create a variable?
-        ir_val val = IR_LOCAL_VARIABLE(var_id);
-        retval.val = val;
+        // TODO: Class members
+        if (var.block_id == 1) // Func param TODO: Constant
+        {
+            ir_val val = IR_FUNC_PARAM(var_id);
+            retval.val = val;
+        }
+        else // Regular, local variable
+        {
+            ir_val val = IR_LOCAL_VARIABLE(var_id);
+            retval.val = val;
+        }
 
         return retval;
     }
@@ -1806,6 +1812,7 @@ static void
 process_func_body(char* fnname, Block b, void* node)
 {
     g_temp_reg = 1;
+    g_next_block_id = 1;
 
     u32 f_id = symbol_resolve_func(fnname, node);
     assert(f_id != FUNCID_NOTFOUND); // Already added

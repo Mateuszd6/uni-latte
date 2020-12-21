@@ -39,13 +39,19 @@ gen_codefor_other_reg(char* buf, x64_reg r)
 static void
 gen_codefor_local_variable(char* buf, i64 var_id)
 {
-    sprintf(buf, "[rbp-%ld]", 8 * (var_id + 1));
+    sprintf(buf, "QWORD [rbp-%ld]", 8 * (var_id + 1));
+}
+
+static void
+gen_codefor_fun_param(char* buf, i64 var_id)
+{
+    sprintf(buf, "QWORD [rbp+%ld]", 8 * (var_id + 2));
 }
 
 static void
 gen_codefor_temp_variable(char* buf, i64 temp_id, i32 n_locals)
 {
-    sprintf(buf, "[rbp-%ld]", 8 * (n_locals + temp_id));
+    sprintf(buf, "QWORD [rbp-%ld]", 8 * (n_locals + temp_id));
 }
 
 static void
@@ -58,10 +64,13 @@ static void
 gen_get_address_of(char* buf, ir_val* v, i32 n_locals)
 {
     switch (v->type) {
-    case IRVT_FNPARAM: // TODO: Treat them separately
     case IRVT_VAR:
     {
         gen_codefor_local_variable(buf, v->u.constant);
+    } break;
+    case IRVT_FNPARAM:
+    {
+        gen_codefor_fun_param(buf, v->u.constant);
     } break;
     case IRVT_TEMP:
     {
@@ -126,7 +135,7 @@ gen_store_const(ir_val* v, u64 constant, i32 n_locals)
 {
     char buf[64];
     gen_get_address_of(buf, v, n_locals);
-    fprintf(asm_dest, "    mov     QWORD %s, %lu\n", buf, constant);
+    fprintf(asm_dest, "    mov     %s, %lu\n", buf, constant);
 }
 
 static void
@@ -174,14 +183,19 @@ gen_mul(ir_quadr* q, i32 n_locals)
 }
 
 static void
-gen_div_or_mul(ir_quadr* q, b32 take_reminder, i32 n_locals)
+gen_div_or_mod(ir_quadr* q, b32 take_reminder, i32 n_locals)
 {
+    //
+    // TODO: This is incorrect if RCX register is not free!!!!!
+    //
+
     char buf[64];
     gen_get_address_of(buf, q->u.args + 1, n_locals);
 
     gen_load(RAX, q->u.args + 0, n_locals);
+    fprintf(asm_dest, "    mov     %s, %s\n", x64_reg_name[RCX], buf);
     fprintf(asm_dest, "    cqo\n");
-    fprintf(asm_dest, "    idiv    QWORD %s\n", buf);
+    fprintf(asm_dest, "    idiv    %s\n", x64_reg_name[RCX]);
 
     // RAX for divider, RDX for reminder:
     gen_store(&q->target, take_reminder ? RDX : RAX, n_locals);
@@ -274,15 +288,21 @@ gen_param(ir_quadr* q, i32 n_locals)
     char buf[64];
     gen_get_address_of(buf, q->u.args + 0, n_locals);
 
-    fprintf(asm_dest, "    push    QWORD %s\n", buf);
+    fprintf(asm_dest, "    push    %s\n", buf);
 }
 
 static void
-gen_call(ir_quadr* q)
+gen_call(ir_quadr* q, i32 n_locals)
 {
     if (q->u.args[0].type == IRVT_FN)
     {
         fprintf(asm_dest, "    call    .GF%ld\n", q->u.args[0].u.constant);
+        fprintf(asm_dest, "    add     rsp, %d ; cleanup\n",
+                8 * g_funcs[q->u.args[0].u.constant].num_args);
+
+        // If function returns something, write it to the result
+        if (q->target.type != IRVT_NONE)
+            gen_store(&q->target, RAX, n_locals);
     }
     else
     {
@@ -309,7 +329,6 @@ gen_glob_func(u32 f_id)
 {
     ir_quadr* ir = g_funcs[f_id].code;
     char* fname = g_funcs[f_id].name;
-    // i32 n_args = g_funcs[f_id].num_args;
     mm n_locals = count_locals(ir);
     gen_func_prologue((i32)f_id, (i32)n_locals, fname);
 
@@ -336,11 +355,11 @@ gen_glob_func(u32 f_id)
         } break;
         case DIV:
         {
-            gen_div_or_mul(&q, 0, (i32)n_locals);
+            gen_div_or_mod(&q, 0, (i32)n_locals);
         } break;
         case MOD:
         {
-            gen_div_or_mul(&q, 1, (i32)n_locals);
+            gen_div_or_mod(&q, 1, (i32)n_locals);
         } break;
         case AND:
         {
@@ -410,7 +429,7 @@ gen_glob_func(u32 f_id)
         } break;
         case CALL:
         {
-            gen_call(&q);
+            gen_call(&q, (i32)n_locals);
         } break;
         case RET:
         {

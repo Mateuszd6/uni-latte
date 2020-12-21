@@ -1,19 +1,14 @@
-void printManyStrings(string s1, string s2)
+void foobar()
 {
-    printString(s1);
-    printString(s2);
 }
+
+int dosomething() { return 1; }
+
 
 int main()
 {
-    string spc = " ";
-    string s1 = "hello";
-    string s2 = "there";
-    string s3 = "handsome";
-    string s4 = "!";
-
-    string hello_word = s1 + s2;
-    printManyStrings(hello_word, s3);
+    foobar();
+    int i = dosomething();
 
     return 0;
 }

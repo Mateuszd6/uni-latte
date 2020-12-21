@@ -216,6 +216,9 @@ static void check_class_funcs(Program p);
 #define IR_LOCAL_VARIABLE(VAR_ID)                                              \
     { .type = IRVT_VAR, .u = { .reg_id = VAR_ID } }
 
+#define IR_FUNC_PARAM(VAR_ID)                                                  \
+    { .type = IRVT_FNPARAM, .u = { .reg_id = VAR_ID } }
+
 #define IR_NEXT_TEMP_REGISTER()                                                \
     { .type = IRVT_TEMP, .u = { .reg_id = g_temp_reg++ } }
 

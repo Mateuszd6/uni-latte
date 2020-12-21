@@ -1,6 +1,5 @@
 //
 // TODO: Create "p" registers for func params
-// TODO: Reverse the evaluation of params
 //
 // TODO: Reuse vars which are out-of-scope
 //
@@ -207,7 +206,6 @@ main(int argc, char** argv)
     gen_entry_point((i32)main_id);
 
     // TODO: extract to gen_constants:
-    fprintf(asm_dest, "SECTION .DATA\n");
     for (mm i = 0, size = array_size(g_str_consts); i < size; ++i)
     {
         fprintf(asm_dest, ".BS%ld:\n    db \"%s\",0x0\n", i, g_str_consts[i].data);
