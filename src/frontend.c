@@ -355,15 +355,34 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
     // evaluating params from the second arg. Error messages needs to be
     // adjusted to this hack!
     i32 n_given_args = 0 + !!fun->is_local;
-
+    Expr* arg_rev_exprs = 0;
     struct { ListExpr listexpr_; } expr_list;
     expr_list.listexpr_ = arg_exprs;
     LIST_FOREACH(it, expr_list, listexpr_)
     {
+        array_push(arg_rev_exprs, it->expr_);
+    }
+
+    // Reverse the arg array
+    mm n_given = array_size(arg_rev_exprs);
+    mm first = 0;
+    mm last = n_given - 1;
+    while (first < last)
+    {
+        Expr temp = arg_rev_exprs[first];
+        arg_rev_exprs[first] = arg_rev_exprs[last];
+        arg_rev_exprs[last] = temp;
+        first++;
+        last--;
+    }
+
+    for (mm i = 0, size = n_given; i < size; ++i)
+    {
         if (LIKELY(n_given_args < fun->num_args)) // if not too many args given
         {
-            Expr argexpr = it->expr_;
-            u32 expected_type_id = fun->args[n_given_args].type_id;
+            Expr argexpr = arg_rev_exprs[i];
+            u32 expected_type_id = fun->args[
+                array_size(fun->args) - n_given_args - 1 + !!fun->is_local].type_id;
             u32 got_type_id;
 
             if (!expr_requires_jumping_code(argexpr))
@@ -422,6 +441,8 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                 got_type_id = TYPEID_BOOL;
             }
 
+            // TODO: Incorrect, because now we evaludate args backward
+#if 1
             if (got_type_id != expected_type_id) // TODO(ex): Handle inheritance
             {
                 d_type t_expected = g_types[TYPEID_UNMASK(expected_type_id)];
@@ -429,12 +450,17 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
 
                 error(get_lnum(argexpr),
                       "Function \"%s\" expects argument %d to have a type \"%s\"",
-                      fun->name, n_given_args + 1 - !!(fun->is_local), t_expected.name);
+                      fun->name,
+                      n_given_args + 1 - !!(fun->is_local),
+                      t_expected.name);
 
                 note(get_lnum(argexpr),
-                     "Given expression of type \"%s\", which is not assignable to type \"%s\"",
-                     t_provided.name, t_expected.name);
+                     "Given expression of type \"%s\", "
+                     "which is not assignable to type \"%s\"",
+                     t_provided.name,
+                     t_expected.name);
             }
+#endif
         }
 
         n_given_args++;
@@ -450,12 +476,13 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
               n_given_args - !!fun->is_local,
               (fun->num_args - !!fun->is_local) != 1 ? "were" : "was");
 
-
         if (fun - g_funcs > FUNCID_LAST_BUILTIN_FUNC)
             note(fun->lnum, "Function \"%s\" defined here", fun->name);
         else
             note(0, "\"%s\" is a builtin function", fun->name);
     }
+
+    array_free(arg_rev_exprs);
 }
 
 static processed_expr

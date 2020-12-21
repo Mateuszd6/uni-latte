@@ -1,7 +1,8 @@
 //
-// TODO: Reuse vars which are out-of-scope
 // TODO: Create "p" registers for func params
 // TODO: Reverse the evaluation of params
+//
+// TODO: Reuse vars which are out-of-scope
 //
 // TODO: Add explicite LOAD/STORE for writing to arrays and class members
 // TODO: Add IRVT for local functions
@@ -47,6 +48,7 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include "lib/hashmap.h"
 
 #include "absyn.h"
+#include "codegen.h"
 #include "frontend.h"
 #include "misc.h"
 #include "parser.h"

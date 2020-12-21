@@ -1,3 +1,9 @@
+void printManyStrings(string s1, string s2)
+{
+    printString(s1);
+    printString(s2);
+}
+
 int main()
 {
     string spc = " ";
@@ -7,7 +13,7 @@ int main()
     string s4 = "!";
 
     string hello_word = s1 + s2;
-    printString(hello_word);
+    printManyStrings(hello_word, s3);
 
     return 0;
 }
