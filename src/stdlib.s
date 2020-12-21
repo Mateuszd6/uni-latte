@@ -2,7 +2,67 @@
 ;; This already extern's all the libc functions Latte relies on, so no linking
 ;; using gcc will be needed
 ;;
-extern _start, printf, puts, exit, scanf, stdin, strlen, getline
+extern _start, printf, puts, exit, scanf, stdin, strcat, strcmp, strlen, getline, malloc
+
+.BF0: ; strCompare
+    push    rbp
+    mov     rbp, rsp
+    ;; First param in our ABI
+    mov     rdi, QWORD [rbp+16]
+    ;; Second param in our ABI
+    mov     rsi, QWORD [rbp+24]
+    ;; Null string is the same as "", so nullcheck, BS0 is an empty string
+    mov     rax, QWORD .BS0
+    test    rdi, rdi
+    cmove   rdi, rax
+    ;; Same for second string
+    test    rsi, rsi
+    cmove   rsi, rax
+    ;; Now compare two strings
+    call    strcmp
+    ;; Return 1 if strcmp returned 0, which means equal
+    test    eax, eax
+    sete    al
+    movzx   eax, al
+    pop     rbp
+    ret
+
+.BF1: ; strAdd
+    push    rbp
+    mov     rbp, rsp
+    push    r15
+    push    r14
+    push    r12
+    push    rbx
+    mov     r14, rdi
+    test    rdi, rdi
+    mov     rax, .BS0
+    cmove   r14, rax
+    mov     r12, rsi
+    test    rsi, rsi
+    cmove   r12, rax
+    mov     rdi, r14
+    call    strlen
+    mov     r15, rax
+    mov     rdi, r12
+    call    strlen
+    add     eax, r15d
+    add     eax, 1
+    movsxd  rdi, eax
+    call    malloc
+    mov     rbx, rax
+    mov     BYTE [rax], 0
+    mov     rdi, rax
+    mov     rsi, r14
+    call    strcat
+    mov     rdi, rbx
+    mov     rsi, r12
+    pop     rbx
+    pop     r12
+    pop     r14
+    pop     r15
+    pop     rbp
+    jmp     strcat ; TODO: remove tailcall
 
 .LC0:
     db "%d",0xA,0x0
@@ -23,6 +83,11 @@ extern _start, printf, puts, exit, scanf, stdin, strlen, getline
     mov     rbp, rsp
     ;; First param in our ABI
     mov     rdi, QWORD [rbp+16]
+    ;; Null string is the same as "", so nullcheck, BS0 is an empty string
+    mov     rax, QWORD .BS0
+    test    rdi, rdi
+    cmove   rdi, rax
+    ;;
     call    puts
     pop     rbp
     ret

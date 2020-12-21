@@ -1,5 +1,5 @@
 //
-// TODO: Create "p" registers for func params
+// TODO: strCmp and strAdd cleanup and tests!
 //
 // TODO: Reuse vars which are out-of-scope
 //
