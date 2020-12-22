@@ -17,6 +17,9 @@
 // TODO: Check if variables get correct numbers in nested blocks
 // TODO: Make NOREACH IR instruction and emit a single ret with this comment
 //       there? Or remove appending the 'ret' at the end?
+// BUG: Print strings seems to have a return type (in ir)
+// BUG: String constant is emmited more than once. Unused constants are still
+//      emmited (but who cares)?
 // TODO: Optimize:
 //
 //       t_2 = CMP_LTH v_0 v_1

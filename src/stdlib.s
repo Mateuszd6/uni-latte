@@ -4,7 +4,7 @@
 ;;
 extern _start, printf, puts, exit, scanf, stdin, strcat, strcmp, strlen, getline, malloc
 
-.BF0: ; strCompare
+.BF0: ; strCmp
     push    rbp
     mov     rbp, rsp
     ;; First param in our ABI
@@ -30,39 +30,55 @@ extern _start, printf, puts, exit, scanf, stdin, strcat, strcmp, strlen, getline
 .BF1: ; strAdd
     push    rbp
     mov     rbp, rsp
-    push    r15
-    push    r14
     push    r12
-    push    rbx
+    push    r13
+    push    r14
+    push    r15
+    ;; First param in our ABI
+    mov     rdi, QWORD [rbp+16]
+    ;; Second param in our ABI
+    mov     rsi, QWORD [rbp+24]
+    mov     rax, QWORD .BS0
+    ;; Null string is the same as "", so nullcheck, BS0 is an empty string
     mov     r14, rdi
     test    rdi, rdi
-    mov     rax, .BS0
     cmove   r14, rax
-    mov     r12, rsi
+    ;; Same for second string
+    mov     r13, rsi
     test    rsi, rsi
-    cmove   r12, rax
+    cmove   r13, rax
+    ;; r14 <- first string
+    ;; r13 <- second string
     mov     rdi, r14
     call    strlen
+    ;; r15 <- len of first string
     mov     r15, rax
-    mov     rdi, r12
+    mov     rdi, r13
     call    strlen
     add     eax, r15d
     add     eax, 1
+    ;; rax <- len of both strings + 1 (size of allocation)
     movsxd  rdi, eax
     call    malloc
-    mov     rbx, rax
+    ;; r12 <- allocated memory
+    mov     r12, rax
+    ;; Write 0 to the first byte of the buffer, so that we can strcat them
     mov     BYTE [rax], 0
     mov     rdi, rax
     mov     rsi, r14
+    ;; Concat first string
     call    strcat
-    mov     rdi, rbx
-    mov     rsi, r12
-    pop     rbx
-    pop     r12
-    pop     r14
+    mov     rdi, r12
+    mov     rsi, r13
+    ;; Concat second string
+    call    strcat
+    ;; strcat returns a pointer to the resulting string, so we are ok here
     pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
     pop     rbp
-    jmp     strcat ; TODO: remove tailcall
+    ret
 
 .LC0:
     db "%d",0xA,0x0

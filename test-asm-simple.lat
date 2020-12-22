@@ -1,14 +1,10 @@
-void foobar()
+int
+main()
 {
-}
-
-int dosomething() { return 1; }
-
-
-int main()
-{
-    foobar();
-    int i = dosomething();
+    string x = "foo " + "bar ";
+    printString(x);
+    string y = "bar " + "scoo ";
+    printString(x + y);
 
     return 0;
 }

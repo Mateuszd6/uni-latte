@@ -254,7 +254,40 @@ gen_compare(ir_quadr* q, compar_op op, i32 n_locals)
     gen_store(&q->target, RAX, n_locals);
 }
 
-// TODO: gen jump, extract from code to JMP
+static void
+get_str_cmp(ir_quadr* q, compar_op op, i32 n_locals)
+{
+    char buf1[64];
+    char buf2[64];
+    gen_get_address_of(buf1, q->u.args + 0, n_locals);
+    gen_get_address_of(buf2, q->u.args + 1, n_locals);
+
+    // TODO(NEXT): Test it, also negate if op is apropiate
+    fprintf(asm_dest, "    push    %s\n", buf2);
+    fprintf(asm_dest, "    push    %s\n", buf1);
+    fprintf(asm_dest, "    call    .BF0\n");
+    fprintf(asm_dest, "    add     rsp, 16 ; cleanup\n"); // Cleanup 2 args
+
+    // TODO: Same case: if allocated register probably not needed, need to xor
+    // different reg though
+    gen_store(&q->target, RAX, n_locals);
+}
+
+static void
+get_str_add(ir_quadr* q, i32 n_locals)
+{
+    char buf1[64];
+    char buf2[64];
+    gen_get_address_of(buf1, q->u.args + 0, n_locals);
+    gen_get_address_of(buf2, q->u.args + 1, n_locals);
+
+    fprintf(asm_dest, "    push    %s\n", buf2);
+    fprintf(asm_dest, "    push    %s\n", buf1);
+    fprintf(asm_dest, "    call    .BF1\n");
+    fprintf(asm_dest, "    add     rsp, 16 ; cleanup\n"); // Cleanup 2 args
+
+    gen_store(&q->target, RAX, n_locals);
+}
 
 static void
 gen_label(ir_quadr* q)
@@ -401,9 +434,12 @@ gen_glob_func(u32 f_id)
 
         case STR_EQ:
         case STR_NEQ:
+        {
+        } break;
+
         case STR_ADD:
         {
-            // TODO
+            get_str_add(&q, (i32)n_locals);
         } break;
 
         case LABEL:
