@@ -126,8 +126,9 @@ extern _start, printf, puts, exit, fgetc, getline, malloc, scanf, stdin, strcat,
 .GF3: ; readInt
     push    rbp
     mov     rbp, rsp
+    mov     rbx, 0
     push    rbx
-    push    rax
+    push    rbx
     ;; Address of a stack-allocated integer, that gets scanf'ed
     lea     rsi, [rbp - 12]
     mov     rdi, .LC2
