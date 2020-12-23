@@ -254,18 +254,27 @@ gen_compare(ir_quadr* q, compar_op op, i32 n_locals)
 }
 
 static void
-get_str_cmp(ir_quadr* q, compar_op op, i32 n_locals)
+gen_str_cmp(ir_quadr* q, compar_op op, i32 n_locals)
 {
     char buf1[64];
     char buf2[64];
     gen_get_address_of(buf1, q->u.args + 0, n_locals);
     gen_get_address_of(buf2, q->u.args + 1, n_locals);
 
-    // TODO(NEXT): Test it, also negate if op is apropiate
     fprintf(asm_dest, "    push    %s\n", buf2);
     fprintf(asm_dest, "    push    %s\n", buf1);
     fprintf(asm_dest, "    call    .BF0\n");
     fprintf(asm_dest, "    add     rsp, 16 ; cleanup\n"); // Cleanup 2 args
+
+    // If testing for non-equality, reverse the input.
+    // TODO: Use dest register instead of rax when taget is in reg
+    if (op == COP_NE)
+    {
+        fprintf(asm_dest, "    xor     edx, edx\n");
+        fprintf(asm_dest, "    test    eax, eax\n");
+        fprintf(asm_dest, "    sete    dl\n");
+        fprintf(asm_dest, "    mov     eax, edx\n");
+    }
 
     // TODO: Same case: if allocated register probably not needed, need to xor
     // different reg though
@@ -273,7 +282,7 @@ get_str_cmp(ir_quadr* q, compar_op op, i32 n_locals)
 }
 
 static void
-get_str_add(ir_quadr* q, i32 n_locals)
+gen_str_add(ir_quadr* q, i32 n_locals)
 {
     char buf1[64];
     char buf2[64];
@@ -432,13 +441,16 @@ gen_glob_func(u32 f_id)
         } break;
 
         case STR_EQ:
+        {
+            gen_str_cmp(&q, COP_EQ, (i32)n_locals);
+        } break;
         case STR_NEQ:
         {
+            gen_str_cmp(&q, COP_NE, (i32)n_locals);
         } break;
-
         case STR_ADD:
         {
-            get_str_add(&q, (i32)n_locals);
+            gen_str_add(&q, (i32)n_locals);
         } break;
 
         case LABEL:
