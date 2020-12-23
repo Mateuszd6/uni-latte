@@ -1489,12 +1489,6 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             processed_expr vval;
 
             mm var_id = array_size(g_vars);
-            d_var var;
-            var.lnum = get_lnum(i);
-            var.type_id = type_id;
-            var.block_id = cur_block_id;
-            push_var(var, vname, i);
-
             ir_val target_variable = IR_LOCAL_VARIABLE(var_id);
             switch (i->kind) {
             case is_NoInit:
@@ -1508,6 +1502,15 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
                 typecheck_assigning(type_id, &vval, i);
             } break;
             }
+
+            // HACK: This works, becasue evaluation the expression cannot create a new var
+            assert(var_id == array_size(g_vars));
+
+            d_var var;
+            var.lnum = get_lnum(i);
+            var.type_id = type_id;
+            var.block_id = cur_block_id;
+            push_var(var, vname, i);
         }
 
         retval.all_branches_return = 0;

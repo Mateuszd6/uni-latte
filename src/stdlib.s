@@ -3,7 +3,7 @@
 ;; using gcc will be needed. Writing it in C is not possible, because our
 ;; language does not use cdecl ABI so these would be incompatible.
 ;;
-extern _start, printf, puts, exit, scanf, stdin, strcat, strcmp, strlen, getline, malloc
+extern _start, printf, puts, exit, fgetc, getline, malloc, scanf, stdin, strcat, strcmp, strlen, ungetc, __ctype_b_loc
 
 .BF0: ; strCmp
     push    rbp
@@ -91,7 +91,11 @@ extern _start, printf, puts, exit, scanf, stdin, strcat, strcmp, strlen, getline
     ;; Variadic functions have number of sse args (0 here) in AX register
     xor     rax, rax
     mov     rdi, .LC0
+    ;; Saved stack ptr and align it to 16 byte boundary when calling C api
+    mov     r13, rsp
+    and     rsp, ~0xF
     call    printf
+    mov     rsp, r13
     pop     rbp
     ret
 
@@ -122,16 +126,44 @@ extern _start, printf, puts, exit, scanf, stdin, strcat, strcmp, strlen, getline
 .GF3: ; readInt
     push    rbp
     mov     rbp, rsp
-    sub     rsp, 24
-    mov     rdi, .LC2
-    ;; Variadic functions have number of sse args (0 here) in AX register
-    xor     rax, rax
+    push    rbx
+    push    rax
     ;; Address of a stack-allocated integer, that gets scanf'ed
-    lea     rsi, [rsp+12]
+    lea     rsi, [rbp - 12]
+    mov     rdi, .LC2
+    xor     rax, rax
+    ;; Saved stack ptr and align it to 16 byte boundary when calling C api
+    mov     r13, rsp
+    and     rsp, ~0xF
     call    scanf
-    ;; ... and then returned
-    mov     eax, DWORD [rsp+12]
-    add     rsp, 24
+    mov     rsp, r13
+.LBB0_1:
+    ;; Because latte is so underspecied and requires readInt to read a _single_
+    ;; int and readString an _entire_ line there are problems with calling
+    ;; readString after readInt (because scanf does not consule the '\n'). So we
+    ;; have to manually check if we are at the end of the line, and eat the newline
+    ;; character. OK, so we do:
+    mov     rdi, QWORD [rel stdin]
+    ;; Get a single character from the stream
+    call    fgetc
+    mov     ebx, eax
+    ;; Check if it is a whitespace. This code is procuced by pretty much every
+    ;; compiler from isspace()
+    call    __ctype_b_loc
+    mov     rax, QWORD [rax]
+    movsxd  rcx, ebx
+    test    BYTE [rax + 2*rcx + 1], 32
+    ;; If so, continue consuming
+    jne     .LBB0_1
+    mov     rsi, QWORD [rel stdin]
+    mov     edi, ebx
+    ;; Push the last character back to the stream (POSIX guarantees that it is
+    ;; always possible with 1 char)
+    call    ungetc
+    ;; Now returned the long-ago-scanf'ed int
+    mov     eax, DWORD [rbp - 12]
+    add     rsp, 8
+    pop     rbx
     pop     rbp
     ret
 
