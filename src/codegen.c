@@ -241,12 +241,11 @@ gen_compare(ir_quadr* q, compar_op op, i32 n_locals)
     // operator (swap != negate, so <= becomes >=)
 
     char buf[64];
-    gen_get_address_of(buf, q->u.args + 0, n_locals);
-
-    gen_load(RDX, q->u.args + 1, n_locals);
+    gen_load(RDX, q->u.args + 0, n_locals);
+    gen_get_address_of(buf, q->u.args + 1, n_locals);
 
     fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
-    fprintf(asm_dest, "    cmp     %s, %s\n", buf, x64_reg_name[RDX]);
+    fprintf(asm_dest, "    cmp     %s, %s\n", x64_reg_name[RDX], buf);
     fprintf(asm_dest, "    set%s   al\n", compar_op_name[op]); // TODO: Name of the bottom parts of regs
 
     // TODO: Same case: if allocated register probably not needed, need to xor

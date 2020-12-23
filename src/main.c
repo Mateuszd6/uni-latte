@@ -35,6 +35,8 @@ extern char const* __asan_default_options(void);
 extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #endif
 
+#include "gen/asm-prelude.h"
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -172,9 +174,14 @@ main(int argc, char** argv)
     if (!parse_tree)
         no_recover();
 
-    asm_dest = fopen(repl_extension(argv[1], ".lat", ".s"), "w");
+    char* asm_ext = repl_extension(argv[1], ".lat", ".s");
+    char* obj_ext = repl_extension(argv[1], ".lat", ".o");
+    char* binary_ext = repl_extension(argv[1], ".lat", "");
+
+    asm_dest = fopen(asm_ext, "w");
 #if DUMP_IR
-    ir_dest = fopen(repl_extension(argv[1], ".lat", ".ir"), "w");
+    char* ir_ext = repl_extension(argv[1], ".lat", ".ir");
+    ir_dest = fopen(ir_ext, "w");
 #endif
 
     define_primitives();
@@ -198,6 +205,9 @@ main(int argc, char** argv)
     }
 #endif
 
+    // TODO: Move somewhere
+    fwrite(gen_asm_prelude, 1, COUNT_OF(gen_asm_prelude) - 1, asm_dest);
+
     mm main_id = 0;
     for (mm i = FUNCID_LAST_BUILTIN_FUNC + 1, size = array_size(g_funcs); i < size; ++i)
     {
@@ -219,6 +229,25 @@ main(int argc, char** argv)
     fclose(ir_dest);
 #endif
 
+    if (strcmp(binary_ext, argv[1]) == 0)
+    {
+        // Just in case, we don't to mess with the input file
+        binary_ext = repl_extension(argv[1], ".lat", ".exe");
+    }
+
+    // Accept the input first, becasue nasm and ld may write something to stderr
     accept_input();
+
+    #define ASM_CMD "nasm -f elf64 -F dwarf -g %s -o %s"
+    #define LINK_CMD "ld -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o %s -lc %s"
+
+    char buf[4096];
+
+    sprintf(buf, ASM_CMD, asm_ext, obj_ext);
+    system(buf);
+
+    sprintf(buf, LINK_CMD, binary_ext, obj_ext);
+    system(buf);
+
     return 0;
 }

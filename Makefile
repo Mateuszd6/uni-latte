@@ -56,7 +56,7 @@ all: latc
 clean:
 	@-rm -rf ./outs ./obj ./cov latc
 
-latc: ${OBJS} src/*.c src/*.h
+latc: ${OBJS} src/*.c src/*.h src/gen/*
 	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc
 
 obj/%.o: src/%.c
@@ -70,6 +70,22 @@ src/lexer.c: src/latte.l
 src/parser.c: src/latte.y
 	${BISON} ${BISON_FLAGS} src/latte.y -o src/parser.c
 	${CFORMAT} ./src/parser.c
+
+src/gen/asm-prelude.h: ./src/stdlib.s
+	@echo "Generating gen/asm-prelude.h"
+	@echo -n "" > src/gen/asm-prelude.h
+	@echo "#ifndef ASM_PRELUDE_H_" >> src/gen/asm-prelude.h
+	@echo "#define ASM_PRELUDE_H_" >> src/gen/asm-prelude.h
+	@echo "" >> src/gen/asm-prelude.h
+	@echo "static char const gen_asm_prelude[] = " >> src/gen/asm-prelude.h
+	@cat ./src/stdlib.s \
+		| sed '/;;\(.*\)/d' \
+		| sed 's/\"/\\\"/g' \
+		| sed "s/.*/    \"&\\\n\"/" \
+		>> src/gen/asm-prelude.h
+	@echo ";" >> src/gen/asm-prelude.h
+	@echo "" >> src/gen/asm-prelude.h
+	@echo "#endif // ASM_PRELUDE_H_" >> src/gen/asm-prelude.h
 
 grammar:
 	${BNFC} ${BNFC_FLAGS} -o ./src/ ./src/latte.cf
@@ -117,8 +133,8 @@ validate: latc
 	@-./tests/validate.sh 2> /dev/null
 
 tempasm: latc
-	# ./latc test-asm-simple.lat
-	./latc ./error.lat && cp error.s test-asm-simple.s
+	./latc test-asm-simple.lat
+	# ./latc ./error.lat && cp error.s test-asm-simple.s
 	# ./latc ./core.lat && cp core.s test-asm-simple.s
 	cat ./src/stdlib.s test-asm-simple.s | sed '/;;\(.*\)/d' > temp.s
 	nasm -f elf64 -F dwarf -g temp.s -o temp.o
