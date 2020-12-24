@@ -217,7 +217,7 @@ array_dtl_fit(void** array_ptr, ptrdiff_t item_size);
        ? (ARRAY_ENOMEM)                                                        \
        : (memcpy((ARRAY) + array_dtl_get_size_and_incr((ARRAY), N),            \
                  (VALUES_PTR),                                                 \
-                 sizeof((ARRAY)[0]) * (N)),                                    \
+                 sizeof((ARRAY)[0]) * ((size_t)(N))),                          \
           0))
 
 #define array_pop(ARRAY)                                                       \

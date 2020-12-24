@@ -68,6 +68,7 @@ static FILE* ir_dest;
 #include "misc.c"
 #include "symtab.c"
 #include "frontend.c"
+#include "optim.c"
 
 #include "codegen.c"
 
@@ -119,52 +120,6 @@ usage(char* argv0)
     exit(1);
 }
 
-#if DUMP_IR
-
-// Write IR generated for the function
-static void
-dump_ir_for_function(u32 f_id)
-{
-    ir_quadr* ircode = g_funcs[f_id].code;
-    char* fname = g_funcs[f_id].name;
-
-    fprintf(ir_dest, "GLOBAL_FUNC_%u ; %s\n", f_id, fname);
-    for (mm i = 0, size = array_size(ircode); i < size; ++i)
-    {
-        if (ircode[i].op == LABEL)
-        {
-            // NOP
-        }
-        else if (ircode[i].target.type != IRVT_NONE)
-        {
-            fprintf(ir_dest, "    %s%ld = ",
-                    ir_val_type_name[ircode[i].target.type],
-                    ircode[i].target.u.reg_id); // TODO: OR CONSTANT?
-        }
-        else
-        {
-            fprintf(ir_dest, "    ");
-        }
-
-        fprintf(ir_dest, "%s", ir_op_name[ircode[i].op]);
-
-        for (mm a = 0; a < ir_op_n_args[ircode[i].op]; ++a)
-        {
-            if (ircode[i].u.args[a].type == IRVT_NONE)
-                fprintf(ir_dest, " _");
-            else
-                fprintf(ir_dest, " %s%ld",
-                        ir_val_type_name[ircode[i].u.args[a].type],
-                        ircode[i].u.args[a].u.reg_id);
-        }
-
-        fprintf(ir_dest, "\n");
-    }
-
-    fprintf(ir_dest, "\n");
-}
-#endif
-
 int
 main(int argc, char** argv)
 {
@@ -174,16 +129,6 @@ main(int argc, char** argv)
     Program parse_tree = parse_file(argv[1]);
     if (!parse_tree)
         no_recover();
-
-    char* asm_ext = repl_extension(argv[1], ".lat", ".s");
-    char* obj_ext = repl_extension(argv[1], ".lat", ".o");
-    char* binary_ext = repl_extension(argv[1], ".lat", "");
-
-    asm_dest = fopen(asm_ext, "w");
-#if DUMP_IR
-    char* ir_ext = repl_extension(argv[1], ".lat", ".ir");
-    ir_dest = fopen(ir_ext, "w");
-#endif
 
     define_primitives();
     add_classes(parse_tree);
@@ -199,31 +144,25 @@ main(int argc, char** argv)
     if (has_error)
         no_recover();
 
+    optimize();
+
+    char* asm_ext = repl_extension(argv[1], ".lat", ".s");
+    char* obj_ext = repl_extension(argv[1], ".lat", ".o");
+    char* binary_ext = repl_extension(argv[1], ".lat", "");
 #if DUMP_IR
-    for (mm i = FUNCID_LAST_BUILTIN_FUNC + 1, size = array_size(g_funcs); i < size; ++i)
-    {
-        dump_ir_for_function((u32)i);
-    }
+    char* ir_ext = repl_extension(argv[1], ".lat", ".ir");
 #endif
 
-    // TODO: Move somewhere
-    fwrite(gen_asm_prelude, 1, COUNT_OF(gen_asm_prelude) - 1, asm_dest);
+    asm_dest = fopen(asm_ext, "w");
+#if DUMP_IR
+    ir_dest = fopen(ir_ext, "w");
+#endif
 
-    mm main_id = 0;
-    for (mm i = FUNCID_LAST_BUILTIN_FUNC + 1, size = array_size(g_funcs); i < size; ++i)
-    {
-        gen_glob_func((u32)i);
-        if (strcmp(g_funcs[i].name, "main") == 0)
-            main_id = i;
-    }
+#if DUMP_IR
+    gen_ir();
+#endif
 
-    gen_entry_point((i32)main_id);
-
-    // TODO: extract to gen_constants:
-    for (mm i = 0, size = array_size(g_str_consts); i < size; ++i)
-    {
-        fprintf(asm_dest, ".BS%ld:\n    db \"%s\",0x0\n", i, g_str_consts[i].data);
-    }
+    gen_code();
 
     fclose(asm_dest);
 #if DUMP_IR
