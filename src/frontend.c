@@ -176,9 +176,7 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     s.data = new_string;
     s.len = s1.len + s2.len;
 
-    retval.u.str_const_id = array_size(g_str_consts);
-    array_push(g_str_consts, s);
-
+    retval.u.str_const_id = strconst_add(s);
     retval.val.type = IRVT_STRCONST;
     retval.val.u.constant = retval.u.str_const_id;
 
@@ -593,8 +591,7 @@ process_expr(Expr e, ir_quadr** ir)
     {
         char* data = e->u.elitstr_.string_;
         string_const c = { .data = data, .len = (mm)strlen(data) };
-        mm idx = array_size(g_str_consts);
-        array_push(g_str_consts, c);
+        mm idx = strconst_add(c);
 
         IR_SET_STRCONST(retval, TYPEID_STRING, idx);
         return retval;
@@ -985,6 +982,8 @@ process_expr(Expr e, ir_quadr** ir)
 
         // Like in Java, functions always return rvalues
         IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
+
+
         IR_PUSH(retval.val, CALL, fn_to_call);
         return retval;
     }

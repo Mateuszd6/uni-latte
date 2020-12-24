@@ -333,3 +333,20 @@ symbol_resolve_var(char* name, void* node)
 
     return VARID_NOTFOUND;
 }
+
+static inline mm
+strconst_add(string_const str)
+{
+    mm n_strconts = array_size(g_str_consts);
+    mm i = 0;
+    for (; i < n_strconts; ++i)
+    {
+        if (strcmp(str.data, g_str_consts[i].data) == 0)
+            break;
+    }
+
+    if (i == n_strconts)
+        array_push(g_str_consts, str);
+
+    return i;
+}

@@ -1,5 +1,6 @@
 //
-// TODO: strCmp and strAdd cleanup and tests!
+// TODO: foo() || foo(); // as statement expression
+//       produces incorrect code, because foo is evaludated more than once
 //
 // TODO: Reuse vars which are out-of-scope
 //
@@ -7,7 +8,6 @@
 // TODO: Add IRVT for local functions
 // TODO: Write builtin functions for adding and comparing strings
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
-// TODO: Sometimes remove lhs from CALL ??
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
 // TODO: Maybe the first param of IR_PUSH should be entire expression, not just .val
 // TODO: Fix not all code paths return value now, with new if evaluation
@@ -17,6 +17,7 @@
 // TODO: Check if variables get correct numbers in nested blocks
 // TODO: Make NOREACH IR instruction and emit a single ret with this comment
 //       there? Or remove appending the 'ret' at the end?
+// TODO: Optim: Remove LHS if function result is unused
 // BUG: Print strings seems to have a return type (in ir)
 // BUG: String constant is emmited more than once. Unused constants are still
 //      emmited (but who cares)?
