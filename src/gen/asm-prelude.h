@@ -149,6 +149,10 @@ static char const gen_asm_prelude[] =
     "    pop     rbx\n"
     "    ret\n"
     "\n"
+    ";\n"
+    "; The actual compiler output starts here:\n"
+    ";\n"
+    "\n"
 ;
 
 #endif // ASM_PRELUDE_H_

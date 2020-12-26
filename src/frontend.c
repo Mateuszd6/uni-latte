@@ -397,46 +397,40 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                 preprocessed_jump_expr* pre_buf = 0;
                 preprocessed_jump_expr pre = preprocess_jumping_expr(argexpr, &pre_buf, 0);
 
-                // TODO: We _dont_ need to evaluate this expression any more! Make
-                //       sure that all typechecking is done in process_jumping_expr
-                //       Also make sure that chekcing if all branches return is
-                //       still corect
+                got_type_id = TYPEID_BOOL;
 
                 if (pre.kind == PRJE_CONST)
                 {
                     condition_is_constant = 1;
                     condition_is_true = !!(pre.u.constant);
 
-                    // TODO: Optimize for contant branch
+                    ir_val val = IR_CONSTANT(!!(pre.u.constant));
+                    IR_PUSH(IR_EMPTY(), PARAM, val);
                 }
+                else
+                {
+                    i32 l_true = g_label++;
+                    i32 l_false = g_label++;
+                    i32 l_end = g_label++;
 
-                // TODO: Copypasted form is_Cond
+                    ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
+                    ir_val labl_false = { .type = IRVT_CONST, .u = { .constant = l_false } };
+                    ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
 
-                i32 l_true = g_label++;
-                i32 l_false = g_label++;
-                i32 l_end = g_label++;
+                    ir_val c0 = IR_CONSTANT(0);
+                    ir_val c1 = IR_CONSTANT(1);
 
-                ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
-                ir_val labl_false = { .type = IRVT_CONST, .u = { .constant = l_false } };
-                ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
+                    jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
+                    process_jumping_expr(ir, &pre, pre_buf, ctx);
+                    // TODO(leak): pre_buf
 
-                ir_val c0 = IR_CONSTANT(0);
-                ir_val c1 = IR_CONSTANT(1);
-
-                jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
-                process_jumping_expr(ir, &pre, pre_buf, ctx);
-                // TODO(leak): pre_buf
-
-                IR_PUSH(IR_EMPTY(), LABEL, labl_true);
-                IR_PUSH(IR_EMPTY(), PARAM, c1);
-                IR_PUSH(IR_EMPTY(), JMP, labl_end);
-                IR_PUSH(IR_EMPTY(), LABEL, labl_false);
-                IR_PUSH(IR_EMPTY(), PARAM, c0);
-                IR_PUSH(IR_EMPTY(), LABEL, labl_end);
-
-                // TODO: Ensure that the expression is of type bool? Shouldn't this
-                //       be done in expr_requires... ?
-                got_type_id = TYPEID_BOOL;
+                    IR_PUSH(IR_EMPTY(), LABEL, labl_true);
+                    IR_PUSH(IR_EMPTY(), PARAM, c1);
+                    IR_PUSH(IR_EMPTY(), JMP, labl_end);
+                    IR_PUSH(IR_EMPTY(), LABEL, labl_false);
+                    IR_PUSH(IR_EMPTY(), PARAM, c0);
+                    IR_PUSH(IR_EMPTY(), LABEL, labl_end);
+                }
             }
 
             if (got_type_id != expected_type_id) // TODO(ex): Handle inheritance
@@ -499,23 +493,31 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
     }
     else
     {
-        u32 expr_type_id = 0;
         b8 condition_is_constant = 0;
         b8 condition_is_true = 0;
         preprocessed_jump_expr* pre_buf = 0;
         preprocessed_jump_expr pre = preprocess_jumping_expr(e2, &pre_buf, 0);
 
-        // TODO: We _dont_ need to evaluate this expression any more! Make
-        //       sure that all typechecking is done in process_jumping_expr
-        //       Also make sure that chekcing if all branches return is
-        //       still corect
-
-        if (pre.kind == PRJE_CONST)
+        if (UNLIKELY(pre.kind == PRJE_CONST))
         {
             condition_is_constant = 1;
             condition_is_true = !!(pre.u.constant);
 
-            // TODO: Optimize for contant branch
+            ir_val val = IR_CONSTANT(!!(pre.u.constant));
+            IR_PUSH(variable_val, MOV, val);
+
+            // TODO: This is totally incorrect, but since we only use it with
+            //       process_assigning with kind of can live with ot.
+            processed_expr retval;
+            retval.node = e2;
+            retval.type_id = TYPEID_BOOL;
+            retval.kind = EET_CONSTANT;
+            retval.is_lvalue = 0;
+            retval.u.numeric_val = !!(condition_is_true);
+            retval.val.type = IRVT_CONST;
+            retval.val.u.constant = !!(condition_is_true);
+
+            return retval;
         }
 
         // TODO(leak): pre_buf
@@ -536,13 +538,13 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
         IR_PUSH(variable_val, MOV, c1);
         IR_PUSH(IR_EMPTY(), LABEL, labl_skip);
 
-        expr_type_id = TYPEID_BOOL;
-
+        // TODO: This is totally incorrect, but since we only use it with
+        //       process_assigning with kind of can live with ot.
         processed_expr retval;
         retval.node = e2;
         retval.type_id = TYPEID_BOOL;
         retval.kind = condition_is_constant ? EET_CONSTANT : EET_COMPUTE;
-        retval.is_lvalue = 1;
+        retval.is_lvalue = 1; // TODO: why 1 here?
         retval.u.numeric_val = !!(condition_is_true);
         retval.val.type = IRVT_CONST;
         retval.val.u.constant = !!(condition_is_true);
@@ -1585,19 +1587,22 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         preprocessed_jump_expr* pre_buf = 0;
         preprocessed_jump_expr pre = preprocess_jumping_expr(abs_expr, &pre_buf, 0);
 
-        // TODO: We _dont_ need to evaluate this expression any more! Make
-        //       sure that all typechecking is done in process_jumping_expr
-        //       Also make sure that chekcing if all branches return is
-        //       still corect
-
-        if (pre.kind == PRJE_CONST)
+        if (UNLIKELY(pre.kind == PRJE_CONST))
         {
             condition_is_constant = 1;
             condition_is_true = !!(pre.u.constant);
 
-            // TODO: optimize for constant expr
+            i32 blk = push_block();
+            if (condition_is_true)
+                s1 = process_stmt(abs_s1, return_type, blk, ir);
+            else if (s->kind == is_CondElse)
+                s1 = process_stmt(abs_s2, return_type, blk, ir);
+            else
+                s1 = create_empty_statement();
+            pop_block();
 
-            printf("Should be constant\n");
+            retval.all_branches_return = s1.all_branches_return;
+            return retval;
         }
 
         ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
@@ -1631,11 +1636,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         else
             s2 = create_empty_statement();
 
-        retval.all_branches_return =
-            ((condition_is_constant && condition_is_true && s1.all_branches_return)
-             || (condition_is_constant && !condition_is_true && s2.all_branches_return)
-             || (s1.all_branches_return && s2.all_branches_return));
-
+        retval.all_branches_return = s1.all_branches_return && s2.all_branches_return;
         return retval;
     }
 
@@ -1675,35 +1676,38 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         preprocessed_jump_expr* pre_buf = 0;
         preprocessed_jump_expr pre = preprocess_jumping_expr(condexpr, &pre_buf, 0);
 
-        // TODO: We _dont_ need to evaluate this expression any more! Make
-        //       sure that all typechecking is done in process_jumping_expr
-        //       Also make sure that chekcing if all branches return is
-        //       still corect
-
-        if (pre.kind == PRJE_CONST)
+        if (UNLIKELY(pre.kind == PRJE_CONST))
         {
             condition_is_constant = 1;
             condition_is_true = !!(pre.u.constant);
-        }
 
-        // TODO: Move typechking into preprocess_jumping_expr
-#if 0
-        processed_expr condexpr_e = process_expr(condexpr, ir);
-        if (condexpr_e.type_id != TYPEID_BOOL)
-        {
-            d_type t_given = g_types[TYPEID_UNMASK(condexpr_e.type_id)];
-            error(get_lnum(condexpr),
-                  "Loop condition has a type %s, when boolean was expected",
-                  t_given.name);
+            if (!(pre.u.constant)) // If loop condition is false, we are done
+            {
+                retval.all_branches_return = 0;
+                return retval;
+            }
+            else // If oop cond is true we can skip checking for the condition
+            {
+                IR_PUSH(IR_EMPTY(), LABEL, labl_loop);
+
+                i32 block_id = push_block();
+                process_stmt(lbody, return_type, block_id, ir);
+                pop_block();
+
+                IR_PUSH(IR_EMPTY(), JMP, labl_loop);
+
+                // Don't report missing reutrn if loop condition is always true
+                // function will never reach its end
+                retval.all_branches_return = 1;
+                return retval;
+            }
         }
-#endif
 
         IR_PUSH(IR_EMPTY(), JMP, labl_cond);
         IR_PUSH(IR_EMPTY(), LABEL, labl_loop);
 
         i32 block_id = push_block();
-        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id, ir);
-        (void)lbody_e;
+        process_stmt(lbody, return_type, block_id, ir);
         pop_block();
 
         IR_PUSH(IR_EMPTY(), LABEL, labl_cond);

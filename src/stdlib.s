@@ -198,6 +198,10 @@ extern _start, printf, puts, exit, fgetc, getline, malloc, scanf, stdin, strcat,
     pop     rbx
     ret
 
+;
+; The actual compiler output starts here:
+;
+
 ;;
 ;; In order to test one can uncomment _start func and
 ;;
