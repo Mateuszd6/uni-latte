@@ -7,7 +7,7 @@ CC = clang
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L
 CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
 CFLAGS_RELEASE = -O3 -DNDEBUG
-CWARNINGS = -Wall -Wextra -Wshadow -pedantic -Wno-unused-function
+CWARNINGS = -Wall -Wextra -Wshadow -pedantic -Wno-unused-function -Wno-sign-conversion
 CSANITIZERS = -fsanitize=address,undefined
 
 BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc

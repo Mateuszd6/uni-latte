@@ -580,7 +580,7 @@ process_expr(Expr e, ir_quadr** ir)
             e->u.elitint_.integer_ = 0;
         }
 
-        IR_SET_CONSTANT(retval, TYPEID_INT, (i64)e->u.elitint_.integer_);
+        IR_SET_CONSTANT(retval, TYPEID_INT, e->u.elitint_.integer_);
         return retval;
     }
 
@@ -1323,7 +1323,7 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
 
             preprocessed_jump_expr retval = {
                 .kind = PRJE_CONST,
-                .u = { .constant = (u64)ee.u.numeric_val },
+                .u = { .constant = ee.u.numeric_val },
                 .l_id = g_label++,
                 .reversed = reverse,
             };
@@ -1401,7 +1401,7 @@ process_jumping_expr(ir_quadr** ir,
         IR_PUSH(IR_EMPTY(), LABEL, labl_true);
 
         ir_val comparison_result = IR_NEXT_TEMP_REGISTER();
-        ir_val to_compare = { .type = IRVT_CONST, .u = { .constant = (i64)e->u.constant } };
+        ir_val to_compare = { .type = IRVT_CONST, .u = { .constant = e->u.constant } };
         ir_val comparison_const = { .type = IRVT_CONST, .u = { .constant = 1 } };
         ir_val t_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_true } };
         ir_val f_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_false } };

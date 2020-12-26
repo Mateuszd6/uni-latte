@@ -204,7 +204,7 @@ gen_mov(ir_quadr* q, i32 n_locals)
 {
     if (q->u.args[0].type == IRVT_CONST)
     {
-        gen_store_const(&q->target, (u64)q->u.args[0].u.constant, n_locals);
+        gen_store_const(&q->target, q->u.args[0].u.constant, n_locals);
         return;
     }
 
