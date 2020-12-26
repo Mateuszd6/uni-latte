@@ -439,8 +439,6 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                 got_type_id = TYPEID_BOOL;
             }
 
-            // TODO: Incorrect, because now we evaludate args backward
-#if 1
             if (got_type_id != expected_type_id) // TODO(ex): Handle inheritance
             {
                 d_type t_expected = g_types[TYPEID_UNMASK(expected_type_id)];
@@ -458,7 +456,6 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                      t_provided.name,
                      t_expected.name);
             }
-#endif
         }
 
         n_given_args++;
@@ -488,7 +485,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
 {
     //
     // The assingment of the boolean expression can be expressed as:
-    // boolean b = false;
+    // /* boolean */ b = false;
     // if (compilcated_boolean_expr)
     //     b = true;
     //
@@ -706,24 +703,7 @@ process_expr(Expr e, ir_quadr** ir)
         enforce_type(&e1, TYPEID_BOOL);
         enforce_type(&e2, TYPEID_BOOL);
 
-        if (LIKELY(e1.kind != EET_CONSTANT && e2.kind != EET_CONSTANT))
-        binary_boolean_expr_ret:
-        {
-            IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
-            IR_PUSH(retval.val, (binboolop == BBOP_OR ? OR : AND), e1.val, e2.val);
-            return retval;
-        }
-
-        //
-        // Optimize constant boolean expressions:
-        //
-        // TODO: Optimize also(?):
-        //
-        // EPRP || true -> eval(EXPR) -> true
-        // EXPR && false -> eval(EXPR) -> false
-        //
-
-        if (e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT)
+        if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
@@ -732,41 +712,10 @@ process_expr(Expr e, ir_quadr** ir)
             mm v2 = e2.u.numeric_val;
             return compute_binary_boolean_expr(v1, v2, binboolop, e1.node);
         }
-        else if (e1.kind == EET_CONSTANT && !!(e1.u.numeric_val) && binboolop == BBOP_OR)
-        {
-            // true || EXPR -> true
-            IR_SET_CONSTANT(retval, TYPEID_BOOL, 1);
-            return retval;
-        }
-        else if (e1.kind == EET_CONSTANT && !(e1.u.numeric_val) && binboolop == BBOP_OR)
-        {
-            // false || EXPR -> EXPR
-            return e2;
-        }
-        else if (e2.kind == EET_CONSTANT && !(e2.u.numeric_val) && binboolop == BBOP_OR)
-        {
-            // EXPR || false -> EXPR
-            return e1;
-        }
-        else if (e2.kind == EET_CONSTANT && !!(e2.u.numeric_val) && binboolop == BBOP_AND)
-        {
-            // EXPR && true -> EXPR
-            return e1;
-        }
 
-        else if (e1.kind == EET_CONSTANT && !!(e1.u.numeric_val) && binboolop == BBOP_AND)
-        {
-            // true && EXPR -> EXPR
-            return e2;
-        }
-        else if (e1.kind == EET_CONSTANT && !(e1.u.numeric_val) && binboolop == BBOP_AND)
-        {
-            // false && EXPR -> false
-            IR_SET_CONSTANT(retval, TYPEID_BOOL, 0);
-            return retval;
-        }
-        else
-            goto binary_boolean_expr_ret; // Like a normal expression
+        IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
+        IR_PUSH(retval.val, (binboolop == BBOP_OR ? OR : AND), e1.val, e2.val);
+        return retval;
     }
 
     binary_integer_expr:
@@ -1258,8 +1207,12 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
         preprocessed_jump_expr ee2 = preprocess_jumping_expr(e->u.eand_.expr_2, buf, reverse);
         u32 op = (e->kind == is_EAnd) ^ reverse ? BIN_OP_AND : BIN_OP_OR;
 
-        if (ee1.kind == PRJE_CONST && ee2.kind == PRJE_CONST)
+        int lhs_const = reverse ? !ee1.u.constant : !!ee1.u.constant;
+        int rhs_const = reverse ? !ee2.u.constant : !!ee2.u.constant;
+
+        if (UNLIKELY(ee1.kind == PRJE_CONST && ee2.kind == PRJE_CONST))
         {
+            // TODO: shoudn't we remove reverse from here?
             ee1.u.constant =
                 ((e->kind == is_EAnd) ^ reverse
                  ? (!!ee1.u.constant) && (!!ee2.u.constant)
@@ -1267,8 +1220,50 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
 
             return ee1;
         }
+        else if (ee1.kind == PRJE_CONST && lhs_const && op == BIN_OP_OR)
+        {
+            // true || EXPR -> true
+            ee1.kind = PRJE_CONST;
+            ee1.u.constant = 1;
+            ee1.reversed = 0;
+            return ee1;
+        }
+        else if (ee1.kind == PRJE_CONST && !lhs_const && op == BIN_OP_AND)
+        {
+            // false && EXPR -> false
+            ee1.kind = PRJE_CONST;
+            ee1.u.constant = 0;
+            ee1.reversed = 0;
+            return ee1;
+        }
+        else if (ee2.kind == PRJE_CONST && rhs_const && op == BIN_OP_AND)
+        {
+            // EXPR && true -> EXPR
+            // NOTE: Keep the reversal
+            return ee1;
+        }
+        else if (ee1.kind == PRJE_CONST && lhs_const && op == BIN_OP_AND)
+        {
+            // true && EXPR -> EXPR
+            // NOTE: Keep the reversal
+            return ee2;
+        }
+        else if (ee1.kind == PRJE_CONST && !lhs_const && op == BIN_OP_OR)
+        {
+            // false || EXPR -> EXPR
+            // NOTE: Keep the reversal
+            return ee2;
+        }
+        else if (ee2.kind == PRJE_CONST && !rhs_const && op == BIN_OP_OR)
+        {
+            // EXPR || false -> EXPR
+            // NOTE: Keep the reversal
+            return ee1;
+        }
 
-        // TODO: Reduce if one is constant and other is not!
+        //
+        // TODO: Reduce if `call() || true` or `call() && false`
+        //
 
         mm nees = array_size(*buf);
         array_push(*buf, ee1);
@@ -1599,6 +1594,10 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         {
             condition_is_constant = 1;
             condition_is_true = !!(pre.u.constant);
+
+            // TODO: optimize for constant expr
+
+            printf("Should be constant\n");
         }
 
         ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = l_true } };
