@@ -6,7 +6,6 @@
 //
 // TODO: Add explicite LOAD/STORE for writing to arrays and class members
 // TODO: Add IRVT for local functions
-// TODO: Write builtin functions for adding and comparing strings
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
 // TODO: Maybe the first param of IR_PUSH should be entire expression, not just .val
@@ -21,14 +20,6 @@
 // BUG: Print strings seems to have a return type (in ir)
 // BUG: String constant is emmited more than once. Unused constants are still
 //      emmited (but who cares)?
-// TODO: Optimize:
-//
-//       t_2 = CMP_LTH v_0 v_1
-//       JMP_TRUE t_2 LAB ; t_2 is last time alive
-//
-//       CMP v_1 v_1
-//       JMP_FLAGS_LTH LAB
-//
 
 // Disable leak checking for asan in debug mode
 #ifdef DEBUG

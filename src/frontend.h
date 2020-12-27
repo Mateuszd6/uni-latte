@@ -43,6 +43,15 @@ enum ir_op
     JMP_TRUE = 26, // For logical operations
     JMP_FALSE = 27, // For logical operations
 
+    // These will be explicitly inserted by the optimizer, and translate
+    // directly to some x64 instructions
+    CMP_SET_FLAGS = 28,
+    JMP_FLAGS_E = 29,
+    JMP_FLAGS_NE = 30,
+    JMP_FLAGS_L = 31,
+    JMP_FLAGS_LE = 32,
+    JMP_FLAGS_G = 33,
+    JMP_FLAGS_GE = 34,
 };
 typedef enum ir_op ir_op;
 
@@ -51,10 +60,12 @@ static char const* const ir_op_name[] = {
     "CMP_LTH", "CMP_LE", "CMP_GTH", "CMP_GE", "CMP_EQ", "CMP_NEQ", "STR_EQ", "STR_NEQ",
     "LABEL", "JMP", "PARAM", "CALL", "RET",
     "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
+    "CMP_SET_FLAGS", "JMP_FLAGS_E", "JMP_FLAGS_NE",
+    "JMP_FLAGS_L", "JMP_FLAGS_LE", "JMP_FLAGS_G", "JMP_FLAGS_GE",
 };
 
 static int const ir_op_n_args[] = {
-    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);

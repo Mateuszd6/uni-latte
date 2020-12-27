@@ -18,7 +18,216 @@ opt_ctx_add_used_label(i64 label_id, b8** used_labels)
 
     (*used_labels)[label_id] = 1;
 }
+
+enum used_irval_t
+{
+    UIT_V = 0,
+    UIT_P = 1,
+    UIT_T = 2,
+};
+typedef enum used_irval_t used_irval_t;
+
+typedef struct used_irval used_irval;
+struct used_irval
+{
+    u64 regnum;
+    used_irval_t type;
+};
 #endif
+
+#if 0
+static void
+add_used_var(ir_val v, used_irval** used_vals)
+{
+    used_irval uv;
+    switch (v.type) {
+    case IRVT_VAR:
+    {
+        uv.type = UIT_V;
+        uv.regnum = v.u.reg_id;
+    } break;
+    case IRVT_FNPARAM:
+    {
+        uv.type = UIT_P;
+        uv.regnum = v.u.reg_id;
+    } break;
+    case IRVT_TEMP:
+    {
+        uv.type = UIT_T;
+        uv.regnum = v.u.reg_id;
+    } break;
+
+    case IRVT_NONE:
+    case IRVT_FN:
+    case IRVT_CONST:
+    case IRVT_STRCONST:
+    NOTREACHED;
+    }
+
+    mm used_vals_size = array_size(*used_vals);
+    mm i = 0;
+    for (; i < used_vals_size; ++i)
+    {
+        if (uv.type == (*used_vals)[i].type
+            && uv.regnum == (*used_vals)[i].regnum)
+        {
+            break;
+        }
+    }
+
+    if (i == used_vals_size) // Not found
+        array_push(*used_vals, uv);
+}
+#endif
+
+typedef struct lifetime_info lifetime_info;
+struct lifetime_info
+{
+    b8* mem;
+    mm n_all;
+    mm n_vars;
+    mm n_fparams;
+    mm n_temps;
+};
+
+static void
+lifetime_free(lifetime_info* info)
+{
+    free(info->mem);
+}
+
+// Return true, if variable of type and register as given is used at programs
+// point ino. Type can be only V, T or P.
+static b8
+lifetime_check_at(lifetime_info* info, mm reg_id, ir_val_type type, mm ino)
+{
+    b8* row = info->mem + (info->n_all * ino);
+    switch (type) {
+    case IRVT_VAR: NOTREACHED; // TODO
+    case IRVT_FNPARAM: NOTREACHED; // TODO
+    case IRVT_TEMP: return *(row + info->n_vars + info->n_fparams + reg_id);
+    case IRVT_NONE:
+    case IRVT_FN:
+    case IRVT_CONST:
+    case IRVT_STRCONST:
+        NOTREACHED;
+    }
+}
+
+static lifetime_info
+compute_lifetimes(ir_quadr* ir)
+{
+    mm n_vars = 0;
+    mm n_fparams = 0;
+    mm n_temps = 0;
+    mm ir_size = array_size(ir);
+    for (mm i = 0; i < ir_size; ++i)
+    {
+        // TODO: Clear copypaste
+        {
+            ir_val v = ir[i].target;
+            switch (v.type) {
+            case IRVT_VAR:
+            {
+                n_vars = MAX(n_vars, v.u.reg_id + 1);
+            } break;
+            case IRVT_FNPARAM:
+            {
+                n_fparams = MAX(n_fparams, v.u.reg_id + 1);
+            } break;
+            case IRVT_TEMP:
+            {
+                n_temps = MAX(n_temps, v.u.reg_id + 1);
+            } break;
+            case IRVT_NONE:
+            case IRVT_FN:
+            case IRVT_CONST:
+            case IRVT_STRCONST:
+            {
+            } break;
+            }
+        }
+
+        mm n_args = ir_op_n_args[ir[i].op];
+        for (mm a = 0; a < n_args; ++a)
+        {
+            ir_val v = ir[i].u.args[a];
+            switch (v.type) {
+            case IRVT_VAR:
+            {
+                n_vars = MAX(n_vars, v.u.reg_id + 1);
+            } break;
+            case IRVT_FNPARAM:
+            {
+                n_fparams = MAX(n_fparams, v.u.reg_id + 1);
+            } break;
+            case IRVT_TEMP:
+            {
+                n_temps = MAX(n_temps, v.u.reg_id + 1);
+            } break;
+            case IRVT_NONE:
+            case IRVT_FN:
+            case IRVT_CONST:
+            case IRVT_STRCONST:
+            {
+            } break;
+            }
+        }
+    }
+
+#define SET_VAR(VAL) *(row + v.u.reg_id) = (VAL)
+#define SET_FNPARAM(VAL) *(row + n_vars + v.u.reg_id) = (VAL)
+#define SET_TEMP(VAL) *(row + n_vars + n_fparams + v.u.reg_id) = (VAL)
+
+    mm n_all = n_vars + n_fparams + n_temps;
+    b8* all = calloc(n_all * ir_size, sizeof(b8));
+    for (mm i = ir_size - 1; i >= 0; --i)
+    {
+        if (i < ir_size - 1)
+            memcpy((all + n_all * i), (all + n_all * (i + 1)), sizeof(b8) * n_all);
+
+        b8* row = all + (n_all * i);
+
+        {
+            ir_val v = ir[i].target;
+            switch (v.type) {
+            case IRVT_VAR: SET_VAR(0); break;
+            case IRVT_FNPARAM: SET_FNPARAM(0); break;
+            case IRVT_TEMP: SET_TEMP(0); break;
+            case IRVT_NONE:
+            case IRVT_FN:
+            case IRVT_CONST:
+            case IRVT_STRCONST:
+                break;
+            }
+        }
+
+        for (mm a = 0, n_args = ir_op_n_args[ir[i].op]; a < n_args; ++a)
+        {
+            ir_val v = ir[i].u.args[a];
+            switch (v.type) {
+            case IRVT_VAR: SET_VAR(1); break;
+            case IRVT_FNPARAM: SET_FNPARAM(1); break;
+            case IRVT_TEMP: SET_TEMP(1); break;
+            case IRVT_NONE:
+            case IRVT_FN:
+            case IRVT_CONST:
+            case IRVT_STRCONST:
+                break;
+            }
+        }
+    }
+
+    lifetime_info retval = {
+        .mem = all,
+        .n_all = n_all,
+        .n_vars = n_vars,
+        .n_fparams = n_fparams,
+        .n_temps = n_temps,
+    };
+
+    return retval;
+}
 
 static opt_ctx
 opt_create_ctx(ir_quadr* ir)
@@ -124,6 +333,64 @@ opt_del_dead_labels(ir_quadr** ir, opt_ctx* ctx)
     *ir = new_ir;
 }
 
+static ir_op
+get_correct_jump_op(ir_op original_op, b32 is_neg)
+{
+    switch (original_op) {
+    case CMP_EQ: return !is_neg ? JMP_FLAGS_E : JMP_FLAGS_NE;
+    case CMP_NEQ: return !is_neg ? JMP_FLAGS_NE : JMP_FLAGS_E;
+    case CMP_LTH: return !is_neg ? JMP_FLAGS_L : JMP_FLAGS_GE;
+    case CMP_LE: return !is_neg ? JMP_FLAGS_LE : JMP_FLAGS_G;
+    case CMP_GTH: return !is_neg ? JMP_FLAGS_G : JMP_FLAGS_LE;
+    case CMP_GE: return !is_neg ? JMP_FLAGS_GE : JMP_FLAGS_L;
+    default: NOTREACHED;
+    }
+}
+
+//
+// This function optimizes jumping code like:
+//
+//   t_2 = CMP_LTH v_0 v_1
+//   JMP_TRUE t_2 LAB ; t_2 is last time alive
+//
+// Into:
+//   CMP v_0 v_1
+//   JMP_FLAGS_LTH LAB
+//
+// Which allows us to take advnantage of x64 conditional jump instructions,
+// removing a temp register
+//
+static void
+replace_compare_jumps_with_flag_jumps(ir_quadr** ir_, lifetime_info* info)
+{
+    ir_quadr* ir = *ir_; // we don't add/remove elems from the array
+    for (mm i = 0, ir_size = array_size(ir); i < ir_size - 2; ++i)
+    {
+        if ((ir[i].op == CMP_LTH || ir[i].op == CMP_GTH
+             || ir[i].op == CMP_LE || ir[i].op == CMP_GE
+             || ir[i].op == CMP_EQ || ir[i].op == CMP_NEQ)
+            && (ir[i + 1].op == JMP_TRUE || ir[i + 1].op == JMP_FALSE)
+            && ir[i].target.type == IRVT_TEMP
+            && ir[i + 1].u.args[0].type == IRVT_TEMP
+            && ir[i + 1].u.args[0].u.reg_id == ir[i].target.u.reg_id
+            && !lifetime_check_at(info, ir[i + 2].target.u.reg_id, IRVT_TEMP, i + 2)
+            )
+        {
+            assert(lifetime_check_at(
+                       info, ir[i].target.u.reg_id, ir[i].target.type, i + 1));
+
+            ir_val empty_val = IR_EMPTY();
+            ir_op orig_cmp_op = ir[i].op;
+            ir[i].target = empty_val;
+            ir[i].op = CMP_SET_FLAGS;
+
+            ir[i + 1].op = get_correct_jump_op(orig_cmp_op, ir[i + 1].op == JMP_FALSE);
+            ir[i + 1].u.args[0] = ir[i + 1].u.args[1];
+            printf("Could optimize!\n");
+        }
+    }
+}
+
 static void
 optimize_func(d_func* func)
 {
@@ -136,7 +403,35 @@ optimize_func(d_func* func)
     ctx = opt_create_ctx(ir);
     opt_del_dead_labels(&ir, &ctx);
 
+    lifetime_info info = compute_lifetimes(ir);
+
+#if 0
+    mm ir_size = array_size(ir);
+    printf("Optimizing func: \"%s\"\n", func->name);
+    for (mm i = 0; i < ir_size; ++i)
+    {
+        printf("Alive: [ ");
+
+        for (mm j = 0; j < info.n_vars; ++j)
+            if (info.mem[i * info.n_all + j])
+                printf("v_%ld ", j);
+
+        for (mm j = 0; j < info.n_fparams; ++j)
+            if (info.mem[i * info.n_all + info.n_vars + j])
+                printf("p_%ld ", j);
+
+        for (mm j = 0; j < info.n_temps; ++j)
+            if (info.mem[i * info.n_all + info.n_vars + info.n_fparams + j])
+                printf("t_%ld ", j);
+
+        printf("]\n");
+    }
+#endif
+
+    replace_compare_jumps_with_flag_jumps(&ir, &info);
+
     func->code = ir;
+    lifetime_free(&info);
 }
 
 static void

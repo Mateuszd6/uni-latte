@@ -292,7 +292,7 @@ gen_not(ir_quadr* q, i32 n_locals)
 }
 
 static void
-gen_compare(ir_quadr* q, compar_op op, i32 n_locals)
+gen_compare_flags(ir_quadr* q, i32 n_locals)
 {
     // TODO: Instead of loading to RDX test can be alredy performed on the
     //       allocated register if that is the case
@@ -304,11 +304,20 @@ gen_compare(ir_quadr* q, compar_op op, i32 n_locals)
     char buf[64];
     gen_load(RDX, q->u.args + 0, n_locals);
     gen_get_address_of(buf, q->u.args + 1, n_locals);
+    fprintf(asm_dest, "    cmp     %s, %s\n", x64_reg_name[RDX], buf);
+}
+
+static void
+gen_compare(ir_quadr* q, compar_op op, i32 n_locals)
+{
+    // TODO: Instead of loading to RDX test can be alredy performed on the
+    //       allocated register if that is the case
 
     fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
-    fprintf(asm_dest, "    cmp     %s, %s\n", x64_reg_name[RDX], buf);
-    fprintf(asm_dest, "    set%s   al\n", compar_op_name[op]); // TODO: Name of the bottom parts of regs
+    gen_compare_flags(q, n_locals);
+    fprintf(asm_dest, "    set%s   al\n", compar_op_name[op]);
 
+    // TODO: Name of the bottom parts of regs
     // TODO: Same case: if allocated register probably not needed, need to xor
     // different reg though
     gen_store(&q->target, RAX, n_locals);
@@ -368,6 +377,23 @@ static void
 gen_jump(ir_quadr* q)
 {
     fprintf(asm_dest, "    jmp     .L%ld\n", q->u.args[0].u.constant);
+}
+
+static void
+gen_jump_flags(ir_quadr* q)
+{
+    char* op = 0;
+    switch (q->op) {
+    case JMP_FLAGS_E: op = "e"; break;
+    case JMP_FLAGS_NE: op = "ne"; break;
+    case JMP_FLAGS_L: op = "l"; break;
+    case JMP_FLAGS_LE: op = "le"; break;
+    case JMP_FLAGS_G: op = "g"; break;
+    case JMP_FLAGS_GE: op = "ge"; break;
+    default: NOTREACHED;
+    }
+
+    fprintf(asm_dest, "    j%s     .L%ld\n", op, q->u.args[0].u.constant);
 }
 
 static void
@@ -546,6 +572,21 @@ gen_glob_func(u32 f_id)
 
             gen_func_epilogue((i32)n_locals);
             fprintf(asm_dest, "    ret\n");
+        } break;
+
+        case CMP_SET_FLAGS:
+        {
+            gen_compare_flags(&q, (i32)n_locals);
+        } break;
+
+        case JMP_FLAGS_E:
+        case JMP_FLAGS_NE:
+        case JMP_FLAGS_L:
+        case JMP_FLAGS_LE:
+        case JMP_FLAGS_G:
+        case JMP_FLAGS_GE:
+        {
+            gen_jump_flags(&q);
         } break;
 
         case SUBSCR:
