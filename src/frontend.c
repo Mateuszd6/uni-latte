@@ -192,7 +192,7 @@ push_block(void)
 }
 
 static inline void
-pop_block(void)
+pop_block(ir_quadr** ir)
 {
     while (1)
     {
@@ -202,7 +202,32 @@ pop_block(void)
         char* popped = array_pop(g_local_symbols);
         if (!popped) break;
 
-        // printf("Disposing: %s\n", popped);
+        symbol s = symbol_get(popped, 0, 0);
+        assert(s.type == S_VAR);
+        printf("Disposing: %s_%d\n",
+               g_vars[s.id].block_id == 1 /* TODO: Constant for func param block id */ ? "p" : "v",
+               s.id);
+
+        ir_val var_to_dispose = {
+            .type = IRVT_VAR,
+            .u = { .reg_id = s.id },
+        };
+        IR_PUSH(IR_EMPTY(), DISPOSE, var_to_dispose);
+
+        symbol_pop(popped);
+    }
+}
+
+static inline void
+pop_block_nodispose()
+{
+    while (1)
+    {
+        mm size = array_size(g_local_symbols);
+        (void)size;
+        assert(size > 0);
+        char* popped = array_pop(g_local_symbols);
+        if (!popped) break;
 
         symbol_pop(popped);
     }
@@ -1439,7 +1464,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             processed_stmt ev_s = process_stmt(it->stmt_, return_type, new_block_id, ir);
             all_branches_return |= ev_s.all_branches_return;
         }
-        pop_block();
+        pop_block(ir);
 
         retval.all_branches_return = all_branches_return;
         return retval;
@@ -1601,7 +1626,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
                 s1 = process_stmt(abs_s2, return_type, blk, ir);
             else
                 s1 = create_empty_statement();
-            pop_block();
+            pop_block(ir);
 
             retval.all_branches_return = s1.all_branches_return;
             return retval;
@@ -1619,7 +1644,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
         i32 blk1 = push_block();
         s1 = process_stmt(abs_s1, return_type, blk1, ir);
-        pop_block();
+        pop_block(ir);
 
         if (s->kind == is_CondElse)
             IR_PUSH(IR_EMPTY(), JMP, labl_end);
@@ -1631,7 +1656,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
             i32 blk2 = push_block();
             s2 = process_stmt(abs_s2, return_type, blk2, ir);
-            pop_block();
+            pop_block(ir);
 
             IR_PUSH(IR_EMPTY(), LABEL, labl_end);
         }
@@ -1694,7 +1719,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
                 i32 block_id = push_block();
                 process_stmt(lbody, return_type, block_id, ir);
-                pop_block();
+                pop_block(ir);
 
                 IR_PUSH(IR_EMPTY(), JMP, labl_loop);
 
@@ -1710,7 +1735,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
         i32 block_id = push_block();
         process_stmt(lbody, return_type, block_id, ir);
-        pop_block();
+        pop_block(ir);
 
         IR_PUSH(IR_EMPTY(), LABEL, labl_cond);
 
@@ -1804,8 +1829,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         processed_stmt lbody_e = process_stmt(lbody, return_type, block_id, ir);
         (void)lbody_e; // TODO(ir)
 
-        pop_block();
-        pop_block();
+        pop_block(ir);
+        pop_block(ir);
 
         retval.all_branches_return = 0;
         return retval;
@@ -1852,8 +1877,8 @@ process_func_body(char* fnname, Block b, void* node)
     }
 
     // One for param_block one for body_block
-    pop_block();
-    pop_block();
+    pop_block(ir);
+    pop_block(ir);
 
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
         error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
@@ -2303,8 +2328,7 @@ check_class_funcs(Program p)
             }
 
             process_func_body(cl->u.cbfndef_.ident_, cl->u.cbfndef_.block_, cl->u.cbfndef_.type_);
-
-            pop_block();
+            pop_block_nodispose();
 
             // Pop back the member functions
             for (mm i = 0; i < n_member_funcs; ++i)

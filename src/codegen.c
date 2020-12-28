@@ -608,7 +608,9 @@ gen_glob_func(u32 f_id)
         } break;
 
         case NOP:
+        case DISPOSE:
         {
+            // Optimisation-related and ignored
         } break;
         }
     }

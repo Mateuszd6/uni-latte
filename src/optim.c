@@ -248,19 +248,14 @@ compute_lifetimes(ir_quadr* ir)
     return retval;
 }
 
-static void
-allocate_registers_for_temps(ir_quadr** ir, lifetime_info* info)
+static u8*
+allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
 {
-    ir_quadr* new_ir = 0;
-    ir_quadr* cur_ir = *ir;
-    mm cur_ir_size = array_size(cur_ir);
-#if 0
-    array_reserve(new_ir, cur_ir_size);
-#endif
-
+    u8* retval = calloc(info->n_all, sizeof(u8)); // 0 means no register
+    mm ir_size = array_size(ir);
+    life_interval* intervs = 0;
     b8 dead[info->n_temps + 1]; // +1 because zero-length vlas are in fact UB
     memset(dead, 0, sizeof(b8) * (info->n_temps + 1));
-    life_interval* intervs = 0;
 
     for (mm i = 0; i < info->n_temps; ++i)
     {
@@ -268,22 +263,19 @@ allocate_registers_for_temps(ir_quadr** ir, lifetime_info* info)
         mm life_ends = 0;
 
         mm ino = 0;
-        while (ino < cur_ir_size && !lifetime_check_at(info, i, IRVT_TEMP, ino))
+        while (ino < ir_size && !lifetime_check_at(info, i, IRVT_TEMP, ino))
             ++ino;
         life_starts = ino;
 
-        while (ino < cur_ir_size && lifetime_check_at(info, i, IRVT_TEMP, ino))
+        while (ino < ir_size && lifetime_check_at(info, i, IRVT_TEMP, ino))
             ++ino;
         life_ends = ino;
 
-        if (life_starts == life_ends && life_ends == cur_ir_size)
+        if (life_starts == life_ends && life_ends == ir_size)
             dead[i] = 1;
 
         if (!dead[i])
         {
-            // printf("Life of t_%ld starts at: %ld\n", i, life_starts);
-            // printf("      ... and dies at: %ld\n", life_ends);
-
             life_interval in = {
                 .id = i,
                 .start = life_starts,
@@ -292,27 +284,23 @@ allocate_registers_for_temps(ir_quadr** ir, lifetime_info* info)
 
             array_push(intervs, in);
         }
-        // else
-        // {
-            // printf("t_%ld is dead\n", i);
-        // }
     }
 
     // Replace dead targets with empty expr
-    for (mm i = 0; i < cur_ir_size; ++i)
+    for (mm i = 0; i < ir_size; ++i)
     {
-        if (cur_ir[i].target.type == IRVT_TEMP && dead[cur_ir[i].target.u.reg_id])
+        if (ir[i].target.type == IRVT_TEMP && dead[ir[i].target.u.reg_id])
         {
-            if (cur_ir[i].op == CALL) // Other side-effect operations
+            if (ir[i].op == CALL) // Other side-effect operations
             {
                 ir_val empty = IR_EMPTY();
-                cur_ir[i].target = empty;
+                ir[i].target = empty;
             }
             else // Non-effect operations are simply skipped
             {
                 ir_val empty = IR_EMPTY();
-                cur_ir[i].target = empty;
-                cur_ir[i].op = NOP;
+                ir[i].target = empty;
+                ir[i].op = NOP;
             }
         }
     }
@@ -320,8 +308,6 @@ allocate_registers_for_temps(ir_quadr** ir, lifetime_info* info)
     mm intervs_size = array_size(intervs);
     if (intervs_size > 0)
         qsort(intervs, intervs_size, sizeof(life_interval), qsort_life_interval);
-
-#define MAX_ALLOCATED_REGS (12) // TODO: config
 
     life_interval* regs[X64_NUM_REGS] = {0};
     mm* unallocated = 0;
@@ -356,10 +342,19 @@ allocate_registers_for_temps(ir_quadr** ir, lifetime_info* info)
         printf("%s:\n", x64_reg_name[r]);
         for (mm j = 0; j < array_size(regs[r]); ++j)
         {
+            retval[info->n_vars + info->n_fparams + regs[r][j].id] = (u8)r;
             printf("    t_%ld: [%ld; %ld]\n", regs[r][j].id, regs[r][j].start, regs[r][j].end);
         }
 
         printf("\n");
+    }
+
+    printf("ALLOCATED:\n");
+    for (mm i = 0; i < info->n_temps; ++i)
+    {
+        mm alloced_reg_no = retval[info->n_vars + info->n_fparams + i];
+        if (alloced_reg_no)
+            printf("    %s <- t_%ld\n", x64_reg_name[alloced_reg_no], i);
     }
 
     printf("UNALLOCATED:\n");
@@ -368,10 +363,7 @@ allocate_registers_for_temps(ir_quadr** ir, lifetime_info* info)
         printf("    t_%ld\n", unallocated[i]);
     }
 
-#if 0
-    array_free(cur_ir);
-    *ir = new_ir;
-#endif
+    return retval;
 }
 
 static opt_ctx
@@ -423,7 +415,7 @@ opt_create_ctx(ir_quadr* ir)
 //
 // TODO: Actually implement the second one (find the case for it in the tests first)
 static void
-opt_fallthrough_jumps(ir_quadr** ir, opt_ctx* ctx)
+opt_fallthrough_jumps(ir_quadr** ir)
 {
     ir_quadr* new_ir = 0;
     ir_quadr* cur_ir = *ir;
@@ -542,7 +534,7 @@ optimize_func(d_func* func)
     ir_quadr* ir = func->code;
     opt_ctx ctx = opt_create_ctx(ir);
     opt_del_dead_labels(&ir, &ctx);
-    opt_fallthrough_jumps(&ir, &ctx);
+    opt_fallthrough_jumps(&ir);
 
     // TODO: dont' recreate context, although we need it to recalculate unused labels:
     ctx = opt_create_ctx(ir);
@@ -574,7 +566,7 @@ optimize_func(d_func* func)
 #endif
 
     replace_compare_jumps_with_flag_jumps(&ir, &info);
-    allocate_registers_for_temps(&ir, &info);
+    func->reg_alloc_info = allocate_registers_for_temps(ir, &info);
 
     func->code = ir;
     lifetime_free(&info);
