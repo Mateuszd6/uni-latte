@@ -1,4 +1,4 @@
-int main()
+int foo(int p1, int p2)
 {
     {
         int x = readInt();
@@ -26,3 +26,5 @@ int main()
     int retval = e;
     return retval;
 }
+
+int main() { return foo(0, 0); }

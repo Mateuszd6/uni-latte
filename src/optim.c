@@ -104,8 +104,8 @@ lifetime_check_at(lifetime_info* info, mm reg_id, ir_val_type type, mm ino)
 {
     b8* row = info->mem + (info->n_all * ino);
     switch (type) {
-    case IRVT_VAR: NOTREACHED; // TODO
-    case IRVT_FNPARAM: NOTREACHED; // TODO
+    case IRVT_VAR: return *(row + reg_id);
+    case IRVT_FNPARAM: return *(row + info->n_vars + reg_id);
     case IRVT_TEMP: return *(row + info->n_vars + info->n_fparams + reg_id);
     case IRVT_NONE:
     case IRVT_FN:
@@ -236,38 +236,63 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
     u8* alloc_info = calloc(info->n_all, sizeof(u8)); // 0 means no register
     mm ir_size = array_size(ir);
     life_interval* intervs = 0;
-    b8 dead[info->n_temps + 1]; // +1 because zero-length vlas are in fact UB
-    memset(dead, 0, sizeof(b8) * (info->n_temps + 1));
+    mm n_max_slots = MAX(MAX(info->n_temps, info->n_vars), info->n_fparams);
+    // b8 dead[n_max_slots + 1]; // +1 because zero-length vlas are UB
 
-    for (mm i = 0; i < info->n_temps; ++i)
+    struct
     {
-        mm life_starts = 0;
-        mm life_ends = 0;
+        mm num;
+        ir_val_type type;
+    } types[] = {
+        { .num = info->n_vars, .type = IRVT_VAR },
+        { .num = info->n_fparams, .type = IRVT_FNPARAM },
+        { .num = info->n_temps, .type = IRVT_TEMP },
+    };
 
-        mm ino = 0;
-        while (ino < ir_size && !lifetime_check_at(info, i, IRVT_TEMP, ino))
-            ++ino;
-        life_starts = ino;
-
-        while (ino < ir_size && lifetime_check_at(info, i, IRVT_TEMP, ino))
-            ++ino;
-        life_ends = ino;
-
-        if (life_starts == life_ends && life_ends == ir_size)
-            dead[i] = 1;
-
-        if (!dead[i])
+    for (mm j = 0; j < COUNT_OF(types); ++j)
+    {
+        // memset(dead, 0, sizeof(b8) * (n_max_slots + 1));
+        for (mm i = 0; i < types[j].num; ++i)
         {
-            life_interval in = {
-                .id = i,
-                .start = life_starts,
-                .end = life_ends,
-            };
+            mm life_starts = 0;
+            mm life_ends = 0;
 
-            array_push(intervs, in);
+            mm ino = 0;
+            while (ino < ir_size && !lifetime_check_at(info, i, types[j].type, ino))
+                ++ino;
+            life_starts = ino;
+
+            b32 set = 0;
+            while (ino < ir_size)
+            {
+                if (lifetime_check_at(info, i, types[j].type, ino))
+                {
+                    life_ends = ino + 1;
+                    set = 1;
+                }
+
+                ++ino;
+            }
+
+            if (!set)
+                life_ends = ino;
+
+            if (!(life_starts == life_ends && life_ends == ir_size))
+            {
+                life_interval in = {
+                    .id = i,
+                    .start = life_starts,
+                    .end = life_ends,
+                    .type = types[j].type,
+                };
+
+                array_push(intervs, in);
+            }
         }
     }
 
+    // TODO: Move somewhere else?
+#if 0
     // Replace dead targets with empty expr
     for (mm i = 0; i < ir_size; ++i)
     {
@@ -286,6 +311,7 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
             }
         }
     }
+#endif
 
     mm intervs_size = array_size(intervs);
     if (intervs_size > 0)
@@ -315,7 +341,10 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
 
         if (r == regs_size)
             array_push(unallocated, life.id);
-        printf("%ld: [%ld; %ld]\n", life.id, life.start, life.end);
+
+        printf("%s_%ld: [%ld; %ld]\n",
+               life.type == IRVT_VAR ? "v" : (life.type == IRVT_FNPARAM ? "p" : "t"),
+               life.id, life.start, life.end);
     }
 
     printf("\nREGISTER ALLOCATION:\n");
@@ -324,26 +353,40 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
         printf("%s:\n", x64_reg_name[r]);
         for (mm j = 0; j < array_size(regs[r]); ++j)
         {
-            alloc_info[info->n_vars + info->n_fparams + regs[r][j].id] = (u8)r;
-            printf("    t_%ld: [%ld; %ld]\n", regs[r][j].id, regs[r][j].start, regs[r][j].end);
+            switch (regs[r][j].type) {
+            case IRVT_VAR: alloc_info[regs[r][j].id] = (u8)r; break;
+            case IRVT_FNPARAM: alloc_info[info->n_vars + regs[r][j].id] = (u8)r; break;
+            case IRVT_TEMP: alloc_info[info->n_vars + info->n_fparams + regs[r][j].id] = (u8)r; break;
+            default: NOTREACHED;
+            }
+
+            printf("    %s_%ld: [%ld; %ld]\n",
+                   regs[r][j].type == IRVT_VAR ? "v" : (regs[r][j].type == IRVT_FNPARAM ? "p" : "t"),
+                   regs[r][j].id, regs[r][j].start, regs[r][j].end);
         }
 
         printf("\n");
     }
 
+#if 0
     printf("ALLOCATED:\n");
     for (mm i = 0; i < info->n_temps; ++i)
     {
         mm alloced_reg_no = alloc_info[info->n_vars + info->n_fparams + i];
         if (alloced_reg_no)
-            printf("    %s <- t_%ld\n", x64_reg_name[alloced_reg_no], i);
+            printf("    %s <- %s_%ld\n",
+                   regs[r][j].type == IRVT_VAR ? "v" : (regs[r][j].type == IRVT_FNPARAM ? "p" : "t"),
+                   x64_reg_name[alloced_reg_no], i);
     }
 
     printf("UNALLOCATED:\n");
     for (mm i = 0, unallocated_size = array_size(unallocated); i < unallocated_size; ++i)
     {
-        printf("    t_%ld\n", unallocated[i]);
+        printf("    %s_%ld\n",
+               regs[r][j].type == IRVT_VAR ? "v" : (regs[r][j].type == IRVT_FNPARAM ? "p" : "t"),
+               unallocated[i]);
     }
+#endif
 
     reg_alloc_info retval = {
         .vars = alloc_info,

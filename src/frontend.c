@@ -1888,6 +1888,9 @@ process_func_body(char* fnname, Block b, void* node)
     // TODO: Decide whether or not do it here? Maybe optimizer will ba later
     //       able to remove it, and this check would make more sens in a codegen
     //       module?
+    // TODO: More realistically, add it only in case of void funcs??
+    // TODO: This is buggy, becasue DISPOSE is _after_ the return, which does
+    //       not do any charm, but generate the code twice
     //
     // Make sure all blocks always end up with return
     mm n_opcodes = array_size(ircode);

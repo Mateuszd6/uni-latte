@@ -1,3 +1,5 @@
+// TODO: Support allocating func params - load allocated params in the func prelude
+// TODO: Removed unused regs from eplilogue.s
 //
 // TODO: foo() || foo(); // as statement expression
 //       produces incorrect code, because foo is evaludated more than once
@@ -21,7 +23,9 @@
 // TODO: Optim: Remove LHS if function result is unused
 // BUG: Print strings seems to have a return type (in ir)
 // BUG: Unused constants are still emmited (but who cares)?
-// TODO: All registers are callee saved?
+
+// TODO: All registers are callee saved - make sure only necesarry regs are
+//       saved and that asm code is correct
 
 // Disable leak checking for asan in debug mode
 #ifdef DEBUG

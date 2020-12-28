@@ -9,6 +9,7 @@ struct life_interval
     mm id;
     mm start;
     mm end;
+    int type;
 };
 
 typedef struct lifetime_info lifetime_info;

@@ -180,10 +180,17 @@ gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx)
     switch (v->type) {
     case IRVT_VAR:
     {
-        gen_codefor_local_variable(buf, v->u.constant);
+        if (ctx->regalloc.vars[v->u.constant])
+            gen_codefor_other_reg(buf, ctx->regalloc.vars[v->u.constant]);
+        else
+            gen_codefor_local_variable(buf, v->u.constant);
     } break;
     case IRVT_FNPARAM:
     {
+        // TODO: Before introducing params, make sure that allocated params are loaded!
+        // if (ctx->regalloc.params[v->u.constant])
+            // gen_codefor_other_reg(buf, ctx->regalloc.params[v->u.constant]);
+        // else
         gen_codefor_fun_param(buf, v->u.constant);
     } break;
     case IRVT_TEMP:
