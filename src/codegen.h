@@ -28,9 +28,8 @@ enum x64_reg
     RBP = 2,
     RSP = 3,
 
-    RCX = 4, // TODO: Decide if this fellow is actually allocatable
-
     // Allocatable, caller saved
+    RCX = 4,
     RSI = 5,
     RDI = 6,
     R8 = 7,

@@ -3,6 +3,24 @@
 
 #define MAX_ALLOCATED_REGS (11) // TODO: config
 
+typedef struct life_interval life_interval;
+struct life_interval
+{
+    mm id;
+    mm start;
+    mm end;
+};
+
+typedef struct lifetime_info lifetime_info;
+struct lifetime_info
+{
+    b8* mem;
+    mm n_all;
+    mm n_vars;
+    mm n_fparams;
+    mm n_temps;
+};
+
 typedef struct reg_alloc_info reg_alloc_info;
 struct reg_alloc_info
 {

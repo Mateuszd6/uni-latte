@@ -69,10 +69,17 @@ struct codegen_ctx
     // TODO: n_temps probably
 };
 
+//
+// TODO: Change these, so that we only save what is really needed.
+//
+// TODO: Add saving the registers into a builtin function, which right now don't
+// work correctly btw.
+//
+
 static void
 save_all_registers(void)
 {
-    // TODO: Add rcx here if needed later
+    fprintf(asm_dest, "    push    rcx\n");
     fprintf(asm_dest, "    push    rsi\n");
     fprintf(asm_dest, "    push    rdi\n");
     fprintf(asm_dest, "    push    r8\n");
@@ -100,7 +107,7 @@ restore_all_registers(void)
     fprintf(asm_dest, "    pop     r8\n");
     fprintf(asm_dest, "    pop     rdi\n");
     fprintf(asm_dest, "    pop     rsi\n");
-    // TODO: Add rcx here if needed later
+    fprintf(asm_dest, "    pop     rcx\n");
 }
 
 static void
@@ -295,17 +302,24 @@ gen_mul(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_div_or_mod(ir_quadr* q, b32 take_reminder, codegen_ctx* ctx)
 {
-    //
-    // TODO: This is incorrect if RCX register is not free!!!!!
-    //
-
     char buf[64];
     gen_get_address_of(buf, q->u.args + 1, ctx);
 
     gen_load(RAX, q->u.args + 0, ctx);
-    fprintf(asm_dest, "    mov     %s, %s\n", x64_reg_name[RCX], buf);
     fprintf(asm_dest, "    cqo\n");
-    fprintf(asm_dest, "    idiv    %s\n", x64_reg_name[RCX]);
+
+    // Division by constant is handled differently, b/c idiv const does not work
+    if (q->u.args[1].type == IRVT_CONST)
+    {
+        // TODO: Emit division by constant to skip this madness if possible
+
+        fprintf(asm_dest, "    mov     QWORD [rsp], %ld\n", q->u.args[1].u.constant);
+        fprintf(asm_dest, "    idiv    QWORD [rsp]\n");
+    }
+    else
+    {
+        fprintf(asm_dest, "    idiv    %s\n", buf);
+    }
 
     // RAX for divider, RDX for reminder:
     gen_store(&q->target, take_reminder ? RDX : RAX, ctx);

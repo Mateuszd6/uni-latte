@@ -80,24 +80,6 @@ add_used_var(ir_val v, used_irval** used_vals)
 }
 #endif
 
-typedef struct life_interval life_interval;
-struct life_interval
-{
-    mm id;
-    mm start;
-    mm end;
-};
-
-typedef struct lifetime_info lifetime_info;
-struct lifetime_info
-{
-    b8* mem;
-    mm n_all;
-    mm n_vars;
-    mm n_fparams;
-    mm n_temps;
-};
-
 static int
 qsort_life_interval(void const* lhs_p, void const* rhs_p)
 {
@@ -311,7 +293,7 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
 
     life_interval* regs[X64_NUM_REGS] = {0};
     mm* unallocated = 0;
-    mm first_al = RSI;
+    mm first_al = RCX;
     mm regs_size = first_al + MAX_ALLOCATED_REGS;
     assert(regs_size <= X64_NUM_REGS);
 
