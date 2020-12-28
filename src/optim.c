@@ -248,10 +248,10 @@ compute_lifetimes(ir_quadr* ir)
     return retval;
 }
 
-static u8*
+static reg_alloc_info
 allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
 {
-    u8* retval = calloc(info->n_all, sizeof(u8)); // 0 means no register
+    u8* alloc_info = calloc(info->n_all, sizeof(u8)); // 0 means no register
     mm ir_size = array_size(ir);
     life_interval* intervs = 0;
     b8 dead[info->n_temps + 1]; // +1 because zero-length vlas are in fact UB
@@ -311,7 +311,7 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
 
     life_interval* regs[X64_NUM_REGS] = {0};
     mm* unallocated = 0;
-    mm first_al = RCX;
+    mm first_al = RSI;
     mm regs_size = first_al + MAX_ALLOCATED_REGS;
     assert(regs_size <= X64_NUM_REGS);
 
@@ -342,7 +342,7 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
         printf("%s:\n", x64_reg_name[r]);
         for (mm j = 0; j < array_size(regs[r]); ++j)
         {
-            retval[info->n_vars + info->n_fparams + regs[r][j].id] = (u8)r;
+            alloc_info[info->n_vars + info->n_fparams + regs[r][j].id] = (u8)r;
             printf("    t_%ld: [%ld; %ld]\n", regs[r][j].id, regs[r][j].start, regs[r][j].end);
         }
 
@@ -352,7 +352,7 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
     printf("ALLOCATED:\n");
     for (mm i = 0; i < info->n_temps; ++i)
     {
-        mm alloced_reg_no = retval[info->n_vars + info->n_fparams + i];
+        mm alloced_reg_no = alloc_info[info->n_vars + info->n_fparams + i];
         if (alloced_reg_no)
             printf("    %s <- t_%ld\n", x64_reg_name[alloced_reg_no], i);
     }
@@ -362,6 +362,12 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
     {
         printf("    t_%ld\n", unallocated[i]);
     }
+
+    reg_alloc_info retval = {
+        .vars = alloc_info,
+        .params = alloc_info + info->n_vars,
+        .temps = alloc_info + info->n_vars + info->n_fparams,
+    };
 
     return retval;
 }
@@ -510,8 +516,7 @@ replace_compare_jumps_with_flag_jumps(ir_quadr** ir_, lifetime_info* info)
             && ir[i].target.type == IRVT_TEMP
             && ir[i + 1].u.args[0].type == IRVT_TEMP
             && ir[i + 1].u.args[0].u.reg_id == ir[i].target.u.reg_id
-            && !lifetime_check_at(info, ir[i + 2].target.u.reg_id, IRVT_TEMP, i + 2)
-            )
+            && !lifetime_check_at(info, ir[i + 2].target.u.reg_id, IRVT_TEMP, i + 2))
         {
             assert(lifetime_check_at(
                        info, ir[i].target.u.reg_id, ir[i].target.type, i + 1));
@@ -523,7 +528,6 @@ replace_compare_jumps_with_flag_jumps(ir_quadr** ir_, lifetime_info* info)
 
             ir[i + 1].op = get_correct_jump_op(orig_cmp_op, ir[i + 1].op == JMP_FALSE);
             ir[i + 1].u.args[0] = ir[i + 1].u.args[1];
-            printf("Could optimize!\n");
         }
     }
 }
@@ -542,7 +546,7 @@ optimize_func(d_func* func)
 
     lifetime_info info = compute_lifetimes(ir);
 
-#if 1
+#if 0
     mm ir_size = array_size(ir);
     printf("Optimizing func: \"%s\"\n", func->name);
     for (mm i = 0; i < ir_size; ++i)
@@ -566,7 +570,7 @@ optimize_func(d_func* func)
 #endif
 
     replace_compare_jumps_with_flag_jumps(&ir, &info);
-    func->reg_alloc_info = allocate_registers_for_temps(ir, &info);
+    func->regalloc = allocate_registers_for_temps(ir, &info);
 
     func->code = ir;
     lifetime_free(&info);

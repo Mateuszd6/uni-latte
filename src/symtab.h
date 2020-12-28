@@ -4,6 +4,7 @@
 #define HASHMAP_STATIC
 
 #include "misc.h"
+#include "optim.h"
 
 enum symbol_t
 {
@@ -52,7 +53,7 @@ struct d_func
     char* name;
     d_func_arg* args;
     void* code; // TODO: ugly, cant include ir_quadr
-    u8* reg_alloc_info;
+    reg_alloc_info regalloc;
     i32 lnum;
     u32 ret_type_id;
     i32 num_args;

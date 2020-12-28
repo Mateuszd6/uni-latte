@@ -204,12 +204,14 @@ pop_block(ir_quadr** ir)
 
         symbol s = symbol_get(popped, 0, 0);
         assert(s.type == S_VAR);
+#if 0
         printf("Disposing: %s_%d\n",
                g_vars[s.id].block_id == 1 /* TODO: Constant for func param block id */ ? "p" : "v",
                s.id);
+#endif
 
         ir_val var_to_dispose = {
-            .type = IRVT_VAR,
+            .type = g_vars[s.id].block_id == 1 /* TODO: Constant for func param block id */ ? IRVT_FNPARAM : IRVT_VAR,
             .u = { .reg_id = s.id },
         };
         IR_PUSH(IR_EMPTY(), DISPOSE, var_to_dispose);
