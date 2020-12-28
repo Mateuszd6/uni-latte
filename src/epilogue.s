@@ -1,9 +1,7 @@
-;; An assembly code for all builtin functions used in Latte
-;; This already extern's all the libc functions Latte relies on, so no linking
-;; using gcc will be needed. Writing it in C is not possible, because our
-;; language does not use cdecl ABI so these would be incompatible.
-;;
-extern _start, printf, puts, exit, fgetc, getline, malloc, scanf, stdin, strcat, strcmp, strlen, ungetc, __ctype_b_loc
+
+;
+; Builtin functions, handcoded in assembly:
+;
 
 .BF0: ; strCmp
     push    rbp
@@ -91,7 +89,7 @@ extern _start, printf, puts, exit, fgetc, getline, malloc, scanf, stdin, strcat,
     ;; Variadic functions have number of sse args (0 here) in AX register
     xor     rax, rax
     mov     rdi, .LC0
-    ;; Saved stack ptr and align it to 16 byte boundary when calling C api
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
     mov     r13, rsp
     and     rsp, ~0xF
     call    printf
@@ -125,46 +123,45 @@ extern _start, printf, puts, exit, fgetc, getline, malloc, scanf, stdin, strcat,
     db "%d",0x0
 .GF3: ; readInt
     push    rbp
+    push    r13
     mov     rbp, rsp
-    mov     rbx, 0
-    push    rbx
-    push    rbx
+    sub     rsp, 32
+    ;; Two params of getline we need to give address to (ptr + length)
+    mov     QWORD [rbp - 16], 0
+    mov     QWORD [rbp - 24], 0
     ;; Address of a stack-allocated integer, that gets scanf'ed
-    lea     rsi, [rbp - 12]
-    mov     rdi, .LC2
-    xor     rax, rax
-    ;; Saved stack ptr and align it to 16 byte boundary when calling C api
+    mov     DWORD [rbp - 4], 0
+    ;; Getline params, stdin + 2 stack variables
+    mov     rdx, QWORD [rel stdin]
+    lea     rdi, [rbp - 16]
+    lea     rsi, [rbp - 24]
+    call    getline
+    ;; If getline failed, we will simply return 0
+    mov     rdi, QWORD [rbp - 16]
+    test    rdi, rdi
+    je      .GF3_L0
+    ;; On success, we scanf loaded buffer to get the integer
+    lea     rdx, [rbp - 4]
+    mov     esi, .LC2
+    xor     eax, eax
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
     mov     r13, rsp
     and     rsp, ~0xF
-    call    scanf
+    call    sscanf
     mov     rsp, r13
-.LBB0_1:
-    ;; Because latte is so underspecied and requires readInt to read a _single_
-    ;; int and readString an _entire_ line there are problems with calling
-    ;; readString after readInt (because scanf does not consule the '\n'). So we
-    ;; have to manually check if we are at the end of the line, and eat the newline
-    ;; character. OK, so we do:
-    mov     rdi, QWORD [rel stdin]
-    ;; Get a single character from the stream
-    call    fgetc
-    mov     ebx, eax
-    ;; Check if it is a whitespace. This code is procuced by pretty much every
-    ;; compiler from isspace()
-    call    __ctype_b_loc
-    mov     rax, QWORD [rax]
-    movsxd  rcx, ebx
-    test    BYTE [rax + 2*rcx + 1], 32
-    ;; If so, continue consuming
-    jne     .LBB0_1
-    mov     rsi, QWORD [rel stdin]
-    mov     edi, ebx
-    ;; Push the last character back to the stream (POSIX guarantees that it is
-    ;; always possible with 1 char)
-    call    ungetc
-    ;; Now returned the long-ago-scanf'ed int
-    mov     eax, DWORD [rbp - 12]
-    add     rsp, 8
-    pop     rbx
+    ;; Now move a poiner into a register, because we probably need to free it
+    mov     rdi, QWORD [rbp - 16]
+    jmp     .GF3_L1
+.GF3_L0:
+    xor     edi, edi
+.GF3_L1:
+    ;; Be a good citizen and free mem. Free does nothing on 0, so its fine
+    xor     eax, eax
+    call    free
+    ;; Return the integer on the stack, that scanf might have set
+    mov     eax, DWORD [rbp - 4]
+    pop     r13
+    add     rsp, 32
     pop     rbp
     ret
 
@@ -197,20 +194,3 @@ extern _start, printf, puts, exit, fgetc, getline, malloc, scanf, stdin, strcat,
     add     rsp, 16
     pop     rbx
     ret
-
-;
-; The actual compiler output starts here:
-;
-
-;;
-;; In order to test one can uncomment _start func and
-;;
-;; nasm -f elf64 -F dwarf -g fooz.s -o fooz.o
-;; ld -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o fooz -lc fooz.o
-;;
-;;
-;; _start:
-;;     call    .GF4
-;;     mov     rdi, rax
-;;     call    .GF1
-;;     jmp     .GF2

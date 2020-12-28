@@ -71,14 +71,22 @@ src/parser.c: src/latte.y
 	${BISON} ${BISON_FLAGS} src/latte.y -o src/parser.c
 	${CFORMAT} ./src/parser.c
 
-src/gen/asm-prelude.h: ./src/stdlib.s
+src/gen/asm-prelude.h: ./src/*.s
 	@echo "Generating gen/asm-prelude.h"
 	@echo -n "" > src/gen/asm-prelude.h
 	@echo "#ifndef ASM_PRELUDE_H_" >> src/gen/asm-prelude.h
 	@echo "#define ASM_PRELUDE_H_" >> src/gen/asm-prelude.h
 	@echo "" >> src/gen/asm-prelude.h
-	@echo "static char const gen_asm_prelude[] = " >> src/gen/asm-prelude.h
-	@cat ./src/stdlib.s \
+	@echo "static char const gen_asm_intro[] = " >> src/gen/asm-prelude.h
+	@cat ./src/intro.s \
+		| sed '/;;\(.*\)/d' \
+		| sed 's/\"/\\\"/g' \
+		| sed "s/.*/    \"&\\\n\"/" \
+		>> src/gen/asm-prelude.h
+	@echo ";" >> src/gen/asm-prelude.h
+	@echo "" >> src/gen/asm-prelude.h
+	@echo "static char const gen_asm_epilogue[] = " >> src/gen/asm-prelude.h
+	@cat ./src/epilogue.s \
 		| sed '/;;\(.*\)/d' \
 		| sed 's/\"/\\\"/g' \
 		| sed "s/.*/    \"&\\\n\"/" \

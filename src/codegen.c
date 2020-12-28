@@ -697,7 +697,7 @@ gen_constants()
 static void
 gen_code()
 {
-    fwrite(gen_asm_prelude, 1, COUNT_OF(gen_asm_prelude) - 1, asm_dest);
+    fwrite(gen_asm_intro, 1, COUNT_OF(gen_asm_intro) - 1, asm_dest);
 
     mm first_f = FUNCID_LAST_BUILTIN_FUNC + 1;
     mm main_id = 0;
@@ -710,4 +710,6 @@ gen_code()
 
     gen_entry_point((i32)main_id);
     gen_constants();
+
+    fwrite(gen_asm_epilogue, 1, COUNT_OF(gen_asm_epilogue) - 1, asm_dest);
 }
