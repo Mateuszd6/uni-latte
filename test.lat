@@ -1,70 +1,15 @@
-void foobar()
-{
-}
-
-boolean callMe(int i)
-{
-    printInt(i);
-    return true;
-}
-
-boolean dontCallMe(int i)
-{
-    printInt(i);
-    return true;
-}
-
-boolean dontCallMeB(boolean dummy)
-{
-    int x = 5;
-    if (dummy) x = 7;
-
-    printInt(x);
-    return true;
-}
-
 int main()
 {
-    /*
-    boolean b = true;
-    boolean c = false && b;
-    boolean d = c || (b && c);
-
-    int i = 0;
-    int j = 1;
-    int x = i + j;
-
-    int c1 = 1 -20;
-    boolean c2;
-    string c3;
-
-    int i = main();
-    string x = readString() + readString();
-    */
-
-    /*
-    int i = 0;
-    int j = 10;
-    while (i < j)
+    int x = 10;
     {
-        printInt(i);
-        i++;
+        int y = 12;
+        int w = (x + y) - (y - x);
     }
-    */
+    int e = x * x;
 
-    // boolean b = dontCallMe(1) || dontCallMe(1);
+    printInt(e);
+    x + readInt();
 
-    // boolean c;
-    // c = (dontCallMe(1) && dontCallMe(2)) || dontCallMeB(dontCallMe(3) && dontCallMe(4));
-
-    int a;
-    int b;
-    boolean d = a <= b || dontCallMe(2);
-
-    boolean c = !(callMe(1) && (dontCallMe(2) || dontCallMe(2)));
-
-    // boolean c;
-    // c = dontCallMe(1);
-
-    return 0;
+    int retval = e;
+    return retval;
 }

@@ -29,7 +29,7 @@ enum x64_reg
     RSP = 3,
 
     // Allocatable, caller saved
-    RCX = 4,
+    RCX = 4, // TODO: Decide if this fellow is actually allocatable
     RSI = 5,
     RDI = 6,
     R8 = 7,
@@ -45,6 +45,7 @@ enum x64_reg
     R15 = 15,
 };
 typedef enum x64_reg x64_reg;
+#define X64_NUM_REGS (16)
 
 static char const* x64_reg_name[] =
 {

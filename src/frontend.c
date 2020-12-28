@@ -202,6 +202,8 @@ pop_block(void)
         char* popped = array_pop(g_local_symbols);
         if (!popped) break;
 
+        // printf("Disposing: %s\n", popped);
+
         symbol_pop(popped);
     }
 }

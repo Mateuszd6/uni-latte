@@ -80,6 +80,14 @@ add_used_var(ir_val v, used_irval** used_vals)
 }
 #endif
 
+typedef struct life_interval life_interval;
+struct life_interval
+{
+    mm id;
+    mm start;
+    mm end;
+};
+
 typedef struct lifetime_info lifetime_info;
 struct lifetime_info
 {
@@ -89,6 +97,17 @@ struct lifetime_info
     mm n_fparams;
     mm n_temps;
 };
+
+static int
+qsort_life_interval(void const* lhs_p, void const* rhs_p)
+{
+    life_interval const* lhs = (life_interval const*)(lhs_p);
+    life_interval const* rhs = (life_interval const*)(rhs_p);
+
+    mm d1 = lhs->end - rhs->end;
+    d1 = d1 != 0 ? d1 : rhs->start - lhs->start;
+    return d1 < 0 ? -1 : (d1 > 0 ? 1 : 0);
+}
 
 static void
 lifetime_free(lifetime_info* info)
@@ -227,6 +246,132 @@ compute_lifetimes(ir_quadr* ir)
     };
 
     return retval;
+}
+
+static void
+allocate_registers_for_temps(ir_quadr** ir, lifetime_info* info)
+{
+    ir_quadr* new_ir = 0;
+    ir_quadr* cur_ir = *ir;
+    mm cur_ir_size = array_size(cur_ir);
+#if 0
+    array_reserve(new_ir, cur_ir_size);
+#endif
+
+    b8 dead[info->n_temps + 1]; // +1 because zero-length vlas are in fact UB
+    memset(dead, 0, sizeof(b8) * (info->n_temps + 1));
+    life_interval* intervs = 0;
+
+    for (mm i = 0; i < info->n_temps; ++i)
+    {
+        mm life_starts = 0;
+        mm life_ends = 0;
+
+        mm ino = 0;
+        while (ino < cur_ir_size && !lifetime_check_at(info, i, IRVT_TEMP, ino))
+            ++ino;
+        life_starts = ino;
+
+        while (ino < cur_ir_size && lifetime_check_at(info, i, IRVT_TEMP, ino))
+            ++ino;
+        life_ends = ino;
+
+        if (life_starts == life_ends && life_ends == cur_ir_size)
+            dead[i] = 1;
+
+        if (!dead[i])
+        {
+            // printf("Life of t_%ld starts at: %ld\n", i, life_starts);
+            // printf("      ... and dies at: %ld\n", life_ends);
+
+            life_interval in = {
+                .id = i,
+                .start = life_starts,
+                .end = life_ends,
+            };
+
+            array_push(intervs, in);
+        }
+        // else
+        // {
+            // printf("t_%ld is dead\n", i);
+        // }
+    }
+
+    // Replace dead targets with empty expr
+    for (mm i = 0; i < cur_ir_size; ++i)
+    {
+        if (cur_ir[i].target.type == IRVT_TEMP && dead[cur_ir[i].target.u.reg_id])
+        {
+            if (cur_ir[i].op == CALL) // Other side-effect operations
+            {
+                ir_val empty = IR_EMPTY();
+                cur_ir[i].target = empty;
+            }
+            else // Non-effect operations are simply skipped
+            {
+                ir_val empty = IR_EMPTY();
+                cur_ir[i].target = empty;
+                cur_ir[i].op = NOP;
+            }
+        }
+    }
+
+    mm intervs_size = array_size(intervs);
+    if (intervs_size > 0)
+        qsort(intervs, intervs_size, sizeof(life_interval), qsort_life_interval);
+
+#define MAX_ALLOCATED_REGS (12) // TODO: config
+
+    life_interval* regs[X64_NUM_REGS] = {0};
+    mm* unallocated = 0;
+    mm first_al = RCX;
+    mm regs_size = first_al + MAX_ALLOCATED_REGS;
+    assert(regs_size <= X64_NUM_REGS);
+
+    for (mm i = 0, size = intervs_size; i < size; ++i)
+    {
+        life_interval life = intervs[i];
+        mm r = first_al;
+        for (; r < regs_size; ++r)
+        {
+            // TODO: MAYBE replace end < life.start with end <= life.start ?
+            //       Will it break code?
+            mm n_interv_alloced = array_size(regs[r]);
+            if (n_interv_alloced == 0 || regs[r][n_interv_alloced - 1].end < life.start) // TODO: Double check
+            {
+                array_push(regs[r], life);
+                break;
+            }
+        }
+
+        if (r == regs_size)
+            array_push(unallocated, life.id);
+        printf("%ld: [%ld; %ld]\n", life.id, life.start, life.end);
+    }
+
+    printf("\nREGISTER ALLOCATION:\n");
+    for (mm r = first_al; r < regs_size; ++r)
+    {
+        printf("%s:\n", x64_reg_name[r]);
+        for (mm j = 0; j < array_size(regs[r]); ++j)
+        {
+            printf("    t_%ld: [%ld; %ld]\n", regs[r][j].id, regs[r][j].start, regs[r][j].end);
+        }
+
+        printf("\n");
+    }
+
+    printf("UNALLOCATED:\n");
+    for (mm i = 0, unallocated_size = array_size(unallocated); i < unallocated_size; ++i)
+    {
+        printf("    t_%ld\n", unallocated[i]);
+    }
+
+#if 0
+    array_free(cur_ir);
+    *ir = new_ir;
+#endif
 }
 
 static opt_ctx
@@ -405,7 +550,7 @@ optimize_func(d_func* func)
 
     lifetime_info info = compute_lifetimes(ir);
 
-#if 0
+#if 1
     mm ir_size = array_size(ir);
     printf("Optimizing func: \"%s\"\n", func->name);
     for (mm i = 0; i < ir_size; ++i)
@@ -429,6 +574,7 @@ optimize_func(d_func* func)
 #endif
 
     replace_compare_jumps_with_flag_jumps(&ir, &info);
+    allocate_registers_for_temps(&ir, &info);
 
     func->code = ir;
     lifetime_free(&info);

@@ -18,8 +18,8 @@
 //       there? Or remove appending the 'ret' at the end?
 // TODO: Optim: Remove LHS if function result is unused
 // BUG: Print strings seems to have a return type (in ir)
-// BUG: String constant is emmited more than once. Unused constants are still
-//      emmited (but who cares)?
+// BUG: Unused constants are still emmited (but who cares)?
+// TODO: All registers are callee saved?
 
 // Disable leak checking for asan in debug mode
 #ifdef DEBUG

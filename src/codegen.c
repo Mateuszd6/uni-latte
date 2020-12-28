@@ -425,8 +425,13 @@ gen_call(ir_quadr* q, i32 n_locals)
     if (q->u.args[0].type == IRVT_FN)
     {
         fprintf(asm_dest, "    call    .GF%ld\n", q->u.args[0].u.constant);
-        fprintf(asm_dest, "    add     rsp, %d ; cleanup\n",
-                8 * g_funcs[q->u.args[0].u.constant].num_args);
+
+        // Cleanup if args were passed on the stack
+        if (g_funcs[q->u.args[0].u.constant].num_args > 0)
+        {
+            fprintf(asm_dest, "    add     rsp, %d ; cleanup\n",
+                    8 * g_funcs[q->u.args[0].u.constant].num_args);
+        }
 
         // If function returns something, write it to the result
         if (q->target.type != IRVT_NONE)
@@ -594,6 +599,16 @@ gen_glob_func(u32 f_id)
         case ALLOC:
         {
             // TODO:
+        } break;
+
+        case LOAD:
+        case SPILL:
+        {
+            // TODO:
+        } break;
+
+        case NOP:
+        {
         } break;
         }
     }

@@ -52,6 +52,11 @@ enum ir_op
     JMP_FLAGS_LE = 32,
     JMP_FLAGS_G = 33,
     JMP_FLAGS_GE = 34,
+
+    // These are register-allocation-specific instructions
+    LOAD = 35,
+    SPILL = 36,
+    NOP = 37,
 };
 typedef enum ir_op ir_op;
 
@@ -62,10 +67,11 @@ static char const* const ir_op_name[] = {
     "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
     "CMP_SET_FLAGS", "JMP_FLAGS_E", "JMP_FLAGS_NE",
     "JMP_FLAGS_L", "JMP_FLAGS_LE", "JMP_FLAGS_G", "JMP_FLAGS_GE",
+    "LOAD", "SPILL", "NOP"
 };
 
 static int const ir_op_n_args[] = {
-    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 0
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
