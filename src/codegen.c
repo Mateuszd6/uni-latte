@@ -309,12 +309,14 @@ gen_div_or_mod(ir_quadr* q, b32 take_reminder, codegen_ctx* ctx)
     fprintf(asm_dest, "    cqo\n");
 
     // Division by constant is handled differently, b/c idiv const does not work
+    // So we use a temp variable (one-off to the stack) to store the divisor.
+    // This is not fast by any streatch of imagination, but this way we regain
+    // RCX, which seems to be worth it
     if (q->u.args[1].type == IRVT_CONST)
     {
-        // TODO: Emit division by constant to skip this madness if possible
-
-        fprintf(asm_dest, "    mov     QWORD [rsp], %ld\n", q->u.args[1].u.constant);
-        fprintf(asm_dest, "    idiv    QWORD [rsp]\n");
+        mm v = q->u.args[1].u.constant;
+        fprintf(asm_dest, "    mov     QWORD [rsp-8], %ld\n", v);
+        fprintf(asm_dest, "    idiv    QWORD [rsp-8]\n");
     }
     else
     {

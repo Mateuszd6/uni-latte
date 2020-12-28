@@ -18,7 +18,11 @@
     test    rsi, rsi
     cmove   rsi, rax
     ;; Now compare two strings
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    strcmp
+    mov     rsp, rbx
     ;; Return 1 if strcmp returned 0, which means equal
     test    eax, eax
     sete    al
@@ -49,16 +53,28 @@
     ;; r14 <- first string
     ;; r13 <- second string
     mov     rdi, r14
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    strlen
+    mov     rsp, rbx
     ;; r15 <- len of first string
     mov     r15, rax
     mov     rdi, r13
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    strlen
+    mov     rsp, rbx
     add     eax, r15d
     add     eax, 1
     ;; rax <- len of both strings + 1 (size of allocation)
     movsxd  rdi, eax
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    malloc
+    mov     rsp, rbx
     ;; r12 <- allocated memory
     mov     r12, rax
     ;; Write 0 to the first byte of the buffer, so that we can strcat them
@@ -66,11 +82,19 @@
     mov     rdi, rax
     mov     rsi, r14
     ;; Concat first string
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    strcat
+    mov     rsp, rbx
     mov     rdi, r12
     mov     rsi, r13
     ;; Concat second string
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    strcat
+    mov     rsp, rbx
     ;; strcat returns a pointer to the resulting string, so we are ok here
     pop     r15
     pop     r14
@@ -90,10 +114,10 @@
     xor     rax, rax
     mov     rdi, .LC0
     ;; Save stack ptr and align it to 16 byte boundary when calling C api
-    mov     r13, rsp
+    mov     rbx, rsp
     and     rsp, ~0xF
     call    printf
-    mov     rsp, r13
+    mov     rsp, rbx
     pop     rbp
     ret
 
@@ -106,8 +130,11 @@
     mov     rax, QWORD .BS0
     test    rdi, rdi
     cmove   rdi, rax
-    ;;
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    puts
+    mov     rsp, rbx
     pop     rbp
     ret
 
@@ -115,6 +142,7 @@
     db "runtime error",0x0
 .GF2: ; error
     mov     rdi, .LC1
+    and     rsp, ~0xF
     call    puts
     mov     rdi, 1
     call    exit ; tailcall
@@ -123,7 +151,6 @@
     db "%d",0x0
 .GF3: ; readInt
     push    rbp
-    push    r13
     mov     rbp, rsp
     sub     rsp, 32
     ;; Two params of getline we need to give address to (ptr + length)
@@ -135,7 +162,11 @@
     mov     rdx, QWORD [rel stdin]
     lea     rdi, [rbp - 16]
     lea     rsi, [rbp - 24]
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    getline
+    mov     rsp, rbx
     ;; If getline failed, we will simply return 0
     mov     rdi, QWORD [rbp - 16]
     test    rdi, rdi
@@ -145,10 +176,10 @@
     mov     esi, .LC2
     xor     eax, eax
     ;; Save stack ptr and align it to 16 byte boundary when calling C api
-    mov     r13, rsp
+    mov     rbx, rsp
     and     rsp, ~0xF
     call    sscanf
-    mov     rsp, r13
+    mov     rsp, rbx
     ;; Now move a poiner into a register, because we probably need to free it
     mov     rdi, QWORD [rbp - 16]
     jmp     .GF3_L1
@@ -157,16 +188,19 @@
 .GF3_L1:
     ;; Be a good citizen and free mem. Free does nothing on 0, so its fine
     xor     eax, eax
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    free
+    mov     rsp, rbx
     ;; Return the integer on the stack, that scanf might have set
     mov     eax, DWORD [rbp - 4]
-    pop     r13
     add     rsp, 32
     pop     rbp
     ret
 
 .GF4: ; readString
-    push    rbx
+    push    r12
     sub     rsp, 16
     ;; [rsp+0] is char** lineptr, it will get malloc'ed by getline
     mov     QWORD [rsp], 0
@@ -176,21 +210,29 @@
     mov     rdx, QWORD [rel stdin]
     mov     rdi, rsp
     lea     rsi, [rsp+8]
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    getline
+    mov     rsp, rbx
     ;; Now we need to remove a trailing \n, because getline keeps adding
-    mov     rbx, QWORD [rsp]
+    mov     r12, QWORD [rsp]
     ;; First compute the length of the string, because [rsp+8] holds the size of
     ;; the _allocation_ which is not the same
-    mov     rdi, rbx
+    mov     rdi, r12
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
     call    strlen
+    mov     rsp, rbx
     ;; Now check if one-before-last character is '\n'
-    cmp     BYTE [rbx+rax-1], 10
+    cmp     BYTE [r12+rax-1], 10
     jne     .GF4_L0
     ;; ... and if so, remove it
-    mov     BYTE [rbx+rax-1], 0
+    mov     BYTE [r12+rax-1], 0
 .GF4_L0:
     ;; The pointer to the allocated string gets returned
     mov     rax, QWORD [rsp]
     add     rsp, 16
-    pop     rbx
+    pop     r12
     ret
