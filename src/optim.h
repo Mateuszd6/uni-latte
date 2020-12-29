@@ -23,9 +23,14 @@ struct lifetime_info
 typedef struct reg_alloc_info reg_alloc_info;
 struct reg_alloc_info
 {
-    u8* vars; // THis owns the memory
+    union
+    {
+        u8* vars;
+        u8* all;
+    };
     u8* params;
     u8* temps;
+    mm n_all;
 };
 
 typedef struct opt_ctx opt_ctx;

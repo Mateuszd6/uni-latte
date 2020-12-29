@@ -70,6 +70,7 @@ struct codegen_ctx
 {
     reg_alloc_info regalloc;
     i32 n_locals;
+    b8 used_regs[X64_NUM_REGS];
     // TODO: n_temps probably
 };
 

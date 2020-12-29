@@ -1828,8 +1828,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         i32 block_id = push_block(); // For body
 
         Stmt lbody = s->u.for_.stmt_;
-        processed_stmt lbody_e = process_stmt(lbody, return_type, block_id, ir);
-        (void)lbody_e; // TODO(ir)
+        process_stmt(lbody, return_type, block_id, ir);
 
         pop_block(ir);
         pop_block(ir);

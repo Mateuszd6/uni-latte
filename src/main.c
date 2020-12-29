@@ -10,25 +10,19 @@
 // TODO: Add IRVT for local functions
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
-// TODO: Maybe the first param of IR_PUSH should be entire expression, not just .val
-// TODO: Fix not all code paths return value now, with new if evaluation
-// TODO: Remove evaluation of boolean expressions from process_expr ?
-// TODO: Create a test in which boolean func params are evaluated correctly
-// TODO: Don't emit jumping code, when condition is constant
+// TODO: Remove evaluation of boolean expressions from process_expr ??
 // TODO: Check if variables get correct numbers in nested blocks
 // TODO: Make NOREACH IR instruction and emit a single ret with this comment
 //       there? Or remove appending the 'ret' at the end?
-// TODO: Optim: Remove LHS if function result is unused
-// BUG: Print strings seems to have a return type (in ir)
 // BUG: Unused constants are still emmited (but who cares)?
 
 // TODO: All registers are callee saved - make sure only necesarry regs are
 //       saved and that asm code is correct
 
 // Disable leak checking for asan in debug mode
-#ifdef DEBUG
+#if DEBUG
 extern char const* __asan_default_options(void);
-extern char const* __asan_default_options() { return "detect_leaks=0"; }
+extern char const* __asan_default_options() { return "detect_leaks=0,color=never"; }
 #endif
 
 #include "gen/asm-prelude.h"

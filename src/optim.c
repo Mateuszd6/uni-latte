@@ -358,7 +358,6 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
         qsort(intervs, intervs_size, sizeof(life_interval), qsort_life_interval);
 
     life_interval* regs[X64_NUM_REGS] = {0};
-    mm* unallocated = 0;
     mm first_al = RCX;
     mm regs_size = first_al + MAX_ALLOCATED_REGS;
     for (mm i = 0, size = intervs_size; i < size; ++i)
@@ -376,9 +375,6 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
                 break;
             }
         }
-
-        if (r == regs_size)
-            array_push(unallocated, life.id);
 
         printf("%s_%ld: [%ld; %ld]\n",
                life.type == IRVT_VAR ? "v" : (life.type == IRVT_FNPARAM ? "p" : "t"),
@@ -430,8 +426,10 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
         .vars = alloc_info,
         .params = alloc_info + info->n_vars,
         .temps = alloc_info + info->n_vars + info->n_fparams,
+        .n_all = info->n_all,
     };
 
+    array_free(intervs);
     return retval;
 }
 
@@ -613,16 +611,15 @@ optimize_func(d_func* func)
     // Keep removing unused temp registers:
     for (;;)
     {
-        b32 removed = 0;
         b32 r = remove_dead_temps(ir, &info);
         if (!r) break;
 
         // If we removed something, we need to recalculate variable lifetimes:
+        lifetime_free(&info);
         info = compute_lifetimes(ir);
     }
 
     func->regalloc = allocate_registers(ir, &info);
-
     func->code = ir;
     lifetime_free(&info);
 }

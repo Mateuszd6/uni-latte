@@ -69,37 +69,19 @@ gen_ir()
 //
 
 static void
-save_all_registers(void)
+save_all_registers(codegen_ctx* ctx)
 {
-    fprintf(asm_dest, "    push    rcx\n");
-    fprintf(asm_dest, "    push    rsi\n");
-    fprintf(asm_dest, "    push    rdi\n");
-    fprintf(asm_dest, "    push    r8\n");
-    fprintf(asm_dest, "    push    r9\n");
-    fprintf(asm_dest, "    push    r10\n");
-    fprintf(asm_dest, "    push    r11\n");
-    fprintf(asm_dest, "    push    rbx\n");
-    fprintf(asm_dest, "    push    r12\n");
-    fprintf(asm_dest, "    push    r13\n");
-    fprintf(asm_dest, "    push    r14\n");
-    fprintf(asm_dest, "    push    r15\n");
+    for (mm i = 0; i < X64_NUM_REGS; ++i)
+        if (ctx->used_regs[i])
+            fprintf(asm_dest, "    push    %s\n", x64_reg_name[i]);
 }
 
 static void
-restore_all_registers(void)
+restore_all_registers(codegen_ctx* ctx)
 {
-    fprintf(asm_dest, "    pop     r15\n");
-    fprintf(asm_dest, "    pop     r14\n");
-    fprintf(asm_dest, "    pop     r13\n");
-    fprintf(asm_dest, "    pop     r12\n");
-    fprintf(asm_dest, "    pop     rbx\n");
-    fprintf(asm_dest, "    pop     r11\n");
-    fprintf(asm_dest, "    pop     r10\n");
-    fprintf(asm_dest, "    pop     r9\n");
-    fprintf(asm_dest, "    pop     r8\n");
-    fprintf(asm_dest, "    pop     rdi\n");
-    fprintf(asm_dest, "    pop     rsi\n");
-    fprintf(asm_dest, "    pop     rcx\n");
+    for (mm i = X64_NUM_REGS - 1; i >= 0; --i)
+        if (ctx->used_regs[i])
+            fprintf(asm_dest, "    pop     %s\n", x64_reg_name[i]);
 }
 
 static void
@@ -117,7 +99,7 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
     fprintf(asm_dest, "    sub     rsp, %d\n", ctx->n_locals * 8); // TODO: Don't gen for n_locals = 0
     fprintf(asm_dest, "    sub     rsp, %d ; TODO: TEMP\n", 1024);
 
-    save_all_registers();
+    save_all_registers(ctx);
 
     // Load register-allocated params into apropiate regs:
     // TODO: Get nparams, don't use it like this!
@@ -137,7 +119,7 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
 static void
 gen_func_epilogue(codegen_ctx* ctx)
 {
-    restore_all_registers();
+    restore_all_registers(ctx);
 
     fprintf(asm_dest, "    add     rsp, %d ; TODO: TEMP\n", 1024);
     fprintf(asm_dest, "    add     rsp, %d\n", ctx->n_locals * 8); // TODO: Don't gen for n_locals = 0
@@ -543,10 +525,14 @@ gen_glob_func(u32 f_id)
     codegen_ctx ctx = {
         .regalloc = g_funcs[f_id].regalloc,
         .n_locals = (i32)count_locals(ir),
+        .used_regs = {0},
     };
 
-    gen_func_prologue((i32)f_id, &ctx, fname);
+    for (mm i = 0; i < ctx.regalloc.n_all; ++i)
+        if (ctx.regalloc.all[i])
+            ctx.used_regs[ctx.regalloc.all[i]] = 1;
 
+    gen_func_prologue((i32)f_id, &ctx, fname);
     for (mm i = 0, size = array_size(ir); i < size; ++i)
     {
         ir_quadr q = ir[i];
