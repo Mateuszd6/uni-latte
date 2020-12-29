@@ -1913,14 +1913,14 @@ process_func_body(char* fnname, Block b, void* node)
             if (idx != n_quards - 1)
             {
                 ir_quadr retq = ircode[idx];
-                memmove(ircode + idx, ircode + idx + 1, n_quards - 1 - idx);
+                memmove(ircode + idx, ircode + idx + 1, sizeof(ir_quadr) * (n_quards - 1 - idx));
                 ircode[n_quards - 1] = retq;
             }
 
             break;
         }
 
-        if (ircode[idx].op != DISPOSE) break; // No luck
+        if (ircode[idx].op != DISPOSE) break;
     }
 
     // Return is emmited after this label

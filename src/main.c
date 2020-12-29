@@ -1,6 +1,3 @@
-// TODO: Support allocating func params - load allocated params in the func prelude
-// TODO: Removed unused regs from eplilogue.s
-//
 // TODO: foo() || foo(); // as statement expression
 //       produces incorrect code, because foo is evaludated more than once
 //
