@@ -2,84 +2,6 @@
 #include "frontend.h"
 #include "optim.h"
 
-#if 0
-static void
-opt_ctx_add_used_label(i64 label_id, b8** used_labels)
-{
-    mm used_labels_size = array_size(*used_labels);
-    if (label_id >= used_labels_size)
-    {
-        mm to_insert = label_id - used_labels_size + 1;
-        b8 booleans[to_insert];
-        memset(booleans, 0, sizeof(b8) * (umm)to_insert);
-
-        array_pushn(*used_labels, booleans, to_insert);
-    }
-
-    (*used_labels)[label_id] = 1;
-}
-
-enum used_irval_t
-{
-    UIT_V = 0,
-    UIT_P = 1,
-    UIT_T = 2,
-};
-typedef enum used_irval_t used_irval_t;
-
-typedef struct used_irval used_irval;
-struct used_irval
-{
-    u64 regnum;
-    used_irval_t type;
-};
-#endif
-
-#if 0
-static void
-add_used_var(ir_val v, used_irval** used_vals)
-{
-    used_irval uv;
-    switch (v.type) {
-    case IRVT_VAR:
-    {
-        uv.type = UIT_V;
-        uv.regnum = v.u.reg_id;
-    } break;
-    case IRVT_FNPARAM:
-    {
-        uv.type = UIT_P;
-        uv.regnum = v.u.reg_id;
-    } break;
-    case IRVT_TEMP:
-    {
-        uv.type = UIT_T;
-        uv.regnum = v.u.reg_id;
-    } break;
-
-    case IRVT_NONE:
-    case IRVT_FN:
-    case IRVT_CONST:
-    case IRVT_STRCONST:
-    NOTREACHED;
-    }
-
-    mm used_vals_size = array_size(*used_vals);
-    mm i = 0;
-    for (; i < used_vals_size; ++i)
-    {
-        if (uv.type == (*used_vals)[i].type
-            && uv.regnum == (*used_vals)[i].regnum)
-        {
-            break;
-        }
-    }
-
-    if (i == used_vals_size) // Not found
-        array_push(*used_vals, uv);
-}
-#endif
-
 static int
 qsort_life_interval(void const* lhs_p, void const* rhs_p)
 {
@@ -358,6 +280,7 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
         qsort(intervs, intervs_size, sizeof(life_interval), qsort_life_interval);
 
     life_interval* regs[X64_NUM_REGS] = {0};
+    unallocated_var* unalloced = 0;
     mm first_al = RCX;
     mm regs_size = first_al + MAX_ALLOCATED_REGS;
     for (mm i = 0, size = intervs_size; i < size; ++i)
@@ -374,6 +297,12 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
                 array_push(regs[r], life);
                 break;
             }
+        }
+
+        if (r == regs_size)
+        {
+            unallocated_var uv = { .id = life.id, .type = life.type, };
+            array_push(unalloced, uv);
         }
 
         printf("%s_%ld: [%ld; %ld]\n",
@@ -402,31 +331,58 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
         printf("\n");
     }
 
-#if 0
-    printf("ALLOCATED:\n");
-    for (mm i = 0; i < info->n_temps; ++i)
-    {
-        mm alloced_reg_no = alloc_info[info->n_vars + info->n_fparams + i];
-        if (alloced_reg_no)
-            printf("    %s <- %s_%ld\n",
-                   regs[r][j].type == IRVT_VAR ? "v" : (regs[r][j].type == IRVT_FNPARAM ? "p" : "t"),
-                   x64_reg_name[alloced_reg_no], i);
-    }
-
+#if 1
     printf("UNALLOCATED:\n");
-    for (mm i = 0, unallocated_size = array_size(unallocated); i < unallocated_size; ++i)
+    for (mm i = 0, n_unalloced = array_size(unalloced); i < n_unalloced; ++i)
     {
         printf("    %s_%ld\n",
-               regs[r][j].type == IRVT_VAR ? "v" : (regs[r][j].type == IRVT_FNPARAM ? "p" : "t"),
-               unallocated[i]);
+               unalloced[i].type == IRVT_VAR ? "v" : (unalloced[i].type == IRVT_FNPARAM ? "p" : "t"),
+               unalloced[i].id);
     }
+    printf("\n");
 #endif
+
+    mm n_unalloced = array_size(unalloced);
+    i32* bp_offset = malloc(sizeof(i32) *  info->n_all);
+    memset(bp_offset, 0, sizeof(i32) *  info->n_all); // 0 means non-stack
+
+    i32 offset = 1;
+    i32* bp_vars = bp_offset;
+    i32* bp_temps = bp_offset + info->n_vars + info->n_fparams;
+
+    for (mm i = 0; i < n_unalloced; ++i)
+        if (unalloced[i].type == IRVT_VAR)
+        {
+            printf("Allocating v_%ld at rbp+%d\n", unalloced[i].id, offset * 8);
+            bp_vars[unalloced[i].id] = offset++;
+        }
+
+    for (mm i = 0; i < n_unalloced; ++i)
+        if (unalloced[i].type == IRVT_TEMP)
+        {
+            printf("Allocating t_%ld at rbp+%d\n", unalloced[i].id, offset * 8);
+            bp_temps[unalloced[i].id] = offset++;
+        }
+
+    for (mm i = 0; i < info->n_vars; ++i)
+        printf("%d ", bp_vars[i]);
+    printf("\n");
+
+    for (mm i = 0; i < info->n_temps; ++i)
+        printf("%d ", bp_temps[i]);
+    printf("\n");
 
     reg_alloc_info retval = {
         .vars = alloc_info,
         .params = alloc_info + info->n_vars,
         .temps = alloc_info + info->n_vars + info->n_fparams,
         .n_all = info->n_all,
+        .n_vars = info->n_vars,
+        .n_fparams = info->n_fparams,
+        .n_temps = info->n_temps,
+        .bp_vars = bp_vars,
+        .bp_temps = bp_temps,
+        .bp_offset = offset - 1,
     };
 
     array_free(intervs);
@@ -436,8 +392,8 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
 //
 // TODO: Lets stop naming it ctx, because it's just set of unused labels!
 //
-static opt_ctx
-opt_create_ctx(ir_quadr* ir)
+static b8*
+get_used_labels(ir_quadr* ir)
 {
     mm ir_size = array_size(ir);
     mm used_labels_size = (g_label + 1);
@@ -458,11 +414,7 @@ opt_create_ctx(ir_quadr* ir)
             printf("Used label: %ld\n", i);
     }
 
-    opt_ctx retval = {
-        .used_labels = used_labels,
-    };
-
-    return retval;
+    return used_labels;
 }
 
 // Remove fallthrough JMP instructions, so that:
@@ -521,7 +473,7 @@ opt_fallthrough_jumps(ir_quadr** ir)
 
 // Remove labels that nobody ever jumps to
 static void
-opt_del_dead_labels(ir_quadr** ir, opt_ctx* ctx)
+opt_del_dead_labels(ir_quadr** ir, b8* used_labels)
 {
     ir_quadr* new_ir = 0;
     ir_quadr* cur_ir = *ir;
@@ -531,7 +483,7 @@ opt_del_dead_labels(ir_quadr** ir, opt_ctx* ctx)
     for (mm i = 0; i < cur_ir_size; ++i)
     {
         if (cur_ir[i].op == LABEL
-            && !ctx->used_labels[cur_ir[i].u.args[0].u.constant]
+            && !used_labels[cur_ir[i].u.args[0].u.constant]
             && i + 1 < cur_ir_size) // We don't want to remove last label
         {
             continue;
@@ -604,13 +556,13 @@ static void
 optimize_func(d_func* func)
 {
     ir_quadr* ir = func->code;
-    opt_ctx ctx = opt_create_ctx(ir);
-    opt_del_dead_labels(&ir, &ctx);
+    b8* used_labels = get_used_labels(ir);
+    opt_del_dead_labels(&ir, used_labels);
     opt_fallthrough_jumps(&ir);
 
-    // TODO: dont' recreate context, although we need it to recalculate unused labels:
-    ctx = opt_create_ctx(ir);
-    opt_del_dead_labels(&ir, &ctx);
+    free(used_labels);
+    used_labels = get_used_labels(ir);
+    opt_del_dead_labels(&ir, used_labels);
 
     lifetime_info info = compute_lifetimes(ir);
     replace_compare_jumps_with_flag_jumps(&ir, &info);

@@ -1,6 +1,13 @@
 #ifndef OPTIM_H_
 #define OPTIM_H_
 
+typedef struct unallocated_var unallocated_var;
+struct unallocated_var
+{
+    mm id;
+    int type;
+};
+
 typedef struct life_interval life_interval;
 struct life_interval
 {
@@ -25,18 +32,19 @@ struct reg_alloc_info
 {
     union
     {
-        u8* vars;
+        u8* vars; // Holds memory
         u8* all;
     };
     u8* params;
     u8* temps;
     mm n_all;
-};
+    mm n_vars;
+    mm n_fparams;
+    mm n_temps;
 
-typedef struct opt_ctx opt_ctx;
-struct opt_ctx
-{
-    b8* used_labels;
+    i32* bp_vars; // Holds memory
+    i32* bp_temps;
+    mm bp_offset;
 };
 
 #endif // OPTIM_H_

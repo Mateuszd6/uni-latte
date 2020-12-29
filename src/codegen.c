@@ -106,8 +106,8 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
     fprintf(asm_dest, ".GF%d: ; %s\n", f_id, fname);
     fprintf(asm_dest, "    push    rbp\n");
     fprintf(asm_dest, "    mov     rbp, rsp\n");
-    fprintf(asm_dest, "    sub     rsp, %d\n", ctx->n_locals * 8); // TODO: Don't gen for n_locals = 0
-    fprintf(asm_dest, "    sub     rsp, %d ; TODO: TEMP\n", 1024);
+    if (ctx->bp_offset)
+        fprintf(asm_dest, "    sub     rsp, %ld\n", ctx->bp_offset * 8);
 
     save_registers(ctx);
 
@@ -129,8 +129,8 @@ gen_func_epilogue(codegen_ctx* ctx)
 {
     restore_registers(ctx);
 
-    fprintf(asm_dest, "    add     rsp, %d ; TODO: TEMP\n", 1024);
-    fprintf(asm_dest, "    add     rsp, %d\n", ctx->n_locals * 8); // TODO: Don't gen for n_locals = 0
+    if (ctx->bp_offset)
+        fprintf(asm_dest, "    add     rsp, %ld\n", ctx->bp_offset * 8); // TODO: Don't gen for n_locals = 0
     fprintf(asm_dest, "    pop     rbp\n");
 }
 
@@ -147,9 +147,10 @@ gen_codefor_other_reg(char* buf, x64_reg r)
 }
 
 static void
-gen_codefor_local_variable(char* buf, i64 var_id)
+gen_codefor_local_variable(char* buf, i64 var_id, codegen_ctx* ctx)
 {
-    sprintf(buf, "QWORD [rbp-%ld]", 8 * (var_id + 1));
+    assert(ctx->bp_vars[var_id] != 0);
+    sprintf(buf, "QWORD [rbp-%d]", 8 * ctx->bp_vars[var_id]);
 }
 
 static void
@@ -161,7 +162,8 @@ gen_codefor_fun_param(char* buf, i64 var_id)
 static void
 gen_codefor_temp_variable(char* buf, i64 temp_id, codegen_ctx* ctx)
 {
-    sprintf(buf, "QWORD [rbp-%ld]", 8 * (ctx->n_locals + temp_id));
+    assert(ctx->bp_temps[temp_id] != 0);
+    sprintf(buf, "QWORD [rbp-%d]", 8 * ctx->bp_temps[temp_id]);
 }
 
 static void
@@ -179,7 +181,7 @@ gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx)
         if (ctx->regalloc.vars[v->u.constant])
             gen_codefor_other_reg(buf, ctx->regalloc.vars[v->u.constant]);
         else
-            gen_codefor_local_variable(buf, v->u.constant);
+            gen_codefor_local_variable(buf, v->u.constant, ctx);
     } break;
     case IRVT_FNPARAM:
     {
@@ -550,15 +552,19 @@ count_locals(ir_quadr* ir)
 static void
 gen_glob_func(u32 f_id)
 {
-    ir_quadr* ir = g_funcs[f_id].code;
-    char* fname = g_funcs[f_id].name;
-    i32 return_label_id = g_funcs[f_id].return_label_id;
+    d_func* func = g_funcs + f_id;
+    ir_quadr* ir = func->code;
+    char* fname = func->name;
+    i32 return_label_id = func->return_label_id;
     codegen_ctx ctx = {
-        .regalloc = g_funcs[f_id].regalloc,
-        .n_locals = (i32)count_locals(ir),
+        .regalloc = func->regalloc,
         .used_regs = {0},
+        .bp_vars = func->regalloc.bp_vars,
+        .bp_temps = func->regalloc.bp_temps,
+        .bp_offset = func->regalloc.bp_offset,
     };
 
+    // Set used regs
     for (mm i = 0; i < ctx.regalloc.n_all; ++i)
         if (ctx.regalloc.all[i])
             ctx.used_regs[ctx.regalloc.all[i]] = 1;

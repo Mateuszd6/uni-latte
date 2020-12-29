@@ -9,8 +9,6 @@
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
 // TODO: Remove evaluation of boolean expressions from process_expr ??
 // TODO: Check if variables get correct numbers in nested blocks
-// TODO: Make NOREACH IR instruction and emit a single ret with this comment
-//       there? Or remove appending the 'ret' at the end?
 // BUG: Unused constants are still emmited (but who cares)?
 
 // Disable leak checking for asan in debug mode
@@ -42,12 +40,6 @@ extern char const* __asan_default_options() { return "detect_leaks=0,color=never
 #include "parser.h"
 #include "symtab.h"
 
-// TODO: Move below all includes
-static FILE* asm_dest;
-#if DUMP_IR
-static FILE* ir_dest;
-#endif
-
 #include "misc.c"
 #include "symtab.c"
 #include "frontend.c"
@@ -56,7 +48,7 @@ static FILE* ir_dest;
 #include "codegen.c"
 
 //
-// Used to get a filename when error reporting in parser in extern parser
+// Used to get a filename when error parsing reporting in extern parser
 //
 char* myfilename = 0;
 

@@ -69,9 +69,15 @@ typedef struct codegen_ctx codegen_ctx;
 struct codegen_ctx
 {
     reg_alloc_info regalloc;
-    i32 n_locals;
+    i32* bp_vars; // Holds memory
+    i32* bp_temps;
+    mm bp_offset;
     b8 used_regs[X64_NUM_REGS];
-    // TODO: n_temps probably
 };
+
+static FILE* asm_dest;
+#if DUMP_IR
+static FILE* ir_dest;
+#endif
 
 #endif // CODEGEN_H_
