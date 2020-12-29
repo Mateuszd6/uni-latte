@@ -15,10 +15,6 @@
     push    r10
     push    r11
     push    rbx
-    push    r12
-    push    r13
-    push    r14
-    push    r15
     ;; First param in our ABI
     mov     rdi, QWORD [rbp+16]
     ;; Second param in our ABI
@@ -40,10 +36,6 @@
     test    eax, eax
     sete    al
     movzx   eax, al
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
     pop     rbx
     pop     r11
     pop     r10
@@ -159,10 +151,6 @@
     push    r10
     push    r11
     push    rbx
-    push    r12
-    push    r13
-    push    r14
-    push    r15
     ;; First param in our ABI
     mov     rsi, QWORD [rbp+16]
     ;; Variadic functions have number of sse args (0 here) in AX register
@@ -173,10 +161,6 @@
     and     rsp, ~0xF
     call    printf
     mov     rsp, rbx
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
     pop     rbx
     pop     r11
     pop     r10
@@ -200,10 +184,6 @@
     push    r10
     push    r11
     push    rbx
-    push    r12
-    push    r13
-    push    r14
-    push    r15
     ;; First param in our ABI
     mov     rdi, QWORD [rbp+16]
     ;; Null string is the same as "", so nullcheck, BS0 is an empty string
@@ -215,10 +195,6 @@
     and     rsp, ~0xF
     call    puts
     mov     rsp, rbx
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
     pop     rbx
     pop     r11
     pop     r10
@@ -254,10 +230,6 @@
     push    r10
     push    r11
     push    rbx
-    push    r12
-    push    r13
-    push    r14
-    push    r15
     sub     rsp, 32
     ;; Two params of getline we need to give address to (ptr + length)
     mov     QWORD [rbp - 16], 0
@@ -302,10 +274,6 @@
     ;; Return the integer on the stack, that scanf might have set
     mov     eax, DWORD [rbp - 4]
     add     rsp, 32
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
     pop     rbx
     pop     r11
     pop     r10
@@ -330,9 +298,6 @@
     push    r11
     push    rbx
     push    r12
-    push    r13
-    push    r14
-    push    r15
     sub     rsp, 16
     ;; [rsp+0] is char** lineptr, it will get malloc'ed by getline
     mov     QWORD [rsp], 0
@@ -366,9 +331,6 @@
     ;; The pointer to the allocated string gets returned
     mov     rax, QWORD [rsp]
     add     rsp, 16
-    pop     r15
-    pop     r14
-    pop     r13
     pop     r12
     pop     rbx
     pop     r11
