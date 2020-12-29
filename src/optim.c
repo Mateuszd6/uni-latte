@@ -230,14 +230,77 @@ compute_lifetimes(ir_quadr* ir)
     return retval;
 }
 
+// Can't add/remove from the array, only modify!!
+static b32
+remove_dead_temps(ir_quadr* ir, lifetime_info* info)
+{
+    printf("Doing single removing iteration!\n");
+
+    mm ir_size = array_size(ir);
+    b32 removed = 0;
+    b8 dead[info->n_temps + 1]; // +1 because zero-length vlas are UB
+
+    // Set dead variables
+    memset(dead, 0, sizeof(b8) * (info->n_temps + 1));
+    for (mm i = 0; i < info->n_temps; ++i)
+    {
+        // TODO: Copypaste from register allocation
+        mm life_starts = 0;
+        mm life_ends = 0;
+
+        mm ino = 0;
+        while (ino < ir_size && !lifetime_check_at(info, i, IRVT_TEMP, ino))
+            ++ino;
+        life_starts = ino;
+
+        b32 set = 0;
+        while (ino < ir_size)
+        {
+            if (lifetime_check_at(info, i, IRVT_TEMP, ino))
+            {
+                life_ends = ino + 1;
+                set = 1;
+            }
+
+            ++ino;
+        }
+
+        if (!set)
+            life_ends = ino;
+
+        if (life_starts == life_ends && life_ends == ir_size)
+            dead[i] = 1;
+    }
+
+    // Replace dead targets with empty expr
+    for (mm i = 0; i < ir_size; ++i)
+    {
+        if (ir[i].target.type == IRVT_TEMP && dead[ir[i].target.u.reg_id])
+        {
+            removed = 1;
+            if (ir[i].op == CALL) // Other side-effect operations
+            {
+                ir_val empty = IR_EMPTY();
+                ir[i].target = empty;
+            }
+            else // Non-effect operations are simply skipped
+            {
+                ir_val empty = IR_EMPTY();
+                ir[i].target = empty;
+                ir[i].op = NOP;
+            }
+        }
+    }
+
+    return removed;
+}
+
 static reg_alloc_info
-allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
+allocate_registers(ir_quadr* ir, lifetime_info* info)
 {
     u8* alloc_info = calloc(info->n_all, sizeof(u8)); // 0 means no register
     mm ir_size = array_size(ir);
     life_interval* intervs = 0;
-    mm n_max_slots = MAX(MAX(info->n_temps, info->n_vars), info->n_fparams);
-    // b8 dead[n_max_slots + 1]; // +1 because zero-length vlas are UB
 
     struct
     {
@@ -251,7 +314,6 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
 
     for (mm j = 0; j < COUNT_OF(types); ++j)
     {
-        // memset(dead, 0, sizeof(b8) * (n_max_slots + 1));
         for (mm i = 0; i < types[j].num; ++i)
         {
             mm life_starts = 0;
@@ -290,28 +352,6 @@ allocate_registers_for_temps(ir_quadr* ir, lifetime_info* info)
             }
         }
     }
-
-    // TODO: Move somewhere else?
-#if 0
-    // Replace dead targets with empty expr
-    for (mm i = 0; i < ir_size; ++i)
-    {
-        if (ir[i].target.type == IRVT_TEMP && dead[ir[i].target.u.reg_id])
-        {
-            if (ir[i].op == CALL) // Other side-effect operations
-            {
-                ir_val empty = IR_EMPTY();
-                ir[i].target = empty;
-            }
-            else // Non-effect operations are simply skipped
-            {
-                ir_val empty = IR_EMPTY();
-                ir[i].target = empty;
-                ir[i].op = NOP;
-            }
-        }
-    }
-#endif
 
     mm intervs_size = array_size(intervs);
     if (intervs_size > 0)
@@ -570,32 +610,20 @@ optimize_func(d_func* func)
     opt_del_dead_labels(&ir, &ctx);
 
     lifetime_info info = compute_lifetimes(ir);
-
-#if 0
-    mm ir_size = array_size(ir);
-    printf("Optimizing func: \"%s\"\n", func->name);
-    for (mm i = 0; i < ir_size; ++i)
-    {
-        printf("Alive: [ ");
-
-        for (mm j = 0; j < info.n_vars; ++j)
-            if (info.mem[i * info.n_all + j])
-                printf("v_%ld ", j);
-
-        for (mm j = 0; j < info.n_fparams; ++j)
-            if (info.mem[i * info.n_all + info.n_vars + j])
-                printf("p_%ld ", j);
-
-        for (mm j = 0; j < info.n_temps; ++j)
-            if (info.mem[i * info.n_all + info.n_vars + info.n_fparams + j])
-                printf("t_%ld ", j);
-
-        printf("]\n");
-    }
-#endif
-
     replace_compare_jumps_with_flag_jumps(&ir, &info);
-    func->regalloc = allocate_registers_for_temps(ir, &info);
+
+    // Keep removing unused temp registers:
+    for (;;)
+    {
+        b32 removed = 0;
+        b32 r = remove_dead_temps(ir, &info);
+        if (!r) break;
+
+        // If we removed something, we need to recalculate variable lifetimes:
+        info = compute_lifetimes(ir);
+    }
+
+    func->regalloc = allocate_registers(ir, &info);
 
     func->code = ir;
     lifetime_free(&info);

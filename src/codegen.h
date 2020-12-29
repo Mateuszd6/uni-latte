@@ -1,6 +1,8 @@
 #ifndef CODEGEN_H_
 #define CODEGEN_H_
 
+#include "frontend.h"
+
 //
 // The order of the registers matters. Note that our calling convention differs
 // from System V ABI (and pretty much anything else, that's why user has to be
@@ -61,5 +63,16 @@ static char const* x64_reg_name[] =
     "    mov     rdi, rax\n"                                                   \
     "    jmp     exit ; tailcall\n"                                            \
     "\n"
+
+typedef struct codegen_ctx codegen_ctx;
+struct codegen_ctx
+{
+    reg_alloc_info regalloc;
+    i32 n_locals;
+    // TODO: n_temps probably
+};
+
+static void
+gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx);
 
 #endif // CODEGEN_H_

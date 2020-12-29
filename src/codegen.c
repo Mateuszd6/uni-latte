@@ -61,14 +61,6 @@ gen_ir()
 
 #endif
 
-typedef struct codegen_ctx codegen_ctx;
-struct codegen_ctx
-{
-    reg_alloc_info regalloc;
-    i32 n_locals;
-    // TODO: n_temps probably
-};
-
 //
 // TODO: Change these, so that we only save what is really needed.
 //
@@ -126,6 +118,20 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
     fprintf(asm_dest, "    sub     rsp, %d ; TODO: TEMP\n", 1024);
 
     save_all_registers();
+
+    // Load register-allocated params into apropiate regs:
+    // TODO: Get nparams, don't use it like this!
+    char buf[64];
+    mm i = 0;
+    for (u8* p = ctx->regalloc.params; p != ctx->regalloc.temps; ++p, ++i)
+    {
+        if (*p)
+        {
+            ir_val v = { .type = IRVT_FNPARAM, .u = { .reg_id = i }};
+            gen_get_address_of(buf, &v, ctx);
+            fprintf(asm_dest, "    mov     %s, %s ; load p_%ld into reg\n", x64_reg_name[*p], buf, i);
+        }
+    }
 }
 
 static void

@@ -6,8 +6,6 @@
 //
 // TODO: Reuse vars which are out-of-scope
 //
-// TODO: Fix broken readInt
-//
 // TODO: Add explicite LOAD/STORE for writing to arrays and class members
 // TODO: Add IRVT for local functions
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
