@@ -421,8 +421,6 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
             }
             else
             {
-                b8 condition_is_constant = 0;
-                b8 condition_is_true = 0;
                 preprocessed_jump_expr* pre_buf = 0;
                 preprocessed_jump_expr pre = preprocess_jumping_expr(argexpr, &pre_buf, 0);
 
@@ -430,9 +428,6 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
 
                 if (pre.kind == PRJE_CONST)
                 {
-                    condition_is_constant = 1;
-                    condition_is_true = !!(pre.u.constant);
-
                     ir_val val = IR_CONSTANT(!!(pre.u.constant));
                     IR_PUSH(IR_EMPTY(), PARAM, val);
                 }
@@ -522,29 +517,22 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
     }
     else
     {
-        b8 condition_is_constant = 0;
-        b8 condition_is_true = 0;
         preprocessed_jump_expr* pre_buf = 0;
         preprocessed_jump_expr pre = preprocess_jumping_expr(e2, &pre_buf, 0);
 
         if (UNLIKELY(pre.kind == PRJE_CONST))
         {
-            condition_is_constant = 1;
-            condition_is_true = !!(pre.u.constant);
-
             ir_val val = IR_CONSTANT(!!(pre.u.constant));
             IR_PUSH(variable_val, MOV, val);
 
-            // TODO: This is totally incorrect, but since we only use it with
-            //       process_assigning with kind of can live with ot.
             processed_expr retval;
             retval.node = e2;
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_CONSTANT;
             retval.is_lvalue = 0;
-            retval.u.numeric_val = !!(condition_is_true);
+            retval.u.numeric_val = !!(pre.u.constant);
             retval.val.type = IRVT_CONST;
-            retval.val.u.constant = !!(condition_is_true);
+            retval.val.u.constant = !!(pre.u.constant);
 
             return retval;
         }
@@ -567,16 +555,16 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
         IR_PUSH(variable_val, MOV, c1);
         IR_PUSH(IR_EMPTY(), LABEL, labl_skip);
 
-        // TODO: This is totally incorrect, but since we only use it with
-        //       process_assigning with kind of can live with ot.
+        // This is totally incorrect, but since we only use it with process_assigning
+        // with kind of can live with ot. The only thing that matters in expr is type
         processed_expr retval;
         retval.node = e2;
         retval.type_id = TYPEID_BOOL;
-        retval.kind = condition_is_constant ? EET_CONSTANT : EET_COMPUTE;
-        retval.is_lvalue = 1; // TODO: why 1 here?
-        retval.u.numeric_val = !!(condition_is_true);
+        retval.kind = EET_COMPUTE;
+        retval.is_lvalue = 0;
+        retval.u.numeric_val = 0;
         retval.val.type = IRVT_CONST;
-        retval.val.u.constant = !!(condition_is_true);
+        retval.val.u.constant = 0;
 
         return retval;
     }
@@ -1623,8 +1611,6 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
     {
         processed_stmt s1;
         processed_stmt s2;
-        b8 condition_is_constant = 0;
-        b8 condition_is_true = 0;
 
         Expr abs_expr = s->kind == is_CondElse ? s->u.condelse_.expr_ : s->u.cond_.expr_;
         Stmt abs_s1 = s->kind == is_CondElse ? s->u.condelse_.stmt_1 : s->u.cond_.stmt_;
@@ -1639,11 +1625,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
         if (UNLIKELY(pre.kind == PRJE_CONST))
         {
-            condition_is_constant = 1;
-            condition_is_true = !!(pre.u.constant);
-
             i32 blk = push_block();
-            if (condition_is_true)
+            if (!!(pre.u.constant))
                 s1 = process_stmt(abs_s1, return_type, blk, ir);
             else if (s->kind == is_CondElse)
                 s1 = process_stmt(abs_s2, return_type, blk, ir);
@@ -1720,16 +1703,14 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         ir_val labl_cond = { .type = IRVT_CONST, .u = { .constant = l_cond } };
         ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
 
-        b8 condition_is_constant = 0;
-        b8 condition_is_true = 0;
+        b32 all_branches_return = 0;
 
         preprocessed_jump_expr* pre_buf = 0;
         preprocessed_jump_expr pre = preprocess_jumping_expr(condexpr, &pre_buf, 0);
 
         if (UNLIKELY(pre.kind == PRJE_CONST))
         {
-            condition_is_constant = 1;
-            condition_is_true = !!(pre.u.constant);
+            all_branches_return = !!(pre.u.constant);
 
             if (!(pre.u.constant)) // If loop condition is false, we are done
             {
@@ -1770,7 +1751,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         // Don't report missing reutrn if loop condition is always true -
         // function will never reach its end. We don't really care what returns
         // in the body, because we may still never enter the loop itself.
-        retval.all_branches_return = condition_is_constant && condition_is_true;
+        retval.all_branches_return = all_branches_return;
 
         return retval;
     }

@@ -1,14 +1,11 @@
-// TODO: remove condition_is_constant/true
-//
-// TODO: Reuse vars which are out-of-scope
-//
 // TODO: Add explicite LOAD/STORE for writing to arrays and class members
 // TODO: Add IRVT for local functions
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
 // TODO: Remove evaluation of boolean expressions from process_expr ??
 // TODO: Check if variables get correct numbers in nested blocks
-// BUG: Unused constants are still emmited (but who cares)?
+// TODO: Don't emit bitwise-or (test core017), although you would have to know
+//       to create a test that actually exploits that
 
 // Disable leak checking for asan in debug mode
 #if DEBUG
