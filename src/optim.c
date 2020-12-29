@@ -451,15 +451,37 @@ opt_fallthrough_jumps(ir_quadr** ir)
             && cur_ir[i + 2].op == LABEL
             && cur_ir[i].u.args[1].u.constant == cur_ir[i + 2].u.args[0].u.constant)
         {
-            printf("Being fancy here!\n");
-            ir_quadr cjmp = cur_ir[i];
-            cjmp.op = cjmp.op == JMP_TRUE ? JMP_FALSE : JMP_TRUE;
-            cjmp.u.args[1].u.constant = cur_ir[i + 1].u.args[0].u.constant;
+            if (cur_ir[i + 1].u.args[0].u.constant == cur_ir[i + 2].u.args[0].u.constant)
+            {
+                // This happens rarely, usually with some statement-expressions that require
+                // jumping code. Anyway, since both jumps take us to the same label, we can
+                // skip testing against it. Usless temporary evaluations will be removed later
 
-            array_push(new_ir, cjmp);
-            array_push(new_ir, cur_ir[i + 2]); // Push label, because it does not change
+                printf("Being fancy here ^2\n");
+                array_push(new_ir, cur_ir[i + 2]);
+            }
+            else
+            {
+                printf("Being fancy here!\n");
+                ir_quadr cjmp = cur_ir[i];
+                cjmp.op = cjmp.op == JMP_TRUE ? JMP_FALSE : JMP_TRUE;
+                cjmp.u.args[1].u.constant = cur_ir[i + 1].u.args[0].u.constant;
+
+                array_push(new_ir, cjmp);
+                array_push(new_ir, cur_ir[i + 2]); // Push label, because it does not change
+            }
 
             i += 2;
+            continue;
+        }
+
+        if (LIKELY(i + 1 < cur_ir_size)
+            && (cur_ir[i].op == JMP)
+            && cur_ir[i + 1].op == LABEL
+            && cur_ir[i].u.args[0].u.constant == cur_ir[i + 1].u.args[0].u.constant)
+        {
+            // Simply, don't emit the jump, because we don't need it
+            printf("Fixing stupid things!\n");
             continue;
         }
 

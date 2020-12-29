@@ -1474,8 +1474,29 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
     case is_SExp:
     {
-        processed_expr ee = process_expr(s->u.sexp_.expr_, ir);
-        (void)ee;
+        Expr ex = s->u.sexp_.expr_;
+        if (!expr_requires_jumping_code(ex))
+        {
+            process_expr(ex, ir);
+        }
+        else
+        {
+            preprocessed_jump_expr* pre_buf = 0;
+            preprocessed_jump_expr pre = preprocess_jumping_expr(ex, &pre_buf, 0);
+
+            // Constant statement-expression can be safetly ignored
+            if (pre.kind != PRJE_CONST)
+            {
+                i32 l_end = g_label++;
+                ir_val labl_end = { .type = IRVT_CONST, .u = { .constant = l_end } };
+
+                jump_ctx ctx = { .l_true = l_end, .l_false = l_end };
+                process_jumping_expr(ir, &pre, pre_buf, ctx);
+                // TODO(leak): pre_buf
+
+                IR_PUSH(IR_EMPTY(), LABEL, labl_end);
+            }
+        }
 
         retval.all_branches_return = 0;
         return retval;

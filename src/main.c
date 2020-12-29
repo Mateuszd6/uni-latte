@@ -1,5 +1,4 @@
-// TODO: foo() || foo(); // as statement expression
-//       produces incorrect code, because foo is evaludated more than once
+// TODO: remove condition_is_constant/true
 //
 // TODO: Reuse vars which are out-of-scope
 //
