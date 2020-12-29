@@ -30,14 +30,9 @@ struct lifetime_info
 typedef struct reg_alloc_info reg_alloc_info;
 struct reg_alloc_info
 {
-    union
-    {
-        u8* vars; // Holds memory
-        u8* all;
-    };
+    u8* vars; // Holds memory
     u8* params;
     u8* temps;
-    mm n_all;
     mm n_vars;
     mm n_fparams;
     mm n_temps;

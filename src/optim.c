@@ -376,7 +376,6 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
         .vars = alloc_info,
         .params = alloc_info + info->n_vars,
         .temps = alloc_info + info->n_vars + info->n_fparams,
-        .n_all = info->n_all,
         .n_vars = info->n_vars,
         .n_fparams = info->n_fparams,
         .n_temps = info->n_temps,

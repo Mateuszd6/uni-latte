@@ -565,9 +565,17 @@ gen_glob_func(u32 f_id)
     };
 
     // Set used regs
-    for (mm i = 0; i < ctx.regalloc.n_all; ++i)
-        if (ctx.regalloc.all[i])
-            ctx.used_regs[ctx.regalloc.all[i]] = 1;
+    for (mm i = 0; i < ctx.regalloc.n_vars; ++i)
+        if (ctx.regalloc.vars[i])
+            ctx.used_regs[ctx.regalloc.vars[i]] = 1;
+
+    for (mm i = 0; i < ctx.regalloc.n_fparams; ++i)
+        if (ctx.regalloc.params[i])
+            ctx.used_regs[ctx.regalloc.params[i]] = 1;
+
+    for (mm i = 0; i < ctx.regalloc.n_temps; ++i)
+        if (ctx.regalloc.temps[i])
+            ctx.used_regs[ctx.regalloc.temps[i]] = 1;
 
     gen_func_prologue((i32)f_id, &ctx, fname);
     for (mm i = 0, size = array_size(ir); i < size; ++i)
