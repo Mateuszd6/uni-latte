@@ -57,6 +57,7 @@ struct d_func
     i32 lnum;
     u32 ret_type_id;
     i32 num_args;
+    i32 return_label_id;
     b32 is_local;
 };
 

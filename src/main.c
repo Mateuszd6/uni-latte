@@ -16,9 +16,6 @@
 //       there? Or remove appending the 'ret' at the end?
 // BUG: Unused constants are still emmited (but who cares)?
 
-// TODO: All registers are callee saved - make sure only necesarry regs are
-//       saved and that asm code is correct
-
 // Disable leak checking for asan in debug mode
 #if DEBUG
 extern char const* __asan_default_options(void);
@@ -149,14 +146,11 @@ main(int argc, char** argv)
 
 #if DUMP_IR
     gen_ir();
+    fclose(ir_dest);
 #endif
 
     gen_code();
-
     fclose(asm_dest);
-#if DUMP_IR
-    fclose(ir_dest);
-#endif
 
     if (strcmp(binary_ext, argv[1]) == 0)
     {

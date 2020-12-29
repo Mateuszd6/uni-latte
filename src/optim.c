@@ -433,6 +433,9 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
     return retval;
 }
 
+//
+// TODO: Lets stop naming it ctx, because it's just set of unused labels!
+//
 static opt_ctx
 opt_create_ctx(ir_quadr* ir)
 {
@@ -527,8 +530,12 @@ opt_del_dead_labels(ir_quadr** ir, opt_ctx* ctx)
 
     for (mm i = 0; i < cur_ir_size; ++i)
     {
-        if (cur_ir[i].op == LABEL && !ctx->used_labels[cur_ir[i].u.args[0].u.constant])
+        if (cur_ir[i].op == LABEL
+            && !ctx->used_labels[cur_ir[i].u.args[0].u.constant]
+            && i + 1 < cur_ir_size) // We don't want to remove last label
+        {
             continue;
+        }
 
         array_push(new_ir, cur_ir[i]);
     }

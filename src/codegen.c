@@ -103,15 +103,14 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
 
     // Load register-allocated params into apropiate regs:
     // TODO: Get nparams, don't use it like this!
-    char buf[64];
     mm i = 0;
     for (u8* p = ctx->regalloc.params; p != ctx->regalloc.temps; ++p, ++i)
     {
         if (*p)
         {
             ir_val v = { .type = IRVT_FNPARAM, .u = { .reg_id = i }};
-            gen_get_address_of(buf, &v, ctx);
-            fprintf(asm_dest, "    mov     %s, %s ; load p_%ld into reg\n", x64_reg_name[*p], buf, i);
+            fprintf(asm_dest, "    mov     %s, QWORD [rbp+%ld] ; load p_%ld into reg\n",
+                    x64_reg_name[*p], 8 * (i + 2), i);
         }
     }
 }
@@ -175,11 +174,10 @@ gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx)
     } break;
     case IRVT_FNPARAM:
     {
-        // TODO: Before introducing params, make sure that allocated params are loaded!
-        // if (ctx->regalloc.params[v->u.constant])
-            // gen_codefor_other_reg(buf, ctx->regalloc.params[v->u.constant]);
-        // else
-        gen_codefor_fun_param(buf, v->u.constant);
+        if (ctx->regalloc.params[v->u.constant])
+            gen_codefor_other_reg(buf, ctx->regalloc.params[v->u.constant]);
+        else
+            gen_codefor_fun_param(buf, v->u.constant);
     } break;
     case IRVT_TEMP:
     {
@@ -522,6 +520,7 @@ gen_glob_func(u32 f_id)
 {
     ir_quadr* ir = g_funcs[f_id].code;
     char* fname = g_funcs[f_id].name;
+    i32 return_label_id = g_funcs[f_id].return_label_id;
     codegen_ctx ctx = {
         .regalloc = g_funcs[f_id].regalloc,
         .n_locals = (i32)count_locals(ir),
@@ -643,8 +642,10 @@ gen_glob_func(u32 f_id)
             if (ir[i].u.args[0].type != IRVT_NONE)
                 gen_load(RAX, ir[i].u.args + 0, &ctx);
 
-            gen_func_epilogue(&ctx);
-            fprintf(asm_dest, "    ret\n");
+            if (i + 1 < size && ir[i + 1].op == LABEL && ir[i + 1].u.args[0].u.constant == return_label_id)
+                printf("Yup\n");
+            else
+                fprintf(asm_dest, "    jmp     .L%d\n", return_label_id);
         } break;
 
         case CMP_SET_FLAGS:
@@ -683,6 +684,8 @@ gen_glob_func(u32 f_id)
         }
     }
 
+    gen_func_epilogue(&ctx);
+    fprintf(asm_dest, "    ret\n");
     fprintf(asm_dest, "\n");
 }
 

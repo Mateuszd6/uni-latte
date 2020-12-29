@@ -74,7 +74,4 @@ struct codegen_ctx
     // TODO: n_temps probably
 };
 
-static void
-gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx);
-
 #endif // CODEGEN_H_

@@ -3,8 +3,8 @@
 #include "misc.h"
 #include "symtab.h"
 
-static int g_temp_reg = 1;
-static int g_label = 1;
+static i32 g_temp_reg = 1;
+static i32 g_label = 1;
 
 // TODO: Try to remove this, just use ir_op directly
 static inline ir_op
@@ -1868,6 +1868,7 @@ process_func_body(char* fnname, Block b, void* node)
     i32 body_block_id = push_block(); // Block where body is parsed (so args can be shadowed)
     ir_quadr* ircode = 0;
     ir_quadr** ir = &ircode; // To make the hacky macros works
+    i32 return_label_id = g_label++; // Label of the return code
 
     assert(b->kind == is_Blk);
     LIST_FOREACH(it, b->u.blk_, liststmt_)
@@ -1884,6 +1885,7 @@ process_func_body(char* fnname, Block b, void* node)
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
         error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
 
+#if 0
     // TODO: Decide whether or not do it here? Maybe optimizer will ba later
     //       able to remove it, and this check would make more sens in a codegen
     //       module?
@@ -1898,7 +1900,14 @@ process_func_body(char* fnname, Block b, void* node)
         ir_val empty = IR_EMPTY();
         IR_PUSH(empty, RET, empty);
     }
+#endif
 
+    // Return is emmited after this label
+    ir_val empty = IR_EMPTY();
+    ir_val return_label = IR_CONSTANT(return_label_id);
+    IR_PUSH(empty, LABEL, return_label);
+
+    g_funcs[f_id].return_label_id = return_label_id;
     g_funcs[f_id].code = ircode;
 }
 
