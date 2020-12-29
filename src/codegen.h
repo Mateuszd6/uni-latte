@@ -30,7 +30,7 @@ enum x64_reg
     RBP = 2,
     RSP = 3,
 
-    // Allocatable, caller saved
+    // Allocatable, all registers are callee saved
     RCX = 4,
     RSI = 5,
     RDI = 6,
@@ -38,8 +38,6 @@ enum x64_reg
     R9 = 8,
     R10 = 9,
     R11 = 10,
-
-    // Allocatable, calee saved
     RBX = 11,
     R12 = 12,
     R13 = 13,
@@ -48,6 +46,9 @@ enum x64_reg
 };
 typedef enum x64_reg x64_reg;
 #define X64_NUM_REGS (16)
+
+_Static_assert(MAX_ALLOCATED_REGS + 4 <= X64_NUM_REGS,
+               "Too many registers for allocation, MAX = 12");
 
 static char const* x64_reg_name[] =
 {

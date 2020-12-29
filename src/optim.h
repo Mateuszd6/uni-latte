@@ -1,8 +1,6 @@
 #ifndef OPTIM_H_
 #define OPTIM_H_
 
-#define MAX_ALLOCATED_REGS (11) // TODO: config
-
 typedef struct life_interval life_interval;
 struct life_interval
 {

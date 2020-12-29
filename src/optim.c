@@ -361,8 +361,6 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
     mm* unallocated = 0;
     mm first_al = RCX;
     mm regs_size = first_al + MAX_ALLOCATED_REGS;
-    assert(regs_size <= X64_NUM_REGS);
-
     for (mm i = 0, size = intervs_size; i < size; ++i)
     {
         life_interval life = intervs[i];
