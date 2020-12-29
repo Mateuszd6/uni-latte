@@ -1902,6 +1902,27 @@ process_func_body(char* fnname, Block b, void* node)
     }
 #endif
 
+    // HACK: Move RET _after_ last dispose'es, so that removing unnecesarry
+    //       branching will work correctly
+    mm n_quards = array_size(ircode);
+    mm idx = n_quards - 1;
+    for (; idx >= 0; --idx)
+    {
+        if (ircode[idx].op == RET)
+        {
+            if (idx != n_quards - 1)
+            {
+                ir_quadr retq = ircode[idx];
+                memmove(ircode + idx, ircode + idx + 1, n_quards - 1 - idx);
+                ircode[n_quards - 1] = retq;
+            }
+
+            break;
+        }
+
+        if (ircode[idx].op != DISPOSE) break; // No luck
+    }
+
     // Return is emmited after this label
     ir_val empty = IR_EMPTY();
     ir_val return_label = IR_CONSTANT(return_label_id);

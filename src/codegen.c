@@ -61,15 +61,25 @@ gen_ir()
 
 #endif
 
-//
-// TODO: Change these, so that we only save what is really needed.
-//
-// TODO: Add saving the registers into a builtin function, which right now don't
-// work correctly btw.
-//
+static u8
+get_reg_for(ir_val* v, codegen_ctx* ctx)
+{
+    switch (v->type) {
+    case IRVT_VAR: return ctx->regalloc.vars[v->u.constant];
+    case IRVT_FNPARAM: return ctx->regalloc.params[v->u.constant];
+    case IRVT_TEMP: return ctx->regalloc.temps[v->u.constant];
+    case IRVT_CONST:
+    case IRVT_STRCONST:
+    case IRVT_NONE:
+    case IRVT_FN:
+        return 0;
+    }
+
+    return 0; // NOTREACHED
+}
 
 static void
-save_all_registers(codegen_ctx* ctx)
+save_registers(codegen_ctx* ctx)
 {
     for (mm i = 0; i < X64_NUM_REGS; ++i)
         if (ctx->used_regs[i])
@@ -77,7 +87,7 @@ save_all_registers(codegen_ctx* ctx)
 }
 
 static void
-restore_all_registers(codegen_ctx* ctx)
+restore_registers(codegen_ctx* ctx)
 {
     for (mm i = X64_NUM_REGS - 1; i >= 0; --i)
         if (ctx->used_regs[i])
@@ -99,7 +109,7 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
     fprintf(asm_dest, "    sub     rsp, %d\n", ctx->n_locals * 8); // TODO: Don't gen for n_locals = 0
     fprintf(asm_dest, "    sub     rsp, %d ; TODO: TEMP\n", 1024);
 
-    save_all_registers(ctx);
+    save_registers(ctx);
 
     // Load register-allocated params into apropiate regs:
     // TODO: Get nparams, don't use it like this!
@@ -108,7 +118,6 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
     {
         if (*p)
         {
-            ir_val v = { .type = IRVT_FNPARAM, .u = { .reg_id = i }};
             fprintf(asm_dest, "    mov     %s, QWORD [rbp+%ld] ; load p_%ld into reg\n",
                     x64_reg_name[*p], 8 * (i + 2), i);
         }
@@ -118,7 +127,7 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
 static void
 gen_func_epilogue(codegen_ctx* ctx)
 {
-    restore_all_registers(ctx);
+    restore_registers(ctx);
 
     fprintf(asm_dest, "    add     rsp, %d ; TODO: TEMP\n", 1024);
     fprintf(asm_dest, "    add     rsp, %d\n", ctx->n_locals * 8); // TODO: Don't gen for n_locals = 0
@@ -204,7 +213,7 @@ gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx)
 }
 
 static void
-gen_simple_op(x64_reg r, ir_val* v, char const* op, codegen_ctx* ctx) // TODO: replace n_locals with ctx
+gen_simple_op(x64_reg r, ir_val* v, char const* op, codegen_ctx* ctx)
 {
     char buf[64];
     gen_get_address_of(buf, v, ctx);
@@ -213,7 +222,7 @@ gen_simple_op(x64_reg r, ir_val* v, char const* op, codegen_ctx* ctx) // TODO: r
 }
 
 static void
-gen_simple_op_rev(x64_reg r, ir_val* v, char const* op, codegen_ctx* ctx) // TODO: replace n_locals with ctx
+gen_simple_op_rev(x64_reg r, ir_val* v, char const* op, codegen_ctx* ctx)
 {
     char buf[64];
     gen_get_address_of(buf, v, ctx);
@@ -222,7 +231,7 @@ gen_simple_op_rev(x64_reg r, ir_val* v, char const* op, codegen_ctx* ctx) // TOD
 }
 
 static void
-gen_load(x64_reg r, ir_val* v, codegen_ctx* ctx) // TODO: replace n_locals with ctx
+gen_load(x64_reg r, ir_val* v, codegen_ctx* ctx)
 {
     if (v->type == IRVT_CONST && v->u.constant == 0)
     {
@@ -234,7 +243,7 @@ gen_load(x64_reg r, ir_val* v, codegen_ctx* ctx) // TODO: replace n_locals with 
 }
 
 static void
-gen_store(ir_val* v, x64_reg r, codegen_ctx* ctx) // TODO: replace n_locals with ctx
+gen_store(ir_val* v, x64_reg r, codegen_ctx* ctx)
 {
     gen_simple_op_rev(r, v, "mov", ctx);
 }
@@ -251,16 +260,36 @@ gen_store_const(ir_val* v, u64 constant, codegen_ctx* ctx)
 static void
 gen_mov(ir_quadr* q, codegen_ctx* ctx)
 {
+    u8 reg_id = 0;
+    char buf[64];
+
     if (q->u.args[0].type == IRVT_CONST)
     {
         gen_store_const(&q->target, q->u.args[0].u.constant, ctx);
         return;
     }
 
-    // TODO: Better code if arg is constant
-    // TODO: Ommit RAX register if variable is already allocated in another
+    // If a target is in the register, just move to the register
+    reg_id = get_reg_for(&q->target, ctx);
+    if (reg_id)
+    {
+        gen_get_address_of(buf, q->u.args + 0, ctx);
+        fprintf(asm_dest, "    mov     %s, %s\n", x64_reg_name[reg_id], buf);
+        return;
+    }
 
-    // TODO: This code should only work in case a variable is on the stack
+    // If target is not in a register, but a source is in register, x64 has a
+    // mov for that too
+    reg_id = get_reg_for(q->u.args + 0, ctx);
+    if (reg_id)
+    {
+        gen_get_address_of(buf, &q->target, ctx);
+        fprintf(asm_dest, "    mov     %s, %s\n", buf, x64_reg_name[reg_id]);
+        return;
+    }
+
+    // There is no mov from mem to mem, so we need to use an additional register
+    // for that:
     gen_load(RAX, q->u.args + 0, ctx);
     gen_store(&q->target, RAX, ctx);
 }
@@ -268,6 +297,9 @@ gen_mov(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_arithm_bin(ir_quadr* q, char const* op, codegen_ctx* ctx)
 {
+    // TODO: If target is in regiser, don't use rax, just mov into target and do
+    // the operation there
+
     gen_load(RAX, q->u.args + 0, ctx);
     gen_simple_op(RAX, q->u.args + 1, op, ctx);
     gen_store(&q->target, RAX, ctx);
@@ -290,34 +322,6 @@ static void
 gen_mul(ir_quadr* q, codegen_ctx* ctx)
 {
     gen_arithm_bin(q, "imul", ctx);
-}
-
-static void
-gen_div_or_mod(ir_quadr* q, b32 take_reminder, codegen_ctx* ctx)
-{
-    char buf[64];
-    gen_get_address_of(buf, q->u.args + 1, ctx);
-
-    gen_load(RAX, q->u.args + 0, ctx);
-    fprintf(asm_dest, "    cqo\n");
-
-    // Division by constant is handled differently, b/c idiv const does not work
-    // So we use a temp variable (one-off to the stack) to store the divisor.
-    // This is not fast by any streatch of imagination, but this way we regain
-    // RCX, which seems to be worth it
-    if (q->u.args[1].type == IRVT_CONST)
-    {
-        mm v = q->u.args[1].u.constant;
-        fprintf(asm_dest, "    mov     QWORD [rsp-8], %ld\n", v);
-        fprintf(asm_dest, "    idiv    QWORD [rsp-8]\n");
-    }
-    else
-    {
-        fprintf(asm_dest, "    idiv    %s\n", buf);
-    }
-
-    // RAX for divider, RDX for reminder:
-    gen_store(&q->target, take_reminder ? RDX : RAX, ctx);
 }
 
 static void
@@ -347,6 +351,34 @@ gen_not(ir_quadr* q, codegen_ctx* ctx)
     // TODO: Same case: if allocated register probably not needed, need to xor
     // different reg though
     gen_store(&q->target, RAX, ctx);
+}
+
+static void
+gen_div_or_mod(ir_quadr* q, b32 take_reminder, codegen_ctx* ctx)
+{
+    char buf[64];
+    gen_get_address_of(buf, q->u.args + 1, ctx);
+
+    gen_load(RAX, q->u.args + 0, ctx);
+    fprintf(asm_dest, "    cqo\n");
+
+    // Division by constant is handled differently, b/c idiv const does not work
+    // So we use a temp variable (one-off to the stack) to store the divisor.
+    // This is not fast by any streatch of imagination, but this way we regain
+    // RCX, which seems to be worth it
+    if (q->u.args[1].type == IRVT_CONST)
+    {
+        mm v = q->u.args[1].u.constant;
+        fprintf(asm_dest, "    mov     QWORD [rsp-8], %ld\n", v);
+        fprintf(asm_dest, "    idiv    QWORD [rsp-8]\n");
+    }
+    else
+    {
+        fprintf(asm_dest, "    idiv    %s\n", buf);
+    }
+
+    // RAX for divider, RDX for reminder:
+    gen_store(&q->target, take_reminder ? RDX : RAX, ctx);
 }
 
 static void
