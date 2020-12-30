@@ -457,19 +457,10 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir, b32 is_addr
     if (!expr_requires_jumping_code(e2))
     {
         processed_expr retval = process_expr(e2, ir, 0);
-
-        if (is_addr)
-            IR_PUSH(IR_EMPTY(), STORE, variable_val, retval.val);
-        else
-            IR_PUSH(variable_val, MOV, retval.val);
+        IR_ASSIGNMENT_OR_STORE(variable_val, retval.val, is_addr);
 
         return retval;
     }
-
-    //
-    // TODO: Same (is_addr) for the code below:
-    //
-
     else
     {
         preprocessed_jump_expr* pre_buf = 0;
@@ -478,7 +469,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir, b32 is_addr
         if (UNLIKELY(pre.kind == PRJE_CONST))
         {
             ir_val val = IR_CONSTANT(!!(pre.u.constant));
-            IR_PUSH(variable_val, MOV, val);
+            IR_ASSIGNMENT_OR_STORE(variable_val, val, is_addr);
 
             processed_expr retval;
             retval.node = e2;
@@ -494,7 +485,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir, b32 is_addr
         }
 
         ir_val c0 = IR_CONSTANT(0);
-        IR_PUSH(variable_val, MOV, c0);
+        IR_ASSIGNMENT_OR_STORE(variable_val, c0, is_addr);
 
         i32 l_asgn = g_label++;
         i32 l_skip = g_label++;
@@ -507,7 +498,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir, b32 is_addr
         IR_PUSH(IR_EMPTY(), LABEL, labl_asgn);
 
         ir_val c1 = IR_CONSTANT(1);
-        IR_PUSH(variable_val, MOV, c1);
+        IR_ASSIGNMENT_OR_STORE(variable_val, c1, is_addr);
         IR_PUSH(IR_EMPTY(), LABEL, labl_skip);
 
         array_free(pre_buf);
@@ -956,8 +947,8 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         } break;
         }
 
-        // TODO(ex): Calc size of the allocation
-        ir_val alloc_size = { .type = IRVT_CONST, .u = { .reg_id = 16 } };
+        mm n_fields = array_size(g_types[type_id].members);
+        ir_val alloc_size = { .type = IRVT_CONST, .u = { .reg_id = n_fields } };
         IR_SET_EXPR(retval, type_id, 0, IR_NEXT_TEMP_REGISTER());
         IR_PUSH(retval.val, ALLOC, alloc_size);
         return retval;

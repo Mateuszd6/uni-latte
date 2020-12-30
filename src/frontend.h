@@ -307,6 +307,15 @@ static void check_class_funcs(Program p);
         array_push(*ir, quadr_impl_);                                          \
     } while (0)
 
+#define IR_ASSIGNMENT_OR_STORE(VAR, R, IS_ADDR)                                \
+    do                                                                         \
+    {                                                                          \
+        if (IS_ADDR)                                                           \
+            IR_PUSH(IR_EMPTY(), STORE, VAR, R);                                \
+        else                                                                   \
+            IR_PUSH(VAR, MOV, R);                                              \
+    } while (0)
+
 // This is a famous macro overloading trick:
 #define IR_GET_OVERLOADED_MACRO(_1,_2,_3,_4,NAME,...) NAME
 #define IR_PUSH(...)                                                           \
