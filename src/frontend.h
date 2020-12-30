@@ -128,7 +128,7 @@ struct processed_expr
     void* node; // For lnum in case of error reporting
     u32 type_id;
     processed_expr_t kind;
-    b32 is_lvalue; // TODO: Try to remove it? Temp registers are not, variable and fparams are?
+    b32 is_lvalue;
     ir_val val;
 };
 

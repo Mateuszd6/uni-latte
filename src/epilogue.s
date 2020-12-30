@@ -232,25 +232,25 @@
     push    rbx
     sub     rsp, 32
     ;; Two params of getline we need to give address to (ptr + length)
-    mov     QWORD [rbp - 16], 0
-    mov     QWORD [rbp - 24], 0
+    mov     QWORD [rsp + 16], 0
+    mov     QWORD [rsp + 24], 0
     ;; Address of a stack-allocated integer, that gets scanf'ed
-    mov     DWORD [rbp - 4], 0
+    mov     DWORD [rsp + 4], 0
     ;; Getline params, stdin + 2 stack variables
     mov     rdx, QWORD [rel stdin]
-    lea     rdi, [rbp - 16]
-    lea     rsi, [rbp - 24]
+    lea     rdi, [rsp + 16]
+    lea     rsi, [rsp + 24]
     ;; Save stack ptr and align it to 16 byte boundary when calling C api
     mov     rbx, rsp
     and     rsp, ~0xF
     call    getline
     mov     rsp, rbx
     ;; If getline failed, we will simply return 0
-    mov     rdi, QWORD [rbp - 16]
+    mov     rdi, QWORD [rsp + 16]
     test    rdi, rdi
     je      .GF3_L0
     ;; On success, we scanf loaded buffer to get the integer
-    lea     rdx, [rbp - 4]
+    lea     rdx, [rsp + 4]
     mov     esi, .LC2
     xor     eax, eax
     ;; Save stack ptr and align it to 16 byte boundary when calling C api
@@ -259,7 +259,7 @@
     call    sscanf
     mov     rsp, rbx
     ;; Now move a poiner into a register, because we probably need to free it
-    mov     rdi, QWORD [rbp - 16]
+    mov     rdi, QWORD [rsp + 16]
     jmp     .GF3_L1
 .GF3_L0:
     xor     edi, edi
@@ -272,7 +272,7 @@
     call    free
     mov     rsp, rbx
     ;; Return the integer on the stack, that scanf might have set
-    mov     eax, DWORD [rbp - 4]
+    mov     eax, DWORD [rsp + 4]
     add     rsp, 32
     pop     rbx
     pop     r11

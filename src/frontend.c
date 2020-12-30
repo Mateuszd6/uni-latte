@@ -46,6 +46,7 @@ compute_binary_boolean_expr(mm v1, mm v2, ir_op op, void* node)
     switch (op) {
     case AND: retval.val.u.constant = !!(v1) && !!(v2); break;
     case OR: retval.val.u.constant = !!(v1) || !!(v2); break;
+    default: NOTREACHED;
     }
 
     retval.val.type = IRVT_CONST;
@@ -127,6 +128,8 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
 }
 
 static i32 g_next_block_id = 1;
+#define PARAM_BLOCK_ID (1)
+
 static inline i32
 push_block(void)
 {
@@ -147,14 +150,9 @@ pop_block(ir_quadr** ir)
 
         symbol s = symbol_get(popped, 0, 0);
         assert(s.type == S_VAR);
-#if 0
-        printf("Disposing: %s_%d\n",
-               g_vars[s.id].block_id == 1 /* TODO: Constant for func param block id */ ? "p" : "v",
-               s.id);
-#endif
 
         ir_val var_to_dispose = {
-            .type = g_vars[s.id].block_id == 1 /* TODO: Constant for func param block id */ ? IRVT_FNPARAM : IRVT_VAR,
+            .type = g_vars[s.id].block_id == PARAM_BLOCK_ID ? IRVT_FNPARAM : IRVT_VAR,
             .u = { .reg_id = s.id },
         };
         IR_PUSH(IR_EMPTY(), DISPOSE, var_to_dispose);
@@ -366,7 +364,6 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
             {
                 preprocessed_jump_expr* pre_buf = 0;
                 preprocessed_jump_expr pre = preprocess_jumping_expr(argexpr, &pre_buf, 0);
-
                 got_type_id = TYPEID_BOOL;
 
                 if (pre.kind == PRJE_CONST)
@@ -389,7 +386,6 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
 
                     jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
                     process_jumping_expr(ir, &pre, pre_buf, ctx);
-                    // TODO(leak): pre_buf
 
                     IR_PUSH(IR_EMPTY(), LABEL, labl_true);
                     IR_PUSH(IR_EMPTY(), PARAM, c1);
@@ -398,6 +394,8 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                     IR_PUSH(IR_EMPTY(), PARAM, c0);
                     IR_PUSH(IR_EMPTY(), LABEL, labl_end);
                 }
+
+                array_free(pre_buf);
             }
 
             if (got_type_id != expected_type_id) // TODO(ex): Handle inheritance
@@ -480,7 +478,6 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
             return retval;
         }
 
-        // TODO(leak): pre_buf
         ir_val c0 = IR_CONSTANT(0);
         IR_PUSH(variable_val, MOV, c0);
 
@@ -498,8 +495,11 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
         IR_PUSH(variable_val, MOV, c1);
         IR_PUSH(IR_EMPTY(), LABEL, labl_skip);
 
-        // This is totally incorrect, but since we only use it with process_assigning
-        // with kind of can live with ot. The only thing that matters in expr is type
+        array_free(pre_buf);
+
+        // HACK: This is totally incorrect, but since we only use it with
+        //       process_assigning with kind of can live with ot. The only thing
+        //       that matters in expr is type
         processed_expr retval;
         retval.node = e2;
         retval.type_id = TYPEID_BOOL;
@@ -858,8 +858,8 @@ process_expr(Expr e, ir_quadr** ir)
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 1;
 
-        // TODO: Class members
-        if (var.block_id == 1) // Func param TODO: Constant
+        // TODO(ex): Class members
+        if (var.block_id == PARAM_BLOCK_ID)
         {
             ir_val val = IR_FUNC_PARAM(var_id);
             retval.val = val;
@@ -922,7 +922,7 @@ process_expr(Expr e, ir_quadr** ir)
         } break;
         }
 
-        // TODO: Calc size of the allocation
+        // TODO(ex): Calc size of the allocation
         ir_val alloc_size = { .type = IRVT_CONST, .u = { .reg_id = 16 } };
         IR_SET_EXPR(retval, type_id, 0, IR_NEXT_TEMP_REGISTER());
         IR_PUSH(retval.val, ALLOC, alloc_size);
@@ -954,7 +954,7 @@ process_expr(Expr e, ir_quadr** ir)
         processed_expr e_esize = process_expr(esize, ir);
         enforce_type(&e_esize, TYPEID_INT);
 
-        // TODO: Calc size of the allocation
+        // TODO(ex): Calc size of the allocation
         ir_val single_size = { .type = IRVT_CONST, .u = { .reg_id = 16 } };
         ir_val alloc_size = IR_NEXT_TEMP_REGISTER();
 
@@ -1032,9 +1032,11 @@ process_expr(Expr e, ir_quadr** ir)
                 retval.type_id = TYPEID_INT;
             }
 
+            // TODO(ir) for class member access
+
             retval.is_lvalue = e_struct.is_lvalue;
             retval.kind = EET_COMPUTE;
-            return retval; // TODO(ir).
+            return retval;
         }
 
         NOTREACHED;
@@ -1081,9 +1083,11 @@ process_expr(Expr e, ir_quadr** ir)
             }
         }
 
+        // TODO(ir): for member function invokation
+
         retval.is_lvalue = 0; // Like in Java, functions always return rvalues
         retval.kind = EET_COMPUTE;
-        return retval; // TODO(ir)
+        return retval;
     }
 
     case is_ENull:
@@ -1125,7 +1129,7 @@ process_expr(Expr e, ir_quadr** ir)
         switch (expr_to_cast.type_id) {
         case TYPEID_NULL: // Null is always castable to desired type
         {
-            IR_SET_CONSTANT(retval, type_id, 0); // TODO: Allow it to be lvalue?
+            IR_SET_CONSTANT(retval, type_id, 0);
             return retval;
         }
         default:
@@ -1149,9 +1153,10 @@ process_expr(Expr e, ir_quadr** ir)
             // In case of an error return desired type to avoid further errors
         }
 
+        retval = expr_to_cast;
         retval.type_id = type_id;
         retval.kind = EET_COMPUTE;
-        return retval; // TODO(ir): _OR_ copy from the expr_to_cast ?
+        return retval;
     }
     }
 
@@ -1223,10 +1228,6 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
             return ee1;
         }
 
-        //
-        // TODO: Reduce if `call() || true` or `call() && false`
-        //
-
         mm nees = array_size(*buf);
         array_push(*buf, ee1);
         array_push(*buf, ee2);
@@ -1246,10 +1247,7 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
         return preprocess_jumping_expr(e->u.not_.expr_, buf, !reverse);
     }
 
-    // TODO: Check if is constant and later incorporate here, but for now leave,
-    // to check how the code looks with if ((boolean)(true))
     case is_ECast:
-
     case is_EVar:
     case is_ERel:
     case is_EEq:
@@ -1425,10 +1423,10 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
                 jump_ctx ctx = { .l_true = l_end, .l_false = l_end };
                 process_jumping_expr(ir, &pre, pre_buf, ctx);
-                // TODO(leak): pre_buf
-
                 IR_PUSH(IR_EMPTY(), LABEL, labl_end);
             }
+
+            array_free(pre_buf);
         }
 
         retval.all_branches_return = 0;
@@ -1589,7 +1587,6 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
         jump_ctx ctx = { .l_true = l_true, .l_false = l_false };
         process_jumping_expr(ir, &pre, pre_buf, ctx);
-        // TODO(leak): pre_buf
 
         IR_PUSH(IR_EMPTY(), LABEL, labl_true);
 
@@ -1614,6 +1611,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         else
             s2 = create_empty_statement();
 
+        array_free(pre_buf);
         retval.all_branches_return = s1.all_branches_return && s2.all_branches_return;
         return retval;
     }
@@ -1831,23 +1829,6 @@ process_func_body(char* fnname, Block b, void* node)
 
     if (!all_branches_return && f_rettype_id != TYPEID_VOID)
         error(g_funcs[f_id].lnum, "Not all paths return a value in a non-void function");
-
-#if 0
-    // TODO: Decide whether or not do it here? Maybe optimizer will ba later
-    //       able to remove it, and this check would make more sens in a codegen
-    //       module?
-    // TODO: More realistically, add it only in case of void funcs??
-    // TODO: This is buggy, becasue DISPOSE is _after_ the return, which does
-    //       not do any charm, but generate the code twice
-    //
-    // Make sure all blocks always end up with return
-    mm n_opcodes = array_size(ircode);
-    if (n_opcodes == 0 || ircode[n_opcodes - 1].op != RET)
-    {
-        ir_val empty = IR_EMPTY();
-        IR_PUSH(empty, RET, empty);
-    }
-#endif
 
     // HACK: Move RET _after_ last dispose'es, so that removing unnecesarry
     //       branching will work correctly

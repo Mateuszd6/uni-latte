@@ -697,7 +697,7 @@ gen_glob_func(u32 f_id)
         case ARR_LEN:
         case ALLOC:
         {
-            // TODO:
+            // TODO(ex): Members, allocations and subscripts
         } break;
 
         case NOP:
