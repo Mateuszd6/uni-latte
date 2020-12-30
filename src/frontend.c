@@ -6,25 +6,6 @@
 static i32 g_temp_reg = 1;
 static i32 g_label = 1;
 
-// TODO: Try to remove this, just use ir_op directly
-static inline ir_op
-binintop_to_ir_op(binary_int_op_t op)
-{
-    static ir_op ops[] = {
-        ADD,
-        SUB,
-        MUL,
-        DIV,
-        MOD,
-        CMP_LTH,
-        CMP_LE,
-        CMP_GTH,
-        CMP_GE,
-    };
-
-    return ops[(mm)op];
-}
-
 static inline parsed_type
 parse_type(Type type)
 {
@@ -45,44 +26,6 @@ parse_type(Type type)
     return retval;
 }
 
-#if 0 // TODO?
-// Assumes that the type exists
-static inline processed_expr
-get_default_expr(u32 type_id, void* node)
-{
-    processed_expr retval;
-    retval.node = node;
-    retval.type_id = type_id;
-    retval.kind = EET_CONSTANT;
-    retval.is_lvalue = 0;
-    retval.val.type = IRVT_CONST;
-    retval.val.u.constant = 0;
-
-    switch (type_id) {
-    case TYPEID_VOID:
-    {
-        // Probably will never happen, but just for safety:
-        return retval;
-    }
-    case TYPEID_STRING:
-    {
-        // TODO: Try to make so that empty string is always the same as null
-        // TODO: At this point it's somewhat necesarry
-        retval.val.u.constant = EMPTY_STRING_CONSTANT_ID;
-        retval.u.str_const_id = EMPTY_STRING_CONSTANT_ID;
-        return retval;
-    }
-    case TYPEID_INT:
-    case TYPEID_BOOL:
-    default: // null for reference types
-    {
-        retval.u.numeric_val = 0;
-        return retval;
-    }
-    }
-}
-#endif
-
 static inline processed_stmt
 create_empty_statement(void)
 {
@@ -93,7 +36,7 @@ create_empty_statement(void)
 }
 
 static inline processed_expr
-compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
+compute_binary_boolean_expr(mm v1, mm v2, ir_op op, void* node)
 {
     processed_expr retval;
     retval.type_id = TYPEID_BOOL;
@@ -101,18 +44,18 @@ compute_binary_boolean_expr(mm v1, mm v2, binary_bool_op_t op, void* node)
     retval.is_lvalue = 0;
     retval.node = node;
     switch (op) {
-    case BBOP_AND: retval.u.numeric_val = !!(v1) && !!(v2); break;
-    case BBOP_OR: retval.u.numeric_val = !!(v1) || !!(v2); break;
+    case AND: retval.val.u.constant = !!(v1) && !!(v2); break;
+    case OR: retval.val.u.constant = !!(v1) || !!(v2); break;
     }
 
     retval.val.type = IRVT_CONST;
-    retval.val.u.constant = retval.u.numeric_val;
+    retval.val.u.constant = retval.val.u.constant;
 
     return retval;
 }
 
 static inline processed_expr
-compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
+compute_binary_integer_expr(mm v1, mm v2, ir_op op, void* node)
 {
     processed_expr retval;
     retval.type_id = TYPEID_INT;
@@ -120,34 +63,35 @@ compute_binary_integer_expr(mm v1, mm v2, binary_int_op_t op, void* node)
     retval.is_lvalue = 0;
     retval.node = node;
 
-    if (UNLIKELY((op == BIOP_DIV || op == BIOP_MOD) && v2 == 0))
+    if (UNLIKELY((op == DIV || op == MOD) && v2 == 0))
     {
         error(get_lnum(node), "Constant division by 0");
         v2 = 1;
     }
 
     switch (op) {
-    case BIOP_ADD: retval.u.numeric_val = v1 + v2; break;
-    case BIOP_SUB: retval.u.numeric_val = v1 - v2; break;
-    case BIOP_MUL: retval.u.numeric_val = v1 * v2; break;
-    case BIOP_DIV: retval.u.numeric_val = v1 / v2; break;
-    case BIOP_MOD: retval.u.numeric_val = v1 % v2; break;
-    case BIOP_LTH: retval.u.numeric_val = (v1 < v2); retval.type_id = TYPEID_BOOL; break;
-    case BIOP_LE: retval.u.numeric_val = (v1 <= v2); retval.type_id = TYPEID_BOOL; break;
-    case BIOP_GTH: retval.u.numeric_val = (v1 > v2); retval.type_id = TYPEID_BOOL; break;
-    case BIOP_GE: retval.u.numeric_val = (v1 >= v2); retval.type_id = TYPEID_BOOL; break;
+    case ADD: retval.val.u.constant = v1 + v2; break;
+    case SUB: retval.val.u.constant = v1 - v2; break;
+    case MUL: retval.val.u.constant = v1 * v2; break;
+    case DIV: retval.val.u.constant = v1 / v2; break;
+    case MOD: retval.val.u.constant = v1 % v2; break;
+    case CMP_LTH: retval.val.u.constant = (v1 < v2); retval.type_id = TYPEID_BOOL; break;
+    case CMP_LE: retval.val.u.constant = (v1 <= v2); retval.type_id = TYPEID_BOOL; break;
+    case CMP_GTH: retval.val.u.constant = (v1 > v2); retval.type_id = TYPEID_BOOL; break;
+    case CMP_GE: retval.val.u.constant = (v1 >= v2); retval.type_id = TYPEID_BOOL; break;
+    default: NOTREACHED;
     }
 
     // Safe for booleans becasue they never overflow. In case of overflow, leave
     // 0 to have something reasonable for computations, we won't compile anyway
-    if (UNLIKELY(overflows_32bit(retval.u.numeric_val)))
+    if (UNLIKELY(overflows_32bit(retval.val.u.constant)))
     {
         error(get_lnum(node), "Integer constant overflows");
-        retval.u.numeric_val = 0;
+        retval.val.u.constant = 0;
     }
 
     retval.val.type = IRVT_CONST;
-    retval.val.u.constant = retval.u.numeric_val;
+    retval.val.u.constant = retval.val.u.constant;
 
     return retval;
 }
@@ -176,9 +120,8 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     s.data = new_string;
     s.len = s1.len + s2.len;
 
-    retval.u.str_const_id = strconst_add(s);
+    retval.val.u.constant = strconst_add(s);
     retval.val.type = IRVT_STRCONST;
-    retval.val.u.constant = retval.u.str_const_id;
 
     return retval;
 }
@@ -299,20 +242,20 @@ push_var(d_var var, char* vname, void* node)
 }
 
 static inline processed_expr
-compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, binary_eq_op_t op, void* node)
+compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, ir_op op, void* node)
 {
     processed_expr retval;
     retval.type_id = TYPEID_BOOL;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
     retval.node = node;
-    retval.u.numeric_val = !((op == BEOP_EQ) ^ (v1 == v2));
+    retval.val.u.constant = !((op == CMP_EQ) ^ (v1 == v2));
 
     return retval;
 }
 
 static inline processed_expr
-compute_binary_string_equality_expr(mm str1, mm str2, binary_eq_op_t op, void* node)
+compute_binary_string_equality_expr(mm str1, mm str2, ir_op op, void* node)
 {
     b32 compre = strcmp(g_str_consts[str1].data, g_str_consts[str2].data) == 0;
     processed_expr retval;
@@ -320,7 +263,7 @@ compute_binary_string_equality_expr(mm str1, mm str2, binary_eq_op_t op, void* n
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
     retval.node = node;
-    retval.u.numeric_val = !((op == BEOP_EQ) ^ compre);
+    retval.val.u.constant = !((op == CMP_EQ) ^ compre);
 
     return retval;
 }
@@ -530,7 +473,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_CONSTANT;
             retval.is_lvalue = 0;
-            retval.u.numeric_val = !!(pre.u.constant);
+            retval.val.u.constant = !!(pre.u.constant);
             retval.val.type = IRVT_CONST;
             retval.val.u.constant = !!(pre.u.constant);
 
@@ -562,7 +505,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
         retval.type_id = TYPEID_BOOL;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
-        retval.u.numeric_val = 0;
+        retval.val.u.constant = 0;
         retval.val.type = IRVT_CONST;
         retval.val.u.constant = 0;
 
@@ -576,8 +519,8 @@ process_expr(Expr e, ir_quadr** ir)
     processed_expr retval;
     Expr binarg1; // To be set for binary expressions
     Expr binarg2;
-    binary_int_op_t binintop = BIOP_ADD;
-    binary_bool_op_t binboolop = BBOP_AND;
+    ir_op binintop = ADD;
+    ir_op binboolop = AND;
 
     retval.node = e;
     retval.is_lvalue = 0;
@@ -621,8 +564,8 @@ process_expr(Expr e, ir_quadr** ir)
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
-            e1.u.numeric_val = !e1.u.numeric_val;
-            e1.val.u.constant = e1.u.numeric_val;
+            e1.val.u.constant = !e1.val.u.constant;
+            e1.val.u.constant = e1.val.u.constant;
             return e1;
         }
 
@@ -639,14 +582,14 @@ process_expr(Expr e, ir_quadr** ir)
         if (UNLIKELY(e1.kind == EET_CONSTANT))
         {
             assert(!e1.is_lvalue);
-            e1.u.numeric_val = -e1.u.numeric_val;
-            e1.val.u.constant = e1.u.numeric_val;
+            e1.val.u.constant = -e1.val.u.constant;
+            e1.val.u.constant = e1.val.u.constant;
 
             // In case when we have -(INT_MIN):
-            if (UNLIKELY(overflows_32bit(e1.u.numeric_val)))
+            if (UNLIKELY(overflows_32bit(e1.val.u.constant)))
             {
                 error(get_lnum(e1.node), "Integer constant overflows");
-                retval.u.numeric_val = 0;
+                retval.val.u.constant = 0;
             }
 
             return e1;
@@ -663,9 +606,9 @@ process_expr(Expr e, ir_quadr** ir)
         binarg1 = e->u.emul_.expr_1;
         binarg2 = e->u.emul_.expr_2;
         switch (e->u.emul_.mulop_->kind) {
-        case is_Times: binintop = BIOP_MUL; break;
-        case is_Div: binintop = BIOP_DIV; break;
-        case is_Mod: binintop = BIOP_MOD; break;
+        case is_Times: binintop = MUL; break;
+        case is_Div: binintop = DIV; break;
+        case is_Mod: binintop = MOD; break;
         }
 
         goto binary_integer_expr;
@@ -676,8 +619,8 @@ process_expr(Expr e, ir_quadr** ir)
         binarg1 = e->u.eadd_.expr_1;
         binarg2 = e->u.eadd_.expr_2;
         switch (e->u.eadd_.addop_->kind) {
-        case is_Plus: binintop = BIOP_ADD; break;
-        case is_Minus: binintop = BIOP_SUB; break;
+        case is_Plus: binintop = ADD; break;
+        case is_Minus: binintop = SUB; break;
         }
 
         goto binary_integer_expr;
@@ -688,10 +631,10 @@ process_expr(Expr e, ir_quadr** ir)
         binarg1 = e->u.erel_.expr_1;
         binarg2 = e->u.erel_.expr_2;
         switch (e->u.erel_.relop_->kind) {
-        case is_LTH: binintop = BIOP_LTH; break;
-        case is_GTH: binintop = BIOP_GTH; break;
-        case is_LE: binintop = BIOP_LE; break;
-        case is_GE: binintop = BIOP_GE; break;
+        case is_LTH: binintop = CMP_LTH; break;
+        case is_GTH: binintop = CMP_GTH; break;
+        case is_LE: binintop = CMP_LE; break;
+        case is_GE: binintop = CMP_GE; break;
         }
 
         goto binary_integer_expr;
@@ -701,7 +644,7 @@ process_expr(Expr e, ir_quadr** ir)
     {
         binarg1 = e->u.eand_.expr_1;
         binarg2 = e->u.eand_.expr_2;
-        binboolop = BBOP_AND;
+        binboolop = AND;
 
         goto binary_boolean_expr;
     }
@@ -710,7 +653,7 @@ process_expr(Expr e, ir_quadr** ir)
     {
         binarg1 = e->u.eor_.expr_1;
         binarg2 = e->u.eor_.expr_2;
-        binboolop = BBOP_OR;
+        binboolop = OR;
 
         goto binary_boolean_expr;
     }
@@ -727,13 +670,13 @@ process_expr(Expr e, ir_quadr** ir)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm v1 = e1.u.numeric_val;
-            mm v2 = e2.u.numeric_val;
+            mm v1 = e1.val.u.constant;
+            mm v2 = e2.val.u.constant;
             return compute_binary_boolean_expr(v1, v2, binboolop, e1.node);
         }
 
         IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
-        IR_PUSH(retval.val, (binboolop == BBOP_OR ? OR : AND), e1.val, e2.val);
+        IR_PUSH(retval.val, binboolop, e1.val, e2.val);
         return retval;
     }
 
@@ -745,7 +688,7 @@ process_expr(Expr e, ir_quadr** ir)
         // This is the only case when an operator other that == and != is
         // overloaded. IMO string concatenation should have separate operator
         // (like '@'). Since this is a unique exception, we hack around it:
-        if (e1.type_id == TYPEID_STRING && binintop == BIOP_ADD)
+        if (e1.type_id == TYPEID_STRING && binintop == ADD)
         {
             enforce_type(&e2, TYPEID_STRING);
             if (UNLIKELY(e1.kind == EET_CONSTANT && e2.kind == EET_CONSTANT))
@@ -753,8 +696,8 @@ process_expr(Expr e, ir_quadr** ir)
                 assert(!e1.is_lvalue);
                 assert(!e2.is_lvalue);
 
-                mm str1 = e1.u.str_const_id;
-                mm str2 = e2.u.str_const_id;
+                mm str1 = e1.val.u.constant;
+                mm str2 = e2.val.u.constant;
                 return compute_binary_string_expr(str1, str2, e1.node);
             }
 
@@ -770,19 +713,19 @@ process_expr(Expr e, ir_quadr** ir)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm v1 = e1.u.numeric_val;
-            mm v2 = e2.u.numeric_val;
+            mm v1 = e1.val.u.constant;
+            mm v2 = e2.val.u.constant;
             return compute_binary_integer_expr(v1, v2, binintop, e1.node);
         }
 
         u32 typeid = (
-            (binintop == BIOP_LTH || binintop == BIOP_LE
-             || binintop == BIOP_GTH || binintop == BIOP_GE)
+            (binintop == CMP_LTH || binintop == CMP_LE
+             || binintop == CMP_GTH || binintop == CMP_GE)
             ? TYPEID_BOOL
             : TYPEID_INT);
 
         IR_SET_EXPR(retval, typeid, 0, IR_NEXT_TEMP_REGISTER());
-        IR_PUSH(retval.val, binintop_to_ir_op(binintop), e1.val, e2.val);
+        IR_PUSH(retval.val, binintop, e1.val, e2.val);
         return retval;
     }
 
@@ -790,10 +733,10 @@ process_expr(Expr e, ir_quadr** ir)
     {
         processed_expr e1 = process_expr(e->u.eeq_.expr_1, ir);
         processed_expr e2 = process_expr(e->u.eeq_.expr_2, ir);
-        binary_eq_op_t bineqop = BEOP_EQ;
+        ir_op bineqop = CMP_EQ;
         switch (e->u.eeq_.eqop_->kind) {
-        case is_NE: bineqop = BEOP_NEQ; break;
-        case is_EQU: bineqop = BEOP_EQ; break;
+        case is_NE: bineqop = CMP_NEQ; break;
+        case is_EQU: bineqop = CMP_EQ; break;
         }
 
         switch (e1.type_id) {
@@ -806,7 +749,7 @@ process_expr(Expr e, ir_quadr** ir)
                 goto compute_contant_equality_int_or_bool;
 
             IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
-            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? CMP_EQ : CMP_NEQ), e1.val, e2.val);
+            IR_PUSH(retval.val, bineqop, e1.val, e2.val);
             return retval;
         }
 
@@ -819,7 +762,7 @@ process_expr(Expr e, ir_quadr** ir)
                 goto compute_contant_equality_int_or_bool;
 
             IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
-            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? CMP_EQ : CMP_NEQ), e1.val, e2.val);
+            IR_PUSH(retval.val, bineqop, e1.val, e2.val);
             return retval;
         }
 
@@ -832,7 +775,7 @@ process_expr(Expr e, ir_quadr** ir)
                 goto compute_contant_equality_string;
 
             IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
-            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? STR_EQ : STR_NEQ), e1.val, e2.val);
+            IR_PUSH(retval.val, bineqop == CMP_EQ ? STR_EQ : STR_NEQ, e1.val, e2.val);
             return retval;
         }
 
@@ -841,8 +784,8 @@ process_expr(Expr e, ir_quadr** ir)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm v1 = e1.u.numeric_val;
-            mm v2 = e2.u.numeric_val;
+            mm v1 = e1.val.u.constant;
+            mm v2 = e2.val.u.constant;
             return compute_binary_integer_or_boolean_equality_expr(v1, v2, bineqop, e1.node);
         }
 
@@ -851,8 +794,8 @@ process_expr(Expr e, ir_quadr** ir)
             assert(!e1.is_lvalue);
             assert(!e2.is_lvalue);
 
-            mm str1 = e1.u.str_const_id;
-            mm str2 = e2.u.str_const_id;
+            mm str1 = e1.val.u.constant;
+            mm str2 = e2.val.u.constant;
             return compute_binary_string_equality_expr(str1, str2, bineqop, e1.node);
         }
 
@@ -892,7 +835,7 @@ process_expr(Expr e, ir_quadr** ir)
                 goto compare_voids;
 
             IR_SET_EXPR(retval, TYPEID_BOOL, 0, IR_NEXT_TEMP_REGISTER());
-            IR_PUSH(retval.val, (bineqop == BEOP_EQ ? CMP_EQ : CMP_NEQ), e1.val, e2.val);
+            IR_PUSH(retval.val, bineqop, e1.val, e2.val);
             return retval;
         }
         }
@@ -1342,7 +1285,7 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
 
             preprocessed_jump_expr retval = {
                 .kind = PRJE_CONST,
-                .u = { .constant = ee.u.numeric_val },
+                .u = { .constant = ee.val.u.constant },
                 .l_id = g_label++,
                 .reversed = reverse,
             };
@@ -1364,6 +1307,8 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
         }
     }
     }
+
+    NOTREACHED;
 }
 
 static void

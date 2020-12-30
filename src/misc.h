@@ -39,6 +39,14 @@ typedef i32 b32;
 #  define NOINLINE
 #endif
 
+#if (__STDC_VERSION__ >= 201112L)
+#  define NORETURN _Noreturn
+#elif (defined(__clang__)) // clang wants us to use this even if no c11
+#  define NORETURN _Noreturn
+#else
+#  define NORETURN
+#endif
+
 #ifdef DEBUG
 #    define NOTREACHED assert(!(mm)(void*)"Unreachable code reached!")
 #else

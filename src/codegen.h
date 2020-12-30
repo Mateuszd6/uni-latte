@@ -47,8 +47,8 @@ enum x64_reg
 typedef enum x64_reg x64_reg;
 #define X64_NUM_REGS (16)
 
-_Static_assert(MAX_ALLOCATED_REGS + 4 <= X64_NUM_REGS,
-               "Too many registers for allocation, MAX = 12");
+STATIC_ASSERT(MAX_ALLOCATED_REGS + 4 <= X64_NUM_REGS,
+              Too_many_registers_for_allocation_MAX_is_12);
 
 static char const* x64_reg_name[] =
 {

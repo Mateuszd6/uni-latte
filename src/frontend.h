@@ -53,11 +53,9 @@ enum ir_op
     JMP_FLAGS_G = 33,
     JMP_FLAGS_GE = 34,
 
-    // These are register-allocation-specific instructions
-    LOAD = 35,
-    SPILL = 36,
-    NOP = 37,
-    DISPOSE = 38,
+    // These are optimisation-specific instructions
+    NOP = 35,
+    DISPOSE = 36,
 };
 typedef enum ir_op ir_op;
 
@@ -68,43 +66,14 @@ static char const* const ir_op_name[] = {
     "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
     "CMP_SET_FLAGS", "JMP_FLAGS_E", "JMP_FLAGS_NE",
     "JMP_FLAGS_L", "JMP_FLAGS_LE", "JMP_FLAGS_G", "JMP_FLAGS_GE",
-    "LOAD", "SPILL", "NOP", "DISPOSE",
+    "NOP", "DISPOSE",
 };
 
 static int const ir_op_n_args[] = {
-    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 0, 1
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 0, 1
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
-
-// TODO: Try to remove this, just use ir_op
-enum binary_int_op_t
-{
-    BIOP_ADD = 0,
-    BIOP_SUB = 1,
-    BIOP_MUL = 2,
-    BIOP_DIV = 3,
-    BIOP_MOD = 4,
-    BIOP_LTH = 5,
-    BIOP_LE = 6,
-    BIOP_GTH = 7,
-    BIOP_GE = 8,
-};
-typedef enum binary_int_op_t binary_int_op_t;
-
-enum binary_bool_op_t
-{
-    BBOP_AND,
-    BBOP_OR,
-};
-typedef enum binary_bool_op_t binary_bool_op_t;
-
-enum binary_eq_op_t
-{
-    BEOP_EQ,
-    BEOP_NEQ,
-};
-typedef enum binary_eq_op_t binary_eq_op_t;
 
 enum ir_val_type
 {
@@ -161,14 +130,6 @@ struct processed_expr
     processed_expr_t kind;
     b32 is_lvalue; // TODO: Try to remove it? Temp registers are not, variable and fparams are?
     ir_val val;
-
-    // TODO: Try to get rid of this:
-    union
-    {
-        mm reg_id;
-        i64 numeric_val; // int or boolean
-        mm str_const_id; // string constant
-    } u;
 };
 
 typedef struct preprocessed_jump_expr preprocessed_jump_expr;
@@ -254,7 +215,6 @@ static void check_class_funcs(Program p);
             .u = { .constant = 0 }                                             \
         };                                                                     \
                                                                                \
-        EXPR.u.numeric_val = 0;                                                \
         EXPR .type_id = TYPE;                                                  \
         EXPR .kind = EET_COMPUTE;                                              \
         EXPR .is_lvalue = IS_LVALUE;                                           \
@@ -270,7 +230,6 @@ static void check_class_funcs(Program p);
             .u = { .constant = CONSTANT_VALUE }                                \
         };                                                                     \
                                                                                \
-        EXPR.u.numeric_val = CONSTANT_VALUE;                                   \
         EXPR .type_id = TYPE;                                                  \
         EXPR .kind = EET_CONSTANT;                                             \
         EXPR .is_lvalue = 0;                                                   \
@@ -285,7 +244,6 @@ static void check_class_funcs(Program p);
             .u = { .constant = CONSTANT_VALUE }                                \
         };                                                                     \
                                                                                \
-        EXPR.u.numeric_val = CONSTANT_VALUE;                                   \
         EXPR .type_id = TYPE;                                                  \
         EXPR .kind = EET_CONSTANT;                                             \
         EXPR .is_lvalue = 0;                                                   \

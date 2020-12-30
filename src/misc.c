@@ -22,7 +22,7 @@ accept_input(void)
     fprintf(stderr, "OK\n");
 }
 
-NOINLINE PRINTF_FUNC(1, 2)
+NOINLINE NORETURN PRINTF_FUNC(1, 2)
 extern void
 fatal(char* fmt, ...)
 {
@@ -86,7 +86,7 @@ note(mm line, char* fmt, ...) // line = 0 means skip line number (generic note)
     fprintf(stderr, "\n");
 }
 
-extern void
+extern NORETURN void
 no_recover(void)
 {
     // Should be called after reporting an error(), but just in case:

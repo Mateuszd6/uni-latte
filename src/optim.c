@@ -35,6 +35,8 @@ lifetime_check_at(lifetime_info* info, mm reg_id, ir_val_type type, mm ino)
     case IRVT_STRCONST:
         NOTREACHED;
     }
+
+    NOTREACHED;
 }
 
 static lifetime_info
@@ -292,7 +294,7 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
             // TODO: MAYBE replace end < life.start with end <= life.start ?
             //       Will it break code?
             mm n_interv_alloced = array_size(regs[r]);
-            if (n_interv_alloced == 0 || regs[r][n_interv_alloced - 1].end < life.start) // TODO: Double check
+            if (n_interv_alloced == 0 || regs[r][n_interv_alloced - 1].end < life.start)
             {
                 array_push(regs[r], life);
                 break;
@@ -388,9 +390,6 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
     return retval;
 }
 
-//
-// TODO: Lets stop naming it ctx, because it's just set of unused labels!
-//
 static b8*
 get_used_labels(ir_quadr* ir)
 {
@@ -433,8 +432,6 @@ get_used_labels(ir_quadr* ir)
 // is turned to:
 // JMP_TRUE (something) L1
 // L2:
-//
-// TODO: Actually implement the second one (find the case for it in the tests first)
 static void
 opt_fallthrough_jumps(ir_quadr** ir)
 {

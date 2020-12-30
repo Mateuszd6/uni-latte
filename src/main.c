@@ -2,8 +2,6 @@
 // TODO: Add IRVT for local functions
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 // TODO: Cleanup process_expr and try to remove is_lvalue from there
-// TODO: Remove evaluation of boolean expressions from process_expr ??
-// TODO: Check if variables get correct numbers in nested blocks
 // TODO: Don't emit bitwise-or (test core017), although you would have to know
 //       to create a test that actually exploits that
 
@@ -40,7 +38,6 @@ extern char const* __asan_default_options() { return "detect_leaks=0,color=never
 #include "symtab.c"
 #include "frontend.c"
 #include "optim.c"
-
 #include "codegen.c"
 
 //
@@ -84,7 +81,7 @@ parse_file(char* fname)
     return parse_tree;
 }
 
-static void
+static NORETURN void
 usage(char* argv0)
 {
     fprintf(stderr, "ERROR\nUsage: %s FILE\n", argv0);

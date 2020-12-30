@@ -27,4 +27,10 @@ int foo(int p1, int p2)
     return retval;
 }
 
-int main() { return foo(0, 0); }
+// int bar(int i)
+// {
+    // int v = i +3;
+    // return v;
+// }
+
+int main() { return 1; }

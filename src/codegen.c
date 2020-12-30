@@ -24,7 +24,7 @@ gen_ir_for_function(u32 f_id)
         {
             fprintf(ir_dest, "    %s%ld = ",
                     ir_val_type_name[ircode[i].target.type],
-                    ircode[i].target.u.reg_id); // TODO: OR CONSTANT?
+                    ircode[i].target.u.reg_id);
         }
         else
         {
@@ -112,14 +112,12 @@ gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
     save_registers(ctx);
 
     // Load register-allocated params into apropiate regs:
-    // TODO: Get nparams, don't use it like this!
-    mm i = 0;
-    for (u8* p = ctx->regalloc.params; p != ctx->regalloc.temps; ++p, ++i)
+    for (mm i = 0; i < ctx->regalloc.n_fparams; ++i)
     {
-        if (*p)
+        if (ctx->regalloc.params[i])
         {
             fprintf(asm_dest, "    mov     %s, QWORD [rbp+%ld] ; load p_%ld into reg\n",
-                    x64_reg_name[*p], 8 * (i + 2), i);
+                    x64_reg_name[ctx->regalloc.params[i]], 8 * (i + 2), i);
         }
     }
 }
@@ -130,7 +128,7 @@ gen_func_epilogue(codegen_ctx* ctx)
     restore_registers(ctx);
 
     if (ctx->bp_offset)
-        fprintf(asm_dest, "    add     rsp, %ld\n", ctx->bp_offset * 8); // TODO: Don't gen for n_locals = 0
+        fprintf(asm_dest, "    add     rsp, %ld\n", ctx->bp_offset * 8);
     fprintf(asm_dest, "    pop     rbp\n");
 }
 
@@ -250,13 +248,12 @@ gen_store(ir_val* v, x64_reg r, codegen_ctx* ctx)
     gen_simple_op_rev(r, v, "mov", ctx);
 }
 
-// TODO: Test with negative constants
 static void
 gen_store_const(ir_val* v, u64 constant, codegen_ctx* ctx)
 {
     char buf[64];
     gen_get_address_of(buf, v, ctx);
-    fprintf(asm_dest, "    mov     %s, %lu\n", buf, constant);
+    fprintf(asm_dest, "    mov     %s, %ld\n", buf, constant);
 }
 
 static void
@@ -532,21 +529,8 @@ gen_call(ir_quadr* q, codegen_ctx* ctx)
     else
     {
         // TODO: Something else for local functions
-        NOTREACHED; // TODO
+        NOTREACHED;
     }
-}
-
-static mm
-count_locals(ir_quadr* ir)
-{
-    mm retval = 0;
-    for (mm i = 0, size = array_size(ir); i < size; ++i)
-    {
-        if (ir[i].target.type == IRVT_VAR)
-            retval = MAX(retval, ir[i].target.u.reg_id);
-    }
-
-    return retval + 1;
 }
 
 static void
@@ -712,12 +696,6 @@ gen_glob_func(u32 f_id)
         case SUBSCR:
         case ARR_LEN:
         case ALLOC:
-        {
-            // TODO:
-        } break;
-
-        case LOAD:
-        case SPILL:
         {
             // TODO:
         } break;
