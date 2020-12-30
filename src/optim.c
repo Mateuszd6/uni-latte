@@ -544,6 +544,7 @@ static void
 optimize_func(d_func* func)
 {
     ir_quadr* ir = func->code;
+#ifdef OPTIMIZE
     b8* used_labels = get_used_labels(ir);
     opt_del_dead_labels(&ir, used_labels);
     opt_fallthrough_jumps(&ir);
@@ -551,8 +552,11 @@ optimize_func(d_func* func)
     free(used_labels);
     used_labels = get_used_labels(ir);
     opt_del_dead_labels(&ir, used_labels);
+#endif
 
     lifetime_info info = compute_lifetimes(ir);
+
+#ifdef OPTIMIZE
     replace_compare_jumps_with_flag_jumps(&ir, &info);
 
     // Keep removing unused temp registers:
@@ -565,6 +569,7 @@ optimize_func(d_func* func)
         lifetime_free(&info);
         info = compute_lifetimes(ir);
     }
+#endif
 
     func->regalloc = allocate_registers(ir, &info);
     func->code = ir;

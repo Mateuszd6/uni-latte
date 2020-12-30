@@ -56,6 +56,8 @@ enum ir_op
     // These are optimisation-specific instructions
     NOP = 35,
     DISPOSE = 36,
+
+    // TODO: Different ALLOC for objs
 };
 typedef enum ir_op ir_op;
 

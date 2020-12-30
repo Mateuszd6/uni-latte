@@ -11,6 +11,15 @@ extern char const* __asan_default_options(void);
 extern char const* __asan_default_options() { return "detect_leaks=0,color=never"; }
 #endif
 
+// No registers allocation, when compiling without optimistaion
+#ifndef OPTIMIZE
+#  ifdef MAX_ALLOCATED_REGS
+#    undef MAX_ALLOCATED_REGS
+#    define MAX_ALLOCATED_REGS 0
+#    warning When optimisations are disabled, registers are not allocated
+#  endif // MAX_ALLOCATED_REGS
+#endif // OPTIMIZE
+
 #include "gen/asm-prelude.h"
 
 #include <assert.h>

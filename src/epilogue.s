@@ -137,6 +137,46 @@
     pop     rbp
     ret
 
+.BF2: ; allocate
+    push    rbp
+    mov     rbp, rsp
+    ;; Save all registers
+    push    rcx
+    push    rsi
+    push    rdi
+    push    r8
+    push    r9
+    push    r10
+    push    r11
+    push    r12
+    push    rbx
+    ;; First param in our ABI
+    mov     rdi, QWORD [rbp+16]
+    mov     r12, rdi
+    ;; Allocate a bit more memory, for metadata
+    add     rdi, 1
+    mov     rsi, 8
+    ;; Save stack ptr and align it to 16 byte boundary when calling C api
+    mov     rbx, rsp
+    and     rsp, ~0xF
+    call    calloc
+    mov     rsp, rbx
+    ;; Save array size in the metadata
+    mov     QWORD [rax], r12
+    ;; Metadata goes _before_ the pointer
+    add     rax, 8
+    pop     rbx
+    pop     r12
+    pop     r11
+    pop     r10
+    pop     r9
+    pop     r8
+    pop     rdi
+    pop     rsi
+    pop     rcx
+    pop     rbp
+    ret
+
 .LC0:
     db "%d",0xA,0x0
 .GF0: ; printInt

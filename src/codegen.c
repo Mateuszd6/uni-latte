@@ -160,7 +160,20 @@ gen_codefor_fun_param(char* buf, i64 var_id)
 static void
 gen_codefor_temp_variable(char* buf, i64 temp_id, codegen_ctx* ctx)
 {
+#ifdef OPTIMIZE
     assert(ctx->bp_temps[temp_id] != 0);
+#endif
+
+    if (ctx->bp_temps[temp_id] == 0)
+    {
+        // HACK: Since we didn't run the optimisation pass that removed all the uses
+        //       of unnecesary variables, this may happen (probably, it will only
+        //       happen in unoptimised code, which is not really part of the solution)
+        //       Just let the compiler write anywhere, who cares
+        sprintf(buf, "QWORD [rsp-8]");
+        return;
+    }
+
     sprintf(buf, "QWORD [rbp-%d]", 8 * ctx->bp_temps[temp_id]);
 }
 
@@ -534,6 +547,33 @@ gen_call(ir_quadr* q, codegen_ctx* ctx)
 }
 
 static void
+gen_alloc(ir_quadr* q, codegen_ctx* ctx)
+{
+    char buf[64];
+    gen_get_address_of(buf, q->u.args + 0, ctx);
+
+    fprintf(asm_dest, "    push    %s\n", buf);
+    fprintf(asm_dest, "    call    .BF2\n");
+    fprintf(asm_dest, "    add     rsp, 8 ; cleanup\n"); // Cleanup 1 arg
+
+    gen_store(&q->target, RAX, ctx);
+}
+
+static void
+gen_subscr(ir_quadr* q, codegen_ctx* ctx)
+{
+    // TODO: If target is in register mov directly to target
+    // TODO: If arg0 is in register, don't use RAX
+    // TODO: If arg1 is in register, don't use RDX
+
+    gen_load(RAX, q->u.args + 0, ctx);
+    gen_load(RDX, q->u.args + 1, ctx);
+
+    fprintf(asm_dest, "    mov     rax, QWORD [rax+rdx*8]\n");
+    gen_store(&q->target, RAX, ctx);
+}
+
+static void
 gen_glob_func(u32 f_id)
 {
     d_func* func = g_funcs + f_id;
@@ -694,10 +734,18 @@ gen_glob_func(u32 f_id)
         } break;
 
         case SUBSCR:
+        {
+            gen_subscr(&q, &ctx);
+        } break;
+
         case ARR_LEN:
-        case ALLOC:
         {
             // TODO(ex): Members, allocations and subscripts
+        } break;
+
+        case ALLOC:
+        {
+            gen_alloc(&q, &ctx);
         } break;
 
         case NOP:

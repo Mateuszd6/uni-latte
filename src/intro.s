@@ -3,6 +3,6 @@
 ;; using gcc will be needed. Writing it in C is not possible, because our
 ;; language does not use cdecl ABI so these would be incompatible.
 ;;
-extern _start, printf, puts, exit, fgetc, free, getline, malloc, scanf, sscanf, stdin, strcat, strcmp, strlen
+extern _start, calloc, exit, fgetc, free, getline, malloc, printf, puts, scanf, sscanf, stdin, strcat, strcmp, strlen
 
 ;;

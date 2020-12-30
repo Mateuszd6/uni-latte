@@ -954,13 +954,8 @@ process_expr(Expr e, ir_quadr** ir)
         processed_expr e_esize = process_expr(esize, ir);
         enforce_type(&e_esize, TYPEID_INT);
 
-        // TODO(ex): Calc size of the allocation
-        ir_val single_size = { .type = IRVT_CONST, .u = { .reg_id = 16 } };
-        ir_val alloc_size = IR_NEXT_TEMP_REGISTER();
-
         IR_SET_EXPR(retval, type_id, 0, IR_NEXT_TEMP_REGISTER());
-        IR_PUSH(alloc_size, MUL, single_size, e_esize.val);
-        IR_PUSH(retval.val, ALLOC, alloc_size);
+        IR_PUSH(retval.val, ALLOC, e_esize.val);
         return retval;
     }
 

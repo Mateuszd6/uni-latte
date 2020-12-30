@@ -2,6 +2,7 @@ DEBUG = YES
 USE_SANITIZERS = YES
 USE_PROFILER = NO
 DUMP_IR = YES
+OPTIMIZE = NO
 MAX_ALLOCATED_REGS = 12
 
 CC = clang
@@ -43,6 +44,10 @@ ifeq ($(DUMP_IR),YES)
 	CFLAGS += -DDUMP_IR=1
 else
     CFLAGS += -DDUMP_IR=0
+endif
+
+ifeq ($(OPTIMIZE),YES)
+	CFLAGS += -DOPTIMIZE
 endif
 
 ifeq ($(CC),clang)
