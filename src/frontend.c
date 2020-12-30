@@ -1179,7 +1179,6 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
 
         if (UNLIKELY(ee1.kind == PRJE_CONST && ee2.kind == PRJE_CONST))
         {
-            // TODO: shoudn't we remove reverse from here?
             ee1.u.constant =
                 ((e->kind == is_EAnd) ^ reverse
                  ? (!!ee1.u.constant) && (!!ee2.u.constant)

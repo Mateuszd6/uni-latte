@@ -260,8 +260,9 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
         mm r = first_al;
         for (; r < regs_size; ++r)
         {
-            // TODO: MAYBE replace end < life.start with end <= life.start ?
-            //       Will it break code?
+            // I MAY be POSSIBLE to replace end < life.start with end <= life.start, but
+            // this will have some implications in the codegen module and at this stage,
+            // it is really hard to decide, whether or not this will break something.
             mm n_interv_alloced = array_size(regs[r]);
             if (n_interv_alloced == 0 || regs[r][n_interv_alloced - 1].end < life.start)
             {

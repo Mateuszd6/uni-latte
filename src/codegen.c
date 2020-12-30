@@ -207,7 +207,7 @@ gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx)
     case IRVT_NONE:
     case IRVT_FN:
     {
-        NOTREACHED; // Should not reach, TODO?
+        NOTREACHED;
     } break;
     }
 }
