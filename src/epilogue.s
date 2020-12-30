@@ -178,7 +178,7 @@
     ret
 
 .LC0:
-    db "%d",0xA,0x0
+    db "%ld",0xA,0x0
 .GF0: ; printInt
     push    rbp
     mov     rbp, rsp
@@ -257,7 +257,7 @@
     call    exit ; tailcall
 
 .LC2:
-    db "%d",0x0
+    db "%ld",0x0
 .GF3: ; readInt
     push    rbp
     mov     rbp, rsp
@@ -275,7 +275,7 @@
     mov     QWORD [rsp + 16], 0
     mov     QWORD [rsp + 24], 0
     ;; Address of a stack-allocated integer, that gets scanf'ed
-    mov     DWORD [rsp + 4], 0
+    mov     QWORD [rsp + 8], 0
     ;; Getline params, stdin + 2 stack variables
     mov     rdx, QWORD [rel stdin]
     lea     rdi, [rsp + 16]
@@ -290,7 +290,7 @@
     test    rdi, rdi
     je      .GF3_L0
     ;; On success, we scanf loaded buffer to get the integer
-    lea     rdx, [rsp + 4]
+    lea     rdx, [rsp + 8]
     mov     esi, .LC2
     xor     eax, eax
     ;; Save stack ptr and align it to 16 byte boundary when calling C api
@@ -302,7 +302,7 @@
     mov     rdi, QWORD [rsp + 16]
     jmp     .GF3_L1
 .GF3_L0:
-    xor     edi, edi
+    xor     rdi, rdi
 .GF3_L1:
     ;; Be a good citizen and free mem. Free does nothing on 0, so its fine
     xor     eax, eax
@@ -312,7 +312,7 @@
     call    free
     mov     rsp, rbx
     ;; Return the integer on the stack, that scanf might have set
-    mov     eax, DWORD [rsp + 4]
+    mov     rax, QWORD [rsp + 8]
     add     rsp, 32
     pop     rbx
     pop     r11

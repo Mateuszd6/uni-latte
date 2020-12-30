@@ -1050,12 +1050,15 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
                 note(get_lnum(e->u.eclmem_.expr_), "Assuming type \"int\"");
 
                 retval.type_id = TYPEID_INT;
+                retval.is_lvalue = e_struct.is_lvalue;
+                retval.kind = EET_COMPUTE;
+                return retval;
             }
 
-            // TODO(ir) for class member access
+            ir_val v_idx = { .type = IRVT_CONST, .u = { .constant = idx }, };
+            IR_SET_EXPR(retval, retval.type_id, e_struct.is_lvalue, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, addr_only ? ADDROF : SUBSCR, e_struct.val, v_idx);
 
-            retval.is_lvalue = e_struct.is_lvalue;
-            retval.kind = EET_COMPUTE;
             return retval;
         }
 
