@@ -101,7 +101,7 @@ main(int argc, char** argv)
     define_primitives();
     add_classes(parse_tree);
     add_global_funcs(parse_tree);
-    add_class_members_and_local_funcs(parse_tree); // TODO: Do it when classes are processed?
+    add_class_members_and_local_funcs(parse_tree);
 
     if (has_error)
         no_recover();

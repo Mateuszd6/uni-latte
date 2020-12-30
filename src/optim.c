@@ -39,6 +39,31 @@ lifetime_check_at(lifetime_info* info, mm reg_id, ir_val_type type, mm ino)
     NOTREACHED;
 }
 
+static inline void
+compute_max_lifetimes(mm* n_vars, mm* n_fparams, mm* n_temps, ir_val v)
+{
+    switch (v.type) {
+    case IRVT_VAR:
+    {
+        *n_vars = MAX(*n_vars, v.u.reg_id + 1);
+    } break;
+    case IRVT_FNPARAM:
+    {
+        *n_fparams = MAX(*n_fparams, v.u.reg_id + 1);
+    } break;
+    case IRVT_TEMP:
+    {
+        *n_temps = MAX(*n_temps, v.u.reg_id + 1);
+    } break;
+    case IRVT_NONE:
+    case IRVT_FN:
+    case IRVT_CONST:
+    case IRVT_STRCONST:
+    {
+    } break;
+    }
+}
+
 static lifetime_info
 compute_lifetimes(ir_quadr* ir)
 {
@@ -48,61 +73,29 @@ compute_lifetimes(ir_quadr* ir)
     mm ir_size = array_size(ir);
     for (mm i = 0; i < ir_size; ++i)
     {
-        // TODO: Clear copypaste
-        {
-            ir_val v = ir[i].target;
-            switch (v.type) {
-            case IRVT_VAR:
-            {
-                n_vars = MAX(n_vars, v.u.reg_id + 1);
-            } break;
-            case IRVT_FNPARAM:
-            {
-                n_fparams = MAX(n_fparams, v.u.reg_id + 1);
-            } break;
-            case IRVT_TEMP:
-            {
-                n_temps = MAX(n_temps, v.u.reg_id + 1);
-            } break;
-            case IRVT_NONE:
-            case IRVT_FN:
-            case IRVT_CONST:
-            case IRVT_STRCONST:
-            {
-            } break;
-            }
-        }
+        compute_max_lifetimes(&n_vars, &n_fparams, &n_temps, ir[i].target);
 
         mm n_args = ir_op_n_args[ir[i].op];
-        for (mm a = 0; a < n_args; ++a)
-        {
-            ir_val v = ir[i].u.args[a];
-            switch (v.type) {
-            case IRVT_VAR:
-            {
-                n_vars = MAX(n_vars, v.u.reg_id + 1);
-            } break;
-            case IRVT_FNPARAM:
-            {
-                n_fparams = MAX(n_fparams, v.u.reg_id + 1);
-            } break;
-            case IRVT_TEMP:
-            {
-                n_temps = MAX(n_temps, v.u.reg_id + 1);
-            } break;
-            case IRVT_NONE:
-            case IRVT_FN:
-            case IRVT_CONST:
-            case IRVT_STRCONST:
-            {
-            } break;
-            }
-        }
+        if (n_args >= 1) compute_max_lifetimes(&n_vars, &n_fparams, &n_temps, ir[i].u.args[0]);
+        if (n_args >= 2) compute_max_lifetimes(&n_vars, &n_fparams, &n_temps, ir[i].u.args[1]);
     }
 
-#define SET_VAR(VAL) *(row + v.u.reg_id) = (VAL)
-#define SET_FNPARAM(VAL) *(row + n_vars + v.u.reg_id) = (VAL)
-#define SET_TEMP(VAL) *(row + n_vars + n_fparams + v.u.reg_id) = (VAL)
+#define SET_VAR(VAL, USED) *(row + (VAL).u.reg_id) = (USED)
+#define SET_FNPARAM(VAL, USED) *(row + n_vars + (VAL).u.reg_id) = (USED)
+#define SET_TEMP(VAL, USED) *(row + n_vars + n_fparams + (VAL).u.reg_id) = (USED)
+#define SET_USED_OR_UNUSED(VAL, USED)                                          \
+    do {                                                                       \
+        switch ((VAL).type) {                                                  \
+        case IRVT_VAR: SET_VAR(VAL, USED); break;                              \
+        case IRVT_FNPARAM: SET_FNPARAM(VAL, USED); break;                      \
+        case IRVT_TEMP: SET_TEMP(VAL, USED); break;                            \
+        case IRVT_NONE:                                                        \
+        case IRVT_FN:                                                          \
+        case IRVT_CONST:                                                       \
+        case IRVT_STRCONST:                                                    \
+            break;                                                             \
+        }                                                                      \
+    } while (0)
 
     mm n_all = n_vars + n_fparams + n_temps;
     b8* all = calloc(n_all * ir_size, sizeof(b8));
@@ -110,37 +103,13 @@ compute_lifetimes(ir_quadr* ir)
     {
         if (i < ir_size - 1)
             memcpy((all + n_all * i), (all + n_all * (i + 1)), sizeof(b8) * n_all);
-
         b8* row = all + (n_all * i);
 
-        {
-            ir_val v = ir[i].target;
-            switch (v.type) {
-            case IRVT_VAR: SET_VAR(0); break;
-            case IRVT_FNPARAM: SET_FNPARAM(0); break;
-            case IRVT_TEMP: SET_TEMP(0); break;
-            case IRVT_NONE:
-            case IRVT_FN:
-            case IRVT_CONST:
-            case IRVT_STRCONST:
-                break;
-            }
-        }
+        SET_USED_OR_UNUSED(ir[i].target, 0);
 
-        for (mm a = 0, n_args = ir_op_n_args[ir[i].op]; a < n_args; ++a)
-        {
-            ir_val v = ir[i].u.args[a];
-            switch (v.type) {
-            case IRVT_VAR: SET_VAR(1); break;
-            case IRVT_FNPARAM: SET_FNPARAM(1); break;
-            case IRVT_TEMP: SET_TEMP(1); break;
-            case IRVT_NONE:
-            case IRVT_FN:
-            case IRVT_CONST:
-            case IRVT_STRCONST:
-                break;
-            }
-        }
+        mm n_args = ir_op_n_args[ir[i].op];
+        if (n_args >= 1) SET_USED_OR_UNUSED(ir[i].u.args[0], 1);
+        if (n_args >= 2) SET_USED_OR_UNUSED(ir[i].u.args[1], 1);
     }
 
     lifetime_info retval = {
