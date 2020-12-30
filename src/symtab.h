@@ -28,6 +28,7 @@ struct d_var
     i32 lnum;
     u32 type_id;
     i32 block_id; // -1 means var in the class body
+    b32 is_iterator;
 };
 
 typedef struct d_class_mem d_class_mem;

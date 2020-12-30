@@ -42,6 +42,7 @@ compute_binary_boolean_expr(mm v1, mm v2, ir_op op, void* node)
     retval.type_id = TYPEID_BOOL;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.is_addr = 0;
     retval.node = node;
     switch (op) {
     case AND: retval.val.u.constant = !!(v1) && !!(v2); break;
@@ -62,6 +63,7 @@ compute_binary_integer_expr(mm v1, mm v2, ir_op op, void* node)
     retval.type_id = TYPEID_INT;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.is_addr = 0;
     retval.node = node;
 
     if (UNLIKELY((op == DIV || op == MOD) && v2 == 0))
@@ -104,6 +106,7 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     retval.type_id = TYPEID_STRING;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.is_addr = 0;
     retval.node = node;
 
     string_const s1 = g_str_consts[str1];
@@ -246,6 +249,7 @@ compute_binary_integer_or_boolean_equality_expr(mm v1, mm v2, ir_op op, void* no
     retval.type_id = TYPEID_BOOL;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.is_addr = 0;
     retval.node = node;
     retval.val.u.constant = !((op == CMP_EQ) ^ (v1 == v2));
 
@@ -260,6 +264,7 @@ compute_binary_string_equality_expr(mm str1, mm str2, ir_op op, void* node)
     retval.type_id = TYPEID_BOOL;
     retval.kind = EET_CONSTANT;
     retval.is_lvalue = 0;
+    retval.is_addr = 0;
     retval.node = node;
     retval.val.u.constant = !((op == CMP_EQ) ^ compre);
 
@@ -355,7 +360,7 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
 
             if (!expr_requires_jumping_code(argexpr))
             {
-                processed_expr argexpr_e = process_expr(argexpr, ir);
+                processed_expr argexpr_e = process_expr(argexpr, ir, 0);
                 IR_PUSH(IR_EMPTY(), PARAM, argexpr_e.val);
 
                 got_type_id = argexpr_e.type_id;
@@ -440,7 +445,7 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
 }
 
 static processed_expr
-process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
+process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir, b32 is_addr)
 {
     //
     // The assingment of the boolean expression can be expressed as:
@@ -451,11 +456,20 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
 
     if (!expr_requires_jumping_code(e2))
     {
-        processed_expr retval = process_expr(e2, ir);
-        IR_PUSH(variable_val, MOV, retval.val);
+        processed_expr retval = process_expr(e2, ir, 0);
+
+        if (is_addr)
+            IR_PUSH(IR_EMPTY(), STORE, variable_val, retval.val);
+        else
+            IR_PUSH(variable_val, MOV, retval.val);
 
         return retval;
     }
+
+    //
+    // TODO: Same (is_addr) for the code below:
+    //
+
     else
     {
         preprocessed_jump_expr* pre_buf = 0;
@@ -471,6 +485,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
             retval.type_id = TYPEID_BOOL;
             retval.kind = EET_CONSTANT;
             retval.is_lvalue = 0;
+            retval.is_addr = 0;
             retval.val.u.constant = !!(pre.u.constant);
             retval.val.type = IRVT_CONST;
             retval.val.u.constant = !!(pre.u.constant);
@@ -505,6 +520,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
         retval.type_id = TYPEID_BOOL;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 0;
+        retval.is_addr = 0;
         retval.val.u.constant = 0;
         retval.val.type = IRVT_CONST;
         retval.val.u.constant = 0;
@@ -514,7 +530,7 @@ process_assignment_expr(Expr e2, ir_val variable_val, ir_quadr** ir)
 }
 
 static processed_expr
-process_expr(Expr e, ir_quadr** ir)
+process_expr(Expr e, ir_quadr** ir, b32 addr_only)
 {
     processed_expr retval;
     Expr binarg1; // To be set for binary expressions
@@ -524,6 +540,7 @@ process_expr(Expr e, ir_quadr** ir)
 
     retval.node = e;
     retval.is_lvalue = 0;
+    retval.is_addr = 0;
     switch (e->kind) {
     case is_ELitTrue:
     case is_ELitFalse:
@@ -558,7 +575,7 @@ process_expr(Expr e, ir_quadr** ir)
 
     case is_Not:
     {
-        processed_expr e1 = process_expr(e->u.not_.expr_, ir);
+        processed_expr e1 = process_expr(e->u.not_.expr_, ir, 0);
         enforce_type(&e1, TYPEID_BOOL);
 
         if (UNLIKELY(e1.kind == EET_CONSTANT))
@@ -576,7 +593,7 @@ process_expr(Expr e, ir_quadr** ir)
 
     case is_Neg:
     {
-        processed_expr e1 = process_expr(e->u.not_.expr_, ir);
+        processed_expr e1 = process_expr(e->u.not_.expr_, ir, 0);
         enforce_type(&e1, TYPEID_INT);
 
         if (UNLIKELY(e1.kind == EET_CONSTANT))
@@ -660,8 +677,8 @@ process_expr(Expr e, ir_quadr** ir)
 
     binary_boolean_expr:
     {
-        processed_expr e1 = process_expr(binarg1, ir);
-        processed_expr e2 = process_expr(binarg2, ir);
+        processed_expr e1 = process_expr(binarg1, ir, 0);
+        processed_expr e2 = process_expr(binarg2, ir, 0);
         enforce_type(&e1, TYPEID_BOOL);
         enforce_type(&e2, TYPEID_BOOL);
 
@@ -682,8 +699,8 @@ process_expr(Expr e, ir_quadr** ir)
 
     binary_integer_expr:
     {
-        processed_expr e1 = process_expr(binarg1, ir);
-        processed_expr e2 = process_expr(binarg2, ir);
+        processed_expr e1 = process_expr(binarg1, ir, 0);
+        processed_expr e2 = process_expr(binarg2, ir, 0);
 
         // This is the only case when an operator other that == and != is
         // overloaded. IMO string concatenation should have separate operator
@@ -731,8 +748,8 @@ process_expr(Expr e, ir_quadr** ir)
 
     case is_EEq:
     {
-        processed_expr e1 = process_expr(e->u.eeq_.expr_1, ir);
-        processed_expr e2 = process_expr(e->u.eeq_.expr_2, ir);
+        processed_expr e1 = process_expr(e->u.eeq_.expr_1, ir, 0);
+        processed_expr e2 = process_expr(e->u.eeq_.expr_2, ir, 0);
         ir_op bineqop = CMP_EQ;
         switch (e->u.eeq_.eqop_->kind) {
         case is_NE: bineqop = CMP_NEQ; break;
@@ -854,9 +871,26 @@ process_expr(Expr e, ir_quadr** ir)
         }
 
         d_var var = g_vars[var_id];
+        if (var.is_iterator)
+        {
+            printf("The variable is an iterator, and should be dereferenced first!\n");
+
+            // Must be a variable, b/c function params are not iteratros
+            assert(var.block_id != PARAM_BLOCK_ID);
+
+            // TODO: Use addr_only and get only ptr, so that assignment is possible?
+            ir_val v = IR_LOCAL_VARIABLE(var_id);
+            ir_val zero = { .type = IRVT_CONST, .u = { .reg_id = 0 } };
+            IR_SET_EXPR(retval, var.type_id, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, SUBSCR, v, zero);
+
+            return retval;
+        }
+
         retval.type_id = var.type_id;
         retval.kind = EET_COMPUTE;
         retval.is_lvalue = 1;
+        retval.is_addr = 0;
 
         // TODO(ex): Class members
         if (var.block_id == PARAM_BLOCK_ID)
@@ -951,7 +985,7 @@ process_expr(Expr e, ir_quadr** ir)
         }
         type_id |= TYPEID_FLAG_ARRAY; // The resulting type of the expr is array
 
-        processed_expr e_esize = process_expr(esize, ir);
+        processed_expr e_esize = process_expr(esize, ir, 0);
         enforce_type(&e_esize, TYPEID_INT);
 
         IR_SET_EXPR(retval, type_id, 0, IR_NEXT_TEMP_REGISTER());
@@ -961,24 +995,24 @@ process_expr(Expr e, ir_quadr** ir)
 
     case is_EArrApp:
     {
-        processed_expr e_array = process_expr(e->u.earrapp_.expr_1, ir);
+        processed_expr e_array = process_expr(e->u.earrapp_.expr_1, ir, 0);
         if (!(e_array.type_id & TYPEID_FLAG_ARRAY))
         {
             error(get_lnum(e->u.earrapp_.expr_1),
                   "Non-array cannot be a left-hand-side of the array subscript");
         }
 
-        processed_expr e_idx = process_expr(e->u.earrapp_.expr_2, ir);
+        processed_expr e_idx = process_expr(e->u.earrapp_.expr_2, ir, 0);
         enforce_type(&e_idx, TYPEID_INT);
 
         IR_SET_EXPR(retval, TYPEID_UNMASK(e_array.type_id), e_array.is_lvalue, IR_NEXT_TEMP_REGISTER());
-        IR_PUSH(retval.val, SUBSCR, e_array.val, e_idx.val);
+        IR_PUSH(retval.val, addr_only ? ADDROF : SUBSCR, e_array.val, e_idx.val);
         return retval;
     }
 
     case is_EClMem:
     {
-        processed_expr e_struct = process_expr(e->u.eclmem_.expr_, ir);
+        processed_expr e_struct = process_expr(e->u.eclmem_.expr_, ir, 0);
         if (e_struct.type_id & TYPEID_FLAG_ARRAY)
         {
             // In case of array, only .length is possible
@@ -991,7 +1025,7 @@ process_expr(Expr e, ir_quadr** ir)
 
             ir_val offset = { .type = IRVT_CONST, .u = { .reg_id = -1 } };
             IR_SET_EXPR(retval, TYPEID_INT, 0, IR_NEXT_TEMP_REGISTER());
-            IR_PUSH(retval.val, SUBSCR, e_struct.val, offset);
+            IR_PUSH(retval.val, addr_only ? ADDROF : SUBSCR, e_struct.val, offset);
             return retval;
         }
         else if (e_struct.type_id <= TYPEID_LAST_BUILTIN_TYPE)
@@ -1039,7 +1073,7 @@ process_expr(Expr e, ir_quadr** ir)
 
     case is_EClApp:
     {
-        processed_expr e_struct = process_expr(e->u.eclapp_.expr_, ir);
+        processed_expr e_struct = process_expr(e->u.eclapp_.expr_, ir, 0);
         d_type cltype = g_types[e_struct.type_id];
         char* fn_name = e->u.eclapp_.ident_;
 
@@ -1120,7 +1154,7 @@ process_expr(Expr e, ir_quadr** ir)
         } break;
         }
 
-        processed_expr expr_to_cast = process_expr(e->u.ecast_.expr_, ir);
+        processed_expr expr_to_cast = process_expr(e->u.ecast_.expr_, ir, 0);
         switch (expr_to_cast.type_id) {
         case TYPEID_NULL: // Null is always castable to desired type
         {
@@ -1261,7 +1295,7 @@ preprocess_jumping_expr(Expr e, preprocessed_jump_expr** buf, b32 reverse)
     case is_Neg:
     {
         ir_quadr* dummy_ir = 0;
-        processed_expr ee = process_expr(e, &dummy_ir);
+        processed_expr ee = process_expr(e, &dummy_ir, 0);
         if (UNLIKELY(ee.type_id != TYPEID_BOOL))
         {
             d_type t_got = g_types[ee.type_id];
@@ -1315,7 +1349,7 @@ process_jumping_expr(ir_quadr** ir,
         ir_val labl_true = { .type = IRVT_CONST, .u = { .constant = e->l_id } };
         IR_PUSH(IR_EMPTY(), LABEL, labl_true);
 
-        processed_expr pe = process_expr(e->u.expr, ir);
+        processed_expr pe = process_expr(e->u.expr, ir, 0);
         ir_val t_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_true } };
         ir_val f_label = { .type = IRVT_CONST, .u = { .constant = ctx.l_false } };
 
@@ -1402,7 +1436,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         Expr ex = s->u.sexp_.expr_;
         if (!expr_requires_jumping_code(ex))
         {
-            process_expr(ex, ir);
+            process_expr(ex, ir, 0);
         }
         else
         {
@@ -1469,7 +1503,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             } break;
             case is_Init:
             {
-                vval = process_assignment_expr(i->u.init_.expr_, target_variable, ir);
+                vval = process_assignment_expr(i->u.init_.expr_, target_variable, ir, 0);
                 typecheck_assigning(type_id, &vval, i);
             } break;
             }
@@ -1481,6 +1515,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             var.lnum = get_lnum(i);
             var.type_id = type_id;
             var.block_id = cur_block_id;
+            var.is_iterator = 0;
             push_var(var, vname, i);
         }
 
@@ -1490,8 +1525,9 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
 
     case is_Ass:
     {
-        processed_expr e1 = process_expr(s->u.ass_.expr_1, ir);
-        processed_expr e2 = process_assignment_expr(s->u.ass_.expr_2, e1.val, ir);
+        // We only need address, not the value of the e1
+        processed_expr e1 = process_expr(s->u.ass_.expr_1, ir, 1);
+        processed_expr e2 = process_assignment_expr(s->u.ass_.expr_2, e1.val, ir, e1.is_addr);
 
         if (UNLIKELY(!e1.is_lvalue))
         {
@@ -1513,6 +1549,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             e.node = s;
             e.type_id = TYPEID_VOID;
             e.kind = EET_CONSTANT;
+            e.is_addr = 0;
             e.is_lvalue = 0;
 
             ir_val empty_val = IR_EMPTY();
@@ -1520,7 +1557,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         }
         else
         {
-            e = process_expr(s->u.ret_.expr_, ir);
+            e = process_expr(s->u.ret_.expr_, ir, 0);
         }
 
         if (UNLIKELY(e.type_id != return_type)) // TODO(ex): Handle inheritance
@@ -1614,7 +1651,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
     case is_Decr:
     {
         Expr e = s->kind == is_Incr ? s->u.incr_.expr_ : s->u.decr_.expr_;
-        processed_expr processed_e = process_expr(e, ir);
+        processed_expr processed_e = process_expr(e, ir, 0);
         if (processed_e.type_id != TYPEID_INT || !processed_e.is_lvalue)
         {
             error(get_lnum(e), "Left-hand-side of %s must be an lvalue of type \"int\"",
@@ -1698,7 +1735,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         char* type_name = s->u.for_.ident_1;
         char* vname = s->u.for_.ident_2;
         Expr e = s->u.for_.expr_;
-        processed_expr e_expr = process_expr(e, ir);
+        processed_expr e_expr = process_expr(e, ir, 0);
 
         if (!(e_expr.type_id & TYPEID_FLAG_ARRAY))
         {
@@ -1759,15 +1796,41 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         }
 
         i32 iter_block_id = push_block(); // For iterator variable
-        d_var var;
-        var.lnum = get_lnum(e);
-        var.type_id = iter_type_id;
-        var.block_id = iter_block_id;
+        mm iterator_id = array_size(g_vars);
+        d_var var = {
+            .lnum = get_lnum(e),
+            .type_id = iter_type_id,
+            .block_id = iter_block_id,
+            .is_iterator = 1,
+        };
         push_var(var, vname, e);
+
+        // Set iterator to the start of the array and temp var for its end
+        ir_val loop_end = IR_NEXT_TEMP_REGISTER();
+        ir_val iterator = { .type = IRVT_VAR, .u = { .reg_id = iterator_id } };
+        IR_PUSH(loop_end, ARR_SET_END, e_expr.val);
+        IR_PUSH(iterator, MOV, e_expr.val);
+
+        i32 l_loop = g_label++;
+        i32 l_cond = g_label++;
+        ir_val labl_loop = { .type = IRVT_CONST, .u = { .constant = l_loop } };
+        ir_val labl_cond = { .type = IRVT_CONST, .u = { .constant = l_cond } };
         i32 block_id = push_block(); // For body
+
+        IR_PUSH(IR_EMPTY(), JMP, labl_cond);
+        IR_PUSH(IR_EMPTY(), LABEL, labl_loop);
 
         Stmt lbody = s->u.for_.stmt_;
         process_stmt(lbody, return_type, block_id, ir);
+
+        // Increment the iterator check the condition and continue if needed
+        ir_val toadd = { .type = IRVT_CONST, .u = { .constant = 8 } };
+        IR_PUSH(iterator, ADD, iterator, toadd);
+
+        ir_val comparison_result = IR_NEXT_TEMP_REGISTER();
+        IR_PUSH(IR_EMPTY(), LABEL, labl_cond);
+        IR_PUSH(comparison_result, CMP_EQ, iterator, loop_end);
+        IR_PUSH(IR_EMPTY(), JMP_FALSE, comparison_result, labl_loop);
 
         pop_block(ir);
         pop_block(ir);
@@ -1798,6 +1861,7 @@ process_func_body(char* fnname, Block b, void* node)
         var.lnum = args[i].lnum;
         var.type_id = args[i].type_id;
         var.block_id = param_block_id;
+        var.is_iterator = 0;
 
         push_var(var, args[i].name, node);
     }
@@ -2271,6 +2335,7 @@ check_class_funcs(Program p)
                     .lnum = type.members[i].lnum,
                     .type_id = type.members[i].type_id,
                     .block_id = -1,
+                    .is_iterator = 0,
                 };
 
                 mm var_id = array_size(g_vars);

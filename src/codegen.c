@@ -560,6 +560,20 @@ gen_alloc(ir_quadr* q, codegen_ctx* ctx)
 }
 
 static void
+gen_arr_set_end(ir_quadr* q, codegen_ctx* ctx)
+{
+    // TODO: lea right into register, when target is reg allocated
+    // TODO: don't use rdx if arg0 is in register
+
+    gen_load(RDX, q->u.args + 0, ctx);
+
+    fprintf(asm_dest, "    mov     rax, QWORD [rdx-8]\n");
+    fprintf(asm_dest, "    lea     rax, [rdx+rax*8]\n");
+
+    gen_store(&q->target, RAX, ctx);
+}
+
+static void
 gen_subscr(ir_quadr* q, codegen_ctx* ctx)
 {
     // TODO: If target is in register mov directly to target
@@ -571,6 +585,32 @@ gen_subscr(ir_quadr* q, codegen_ctx* ctx)
 
     fprintf(asm_dest, "    mov     rax, QWORD [rax+rdx*8]\n");
     gen_store(&q->target, RAX, ctx);
+}
+
+static void
+gen_addrof(ir_quadr* q, codegen_ctx* ctx)
+{
+    // TODO: If target is in register lea directly to target
+    // TODO: If arg0 is in register, don't use RAX
+    // TODO: If arg1 is in register, don't use RDX
+
+    gen_load(RAX, q->u.args + 0, ctx);
+    gen_load(RDX, q->u.args + 1, ctx);
+
+    fprintf(asm_dest, "    lea     rax, [rax+rdx*8]\n");
+    gen_store(&q->target, RAX, ctx);
+}
+
+static void
+gen_ptr_store(ir_quadr* q, codegen_ctx* ctx)
+{
+    // TODO: If arg0 is in register, don't use RAX
+    // TODO: If arg1 is in register, don't use RDX
+
+    gen_load(RAX, q->u.args + 0, ctx);
+    gen_load(RDX, q->u.args + 1, ctx);
+
+    fprintf(asm_dest, "    mov     [rax], rdx\n");
 }
 
 static void
@@ -738,14 +778,24 @@ gen_glob_func(u32 f_id)
             gen_subscr(&q, &ctx);
         } break;
 
-        case ARR_LEN:
+        case ADDROF:
         {
-            // TODO(ex): Members, allocations and subscripts
+            gen_addrof(&q, &ctx);
+        } break;
+
+        case STORE:
+        {
+            gen_ptr_store(&q, &ctx);
         } break;
 
         case ALLOC:
         {
             gen_alloc(&q, &ctx);
+        } break;
+
+        case ARR_SET_END:
+        {
+            gen_arr_set_end(&q, &ctx);
         } break;
 
         case NOP:

@@ -37,7 +37,7 @@ enum ir_op
     CALL = 20,
     RET = 21,
     SUBSCR = 22, // Array subscript arr[x] or class member obj.x
-    ARR_LEN = 23,
+    ADDROF = 23,
     ALLOC = 24, // new
     STR_ADD = 25,
     JMP_TRUE = 26, // For logical operations
@@ -57,7 +57,10 @@ enum ir_op
     NOP = 35,
     DISPOSE = 36,
 
+    // Extensions
     // TODO: Different ALLOC for objs
+    STORE = 37,
+    ARR_SET_END = 38,
 };
 typedef enum ir_op ir_op;
 
@@ -65,14 +68,17 @@ static char const* const ir_op_name[] = {
     "MOV", "ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "NOT",
     "CMP_LTH", "CMP_LE", "CMP_GTH", "CMP_GE", "CMP_EQ", "CMP_NEQ", "STR_EQ", "STR_NEQ",
     "LABEL", "JMP", "PARAM", "CALL", "RET",
-    "SUBSCR", "ARR_LEN", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
+    "SUBSCR", "ADDROF", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
     "CMP_SET_FLAGS", "JMP_FLAGS_E", "JMP_FLAGS_NE",
     "JMP_FLAGS_L", "JMP_FLAGS_LE", "JMP_FLAGS_G", "JMP_FLAGS_GE",
-    "NOP", "DISPOSE",
+    "NOP", "DISPOSE", "STORE", "ARR_SET_END",
 };
 
 static int const ir_op_n_args[] = {
-    1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 0, 1
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 2,
+    2, 2, 2, 2, 2, 2, 2, 1, 1, 1,
+    1, 1, 2, 2, 1, 2, 2, 2, 2, 1,
+    1, 1, 1, 1, 1, 0, 1, 2, 1,
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
@@ -130,8 +136,9 @@ struct processed_expr
     void* node; // For lnum in case of error reporting
     u32 type_id;
     processed_expr_t kind;
-    b32 is_lvalue;
     ir_val val;
+    b8 is_lvalue;
+    b8 is_addr;
 };
 
 typedef struct preprocessed_jump_expr preprocessed_jump_expr;
@@ -180,7 +187,7 @@ static void process_jumping_expr(
     ir_quadr** ir, preprocessed_jump_expr* e, preprocessed_jump_expr* const pre_buf, jump_ctx ctx);
 static preprocessed_jump_expr preprocess_jumping_expr(
     Expr e, preprocessed_jump_expr** buf, b32 reverse);
-static processed_expr process_expr(Expr e, ir_quadr** ir);
+static processed_expr process_expr(Expr e, ir_quadr** ir, b32 addr_only);
 static processed_stmt process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir);
 static void process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir);
 static void process_func_body(char* fnname, Block b, void* node);
@@ -220,6 +227,7 @@ static void check_class_funcs(Program p);
         EXPR .type_id = TYPE;                                                  \
         EXPR .kind = EET_COMPUTE;                                              \
         EXPR .is_lvalue = IS_LVALUE;                                           \
+        EXPR .is_addr = 0;                                                     \
         EXPR .val = val_;                                                      \
         IR_PUSH(EXPR .val, MOV, val_);                                         \
     } while (0)
@@ -235,6 +243,7 @@ static void check_class_funcs(Program p);
         EXPR .type_id = TYPE;                                                  \
         EXPR .kind = EET_CONSTANT;                                             \
         EXPR .is_lvalue = 0;                                                   \
+        EXPR .is_addr = 0;                                                     \
         EXPR .val = val_;                                                      \
     } while (0)
 
@@ -249,6 +258,7 @@ static void check_class_funcs(Program p);
         EXPR .type_id = TYPE;                                                  \
         EXPR .kind = EET_CONSTANT;                                             \
         EXPR .is_lvalue = 0;                                                   \
+        EXPR .is_addr = 0;                                                     \
         EXPR .val = val_;                                                      \
     } while (0)
 
@@ -259,6 +269,7 @@ static void check_class_funcs(Program p);
         EXPR .type_id = TYPE;                                                  \
         EXPR .kind = EET_COMPUTE;                                              \
         EXPR .is_lvalue = IS_LVALUE;                                           \
+        EXPR .is_addr = IS_LVALUE;                                             \
         EXPR .val = val_;                                                      \
     } while (0)
 
