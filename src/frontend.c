@@ -5,6 +5,7 @@
 
 static i32 g_temp_reg = 1;
 static i32 g_label = 1;
+static i32 g_local_func_id = 1;
 
 static inline parsed_type
 parse_type(Type type)
@@ -131,6 +132,8 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
 }
 
 static i32 g_next_block_id = 1;
+
+#define CLMEM_BLOCK_ID (-1)
 #define PARAM_BLOCK_ID (1)
 
 static inline i32
@@ -154,12 +157,15 @@ pop_block(ir_quadr** ir)
         symbol s = symbol_get(popped, 0, 0);
         assert(s.type == S_VAR);
 
-        ir_val var_to_dispose = {
-            .type = g_vars[s.id].block_id == PARAM_BLOCK_ID ? IRVT_FNPARAM : IRVT_VAR,
-            .u = { .reg_id = s.id },
-        };
-        IR_PUSH(IR_EMPTY(), DISPOSE, var_to_dispose);
+        d_var v = g_vars[s.id];
+        assert(v.block_id != CLMEM_BLOCK_ID);
 
+        ir_val var_to_dispose = {
+            .type = v.argnum >= 0 ?  IRVT_FNPARAM : IRVT_VAR,
+            .u = { .reg_id = v.argnum >= 0 ? v.argnum : s.id },
+        };
+
+        IR_PUSH(IR_EMPTY(), DISPOSE, var_to_dispose);
         symbol_pop(popped);
     }
 }
@@ -883,10 +889,19 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         retval.is_lvalue = 1;
         retval.is_addr = 0;
 
-        // TODO(ex): Class members
-        if (var.block_id == PARAM_BLOCK_ID)
+        if (var.block_id == CLMEM_BLOCK_ID) // Class member
         {
-            ir_val val = IR_FUNC_PARAM(var_id);
+            // First param is "this" pointer
+            ir_val self_param_val = { .type = IRVT_FNPARAM, .u = { .reg_id = 0 }, };
+            ir_val offset = { .type = IRVT_CONST, .u = { .constant = var.memnum }, };
+
+            IR_SET_EXPR(retval, var.type_id, 1, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, addr_only ? ADDROF : SUBSCR, self_param_val, offset);
+        }
+        else if (var.argnum >= 0) // Func param
+        {
+            assert(var.block_id == PARAM_BLOCK_ID);
+            ir_val val = IR_FUNC_PARAM(var.argnum);
             retval.val = val;
         }
         else // Regular, local variable
@@ -914,12 +929,23 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         d_func* f = g_funcs + func_id;
         process_params(e->u.eapp_.listexpr_, f, e, ir);
 
-        ir_val fn_to_call = { .type = IRVT_FN, .u = { .constant = func_id }};
+        ir_val fn_to_call = {0};
+        if (f->is_local)
+        {
+            ir_val this_param = { .type = IRVT_FNPARAM, .u = { .constant = 0 }, };
+            IR_PUSH(IR_EMPTY(), PARAM, this_param);
+
+            fn_to_call.type = IRVT_LOCFN;
+            fn_to_call.u.constant = f->local_id;
+        }
+        else
+        {
+            fn_to_call.type = IRVT_FN;
+            fn_to_call.u.constant = func_id;
+        }
 
         // Like in Java, functions always return rvalues
         IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
-
-
         IR_PUSH(retval.val, CALL, fn_to_call);
         return retval;
     }
@@ -1103,10 +1129,18 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
             {
                 d_func* f = cltype.member_funcs + idx;
                 process_params(e->u.eclapp_.listexpr_, f, e, ir);
+
+                // TODO(ex): replace with virtual function call
+
+                // Set "this" param:
+                ir_val mem_func_id = { .type = IRVT_LOCFN, .u = { .constant = f->local_id }, };
+                IR_PUSH(IR_EMPTY(), PARAM, e_struct.val);
+                IR_SET_EXPR(retval, retval.type_id, 0, IR_NEXT_TEMP_REGISTER());
+                IR_PUSH(retval.val, CALL, mem_func_id);
+
+                return retval;
             }
         }
-
-        // TODO(ir): for member function invokation
 
         retval.is_lvalue = 0; // Like in Java, functions always return rvalues
         retval.kind = EET_COMPUTE;
@@ -1505,11 +1539,15 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             // HACK: This works, becasue evaluation the expression cannot create a new var
             assert(var_id == array_size(g_vars));
 
-            d_var var;
-            var.lnum = get_lnum(i);
-            var.type_id = type_id;
-            var.block_id = cur_block_id;
-            var.is_iterator = 0;
+            d_var var = {
+                .lnum = get_lnum(i),
+                .type_id = type_id,
+                .block_id = cur_block_id,
+                .is_iterator = 0,
+                .argnum = -1,
+                .memnum = -1,
+            };
+
             push_var(var, vname, i);
         }
 
@@ -1645,15 +1683,23 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
     case is_Decr:
     {
         Expr e = s->kind == is_Incr ? s->u.incr_.expr_ : s->u.decr_.expr_;
-        processed_expr processed_e = process_expr(e, ir, 0);
+        processed_expr processed_e = process_expr(e, ir, 1);
         if (processed_e.type_id != TYPEID_INT || !processed_e.is_lvalue)
         {
             error(get_lnum(e), "Left-hand-side of %s must be an lvalue of type \"int\"",
                   s->kind == is_Incr ? "incrementation" : "decrementation");
         }
 
-        ir_val toadd = { .type = IRVT_CONST, .u = { .constant = 1 } };
-        IR_PUSH(processed_e.val, (s->kind == is_Incr ? ADD : SUB), processed_e.val, toadd);
+        if (processed_e.is_addr)
+        {
+            ir_val toadd = { .type = IRVT_CONST, .u = { .constant = s->kind == is_Incr ? 1 : -1 } };
+            IR_PUSH(IR_EMPTY(), ADD_AT_ADDR, processed_e.val, toadd);
+        }
+        else
+        {
+            ir_val toadd = { .type = IRVT_CONST, .u = { .constant = 1 } };
+            IR_PUSH(processed_e.val, (s->kind == is_Incr ? ADD : SUB), processed_e.val, toadd);
+        }
 
         retval.all_branches_return = 0;
         return retval;
@@ -1796,6 +1842,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             .type_id = iter_type_id,
             .block_id = iter_block_id,
             .is_iterator = 1,
+            .argnum = -1,
+            .memnum = -1,
         };
         push_var(var, vname, e);
 
@@ -1847,15 +1895,20 @@ process_func_body(char* fnname, Block b, void* node)
     assert(f_id != FUNCID_NOTFOUND); // Already added
 
     i32 param_block_id = push_block(); // Block in which params get defined
+    assert(param_block_id == PARAM_BLOCK_ID);
+
     d_func_arg* args = g_funcs[f_id].args;
     mm n_args = array_size(args);
     for (mm i = 0; i < n_args; ++i)
     {
-        d_var var;
-        var.lnum = args[i].lnum;
-        var.type_id = args[i].type_id;
-        var.block_id = param_block_id;
-        var.is_iterator = 0;
+        d_var var = {
+            .lnum = args[i].lnum,
+            .type_id = args[i].type_id,
+            .block_id = param_block_id,
+            .is_iterator = 0,
+            .argnum = (i32)i,
+            .memnum = -1,
+        };
 
         push_var(var, args[i].name, node);
     }
@@ -2120,12 +2173,18 @@ add_class_members_and_local_funcs(Program p)
             array_push(members, clmem);
         }
 
+        // TODO: Get rid of these, but actually CHECK IF MEMBERS ARE UNIQUE,
+        //       becasue it is not checked right now
+#if 0
         if (members)
         {
             // Make it easy to find a member by name
             qsort(members, (umm)n_members, sizeof(d_class_mem), qsort_d_class_mem);
             g_types[class_type_id].members = members;
         }
+#else
+        g_types[class_type_id].members = members;
+#endif
 
         // Parse local functions
         d_func* member_funcs = 0;
@@ -2182,6 +2241,7 @@ add_class_members_and_local_funcs(Program p)
                 .num_args = (i32)n_args,
                 .args = fun_args,
                 .is_local = 1,
+                .local_id = g_local_func_id++,
             };
 
             array_push(member_funcs, f);
@@ -2227,6 +2287,7 @@ add_global_funcs(Program p)
             .num_args = (i32)n_args,
             .args = fun_args,
             .is_local = 0,
+            .local_id = -1,
         };
 
         b32 shadows = create_func(f);
@@ -2304,6 +2365,14 @@ check_class_funcs(Program p)
         if (t->kind != is_ClDef)
             continue;
 
+        u32 type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, t);
+        assert(type_id != TYPEID_NOTFOUND);
+
+        d_type type = g_types[type_id];
+        mm n_member_funcs = array_size(type.member_funcs);
+        for (mm i = 0; i < n_member_funcs; ++i)
+            create_func(type.member_funcs[i]);
+
         LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
         {
             ClBody cl = cl_it->clbody_;
@@ -2311,14 +2380,6 @@ check_class_funcs(Program p)
                 continue;
 
             array_clear(g_vars);
-
-            u32 type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, cl);
-            assert(type_id != TYPEID_NOTFOUND);
-
-            d_type type = g_types[type_id];
-            mm n_member_funcs = array_size(type.member_funcs);
-            for (mm i = 0; i < n_member_funcs; ++i)
-                create_func(type.member_funcs[i]);
 
             push_block(); // Block for class memebers
             mm n_members = array_size(type.members);
@@ -2330,6 +2391,8 @@ check_class_funcs(Program p)
                     .type_id = type.members[i].type_id,
                     .block_id = -1,
                     .is_iterator = 0,
+                    .argnum = -1,
+                    .memnum = (i32)i,
                 };
 
                 mm var_id = array_size(g_vars);
@@ -2344,11 +2407,10 @@ check_class_funcs(Program p)
 
             process_func_body(cl->u.cbfndef_.ident_, cl->u.cbfndef_.block_, cl->u.cbfndef_.type_);
             pop_block_nodispose();
-
-            // Pop back the member functions
-            for (mm i = 0; i < n_member_funcs; ++i)
-                symbol_pop(type.member_funcs[i].name);
-            array_popn(g_funcs, n_member_funcs);
         }
+
+        // Pop back the member functions
+        for (mm i = 0; i < n_member_funcs; ++i)
+            symbol_pop(type.member_funcs[i].name);
     }
 }

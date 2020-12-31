@@ -29,11 +29,7 @@ lifetime_check_at(lifetime_info* info, mm reg_id, ir_val_type type, mm ino)
     case IRVT_VAR: return *(row + reg_id);
     case IRVT_FNPARAM: return *(row + info->n_vars + reg_id);
     case IRVT_TEMP: return *(row + info->n_vars + info->n_fparams + reg_id);
-    case IRVT_NONE:
-    case IRVT_FN:
-    case IRVT_CONST:
-    case IRVT_STRCONST:
-        NOTREACHED;
+    default: NOTREACHED;
     }
 
     NOTREACHED;
@@ -57,6 +53,7 @@ compute_max_lifetimes(mm* n_vars, mm* n_fparams, mm* n_temps, ir_val v)
     } break;
     case IRVT_NONE:
     case IRVT_FN:
+    case IRVT_LOCFN:
     case IRVT_CONST:
     case IRVT_STRCONST:
     {
@@ -91,6 +88,7 @@ compute_lifetimes(ir_quadr* ir)
         case IRVT_TEMP: SET_TEMP(VAL, USED); break;                            \
         case IRVT_NONE:                                                        \
         case IRVT_FN:                                                          \
+        case IRVT_LOCFN:                                                       \
         case IRVT_CONST:                                                       \
         case IRVT_STRCONST:                                                    \
             break;                                                             \

@@ -103,6 +103,8 @@ define_primitive_functions(void)
             .ret_type_id = TYPEID_VOID,
             .num_args = 1,
             .args = argsof_printInt,
+            .is_local = 0,
+            .local_id = -1,
         },
         // void printString(string)
         {
@@ -111,6 +113,8 @@ define_primitive_functions(void)
             .ret_type_id = TYPEID_VOID,
             .num_args = 1,
             .args = argsof_printString,
+            .is_local = 0,
+            .local_id = -1,
         },
         // void error()
         {
@@ -119,6 +123,8 @@ define_primitive_functions(void)
             .ret_type_id = TYPEID_VOID,
             .num_args = 0,
             .args = 0,
+            .is_local = 0,
+            .local_id = -1,
         },
         // int readInt()
         {
@@ -127,6 +133,8 @@ define_primitive_functions(void)
             .ret_type_id = TYPEID_INT,
             .num_args = 0,
             .args = 0,
+            .is_local = 0,
+            .local_id = -1,
         },
         // string readString()
         {
@@ -135,6 +143,8 @@ define_primitive_functions(void)
             .ret_type_id = TYPEID_STRING,
             .num_args = 0,
             .args = 0,
+            .is_local = 0,
+            .local_id = -1,
         },
     };
 

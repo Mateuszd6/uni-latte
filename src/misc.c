@@ -143,3 +143,89 @@ overflows_32bit(mm val)
 
     return !(i32_min <= val && val <= i32_max);
 }
+
+extern char*
+str_escape(char const* s)
+{
+    mm len = strlen(s);
+    char* r = malloc(2 * len + 1);
+    char* d = r;
+    for (char const* p = s; *p;)
+    {
+
+        switch (*p) {
+        case '\\':
+        {
+            *d++ = '\\';
+            *d++ = *p++;
+        } break;
+        case '\a':
+        {
+            *d++ = '\\';
+            *d++ = 'a';
+            p++;
+        } break;
+        case '\b':
+        {
+            *d++ = '\\';
+            *d++ = 'b';
+            p++;
+        } break;
+        case '\f':
+        {
+            *d++ = '\\';
+            *d++ = 'f';
+            p++;
+        } break;
+        case '\n':
+        {
+            *d++ = '\\';
+            *d++ = 'n';
+            p++;
+        } break;
+        case '\r':
+        {
+            *d++ = '\\';
+            *d++ = 'r';
+            p++;
+        } break;
+        case '\t':
+        {
+            *d++ = '\\';
+            *d++ = 't';
+            p++;
+        } break;
+        case '\v':
+        {
+            *d++ = '\\';
+            *d++ = 'v';
+            p++;
+        } break;
+        case '\'':
+        {
+            *d++ = '\\';
+            *d++ = '\'';
+            p++;
+        } break;
+        case '`':
+        {
+            *d++ = '\\';
+            *d++ = '`';
+            p++;
+        } break;
+        case '"':
+        {
+            *d++ = '\\';
+            *d++ = '"';
+            p++;
+        } break;
+        default:
+        {
+            *d++ = *p++;
+        } break;
+        }
+    }
+
+    *d = 0;
+    return r;
+}

@@ -13,7 +13,16 @@ gen_ir_for_function(u32 f_id)
     ir_quadr* ircode = g_funcs[f_id].code;
     char* fname = g_funcs[f_id].name;
 
-    fprintf(ir_dest, "GLOBAL_FUNC_%u ; %s\n", f_id, fname);
+    if (!g_funcs[f_id].is_local)
+    {
+        fprintf(ir_dest, "GLOBAL_FUNC_%u ; %s\n", f_id, fname);
+    }
+    else
+    {
+        // TODO: get name of the class
+        fprintf(ir_dest, "LOCAL_FUNC_%u ; %s.%s\n", g_funcs[f_id].local_id, "TODO", fname);
+    }
+
     for (mm i = 0, size = array_size(ircode); i < size; ++i)
     {
         if (ircode[i].op == LABEL)
@@ -38,9 +47,11 @@ gen_ir_for_function(u32 f_id)
             if (ircode[i].u.args[a].type == IRVT_NONE)
                 fprintf(ir_dest, " _");
             else
+            {
                 fprintf(ir_dest, " %s%ld",
                         ir_val_type_name[ircode[i].u.args[a].type],
                         ircode[i].u.args[a].u.reg_id);
+            }
         }
 
         fprintf(ir_dest, "\n");
@@ -72,6 +83,7 @@ get_reg_for(ir_val* v, codegen_ctx* ctx)
     case IRVT_STRCONST:
     case IRVT_NONE:
     case IRVT_FN:
+    case IRVT_LOCFN:
         return 0;
     }
 
@@ -101,9 +113,9 @@ gen_entry_point(i32 main_f_id)
 }
 
 static void
-gen_func_prologue(i32 f_id, codegen_ctx* ctx, char const* fname)
+gen_func_prologue(b32 is_local, i32 f_id, codegen_ctx* ctx, char const* fname)
 {
-    fprintf(asm_dest, ".GF%d: ; %s\n", f_id, fname);
+    fprintf(asm_dest, ".%s%d: ; %s\n", is_local ? "LF" : "GF", f_id, fname);
     fprintf(asm_dest, "    push    rbp\n");
     fprintf(asm_dest, "    mov     rbp, rsp\n");
     if (ctx->bp_offset)
@@ -219,6 +231,7 @@ gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx)
     } break;
     case IRVT_NONE:
     case IRVT_FN:
+    case IRVT_LOCFN:
     {
         NOTREACHED;
     } break;
@@ -524,26 +537,36 @@ gen_param(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_call(ir_quadr* q, codegen_ctx* ctx)
 {
-    if (q->u.args[0].type == IRVT_FN)
+    if (q->u.args[0].type == IRVT_FN || q->u.args[0].type == IRVT_LOCFN)
     {
-        fprintf(asm_dest, "    call    .GF%ld\n", q->u.args[0].u.constant);
+        mm id_to_call = q->u.args[0].u.constant;
+        mm id_in_g_funcs = id_to_call;
+        i32 is_local = (q->u.args[0].type == IRVT_LOCFN);
+
+        if (is_local)
+            for (id_in_g_funcs = 0;
+                 id_in_g_funcs < array_size(g_funcs);
+                 ++id_in_g_funcs)
+            {
+                if (g_funcs[id_in_g_funcs].local_id == id_to_call)
+                    break;
+            }
+
+        assert(id_in_g_funcs < array_size(g_funcs));
+
+        i32 n_args = g_funcs[id_in_g_funcs].num_args;
+        fprintf(asm_dest, "    call    .%s%ld\n", is_local ? "LF" : "GF", id_to_call);
 
         // Cleanup if args were passed on the stack
-        if (g_funcs[q->u.args[0].u.constant].num_args > 0)
-        {
-            fprintf(asm_dest, "    add     rsp, %d ; cleanup\n",
-                    8 * g_funcs[q->u.args[0].u.constant].num_args);
-        }
+        if (n_args > 0)
+            fprintf(asm_dest, "    add     rsp, %d ; cleanup\n", 8 * n_args);
 
         // If function returns something, write it to the result
         if (q->target.type != IRVT_NONE)
             gen_store(&q->target, RAX, ctx);
     }
     else
-    {
-        // TODO: Something else for local functions
         NOTREACHED;
-    }
 }
 
 static void
@@ -605,12 +628,24 @@ static void
 gen_ptr_store(ir_quadr* q, codegen_ctx* ctx)
 {
     // TODO: If arg0 is in register, don't use RAX
-    // TODO: If arg1 is in register, don't use RDX
+    // TODO: If arg1 is in register (or constant), don't use RDX
 
     gen_load(RAX, q->u.args + 0, ctx);
     gen_load(RDX, q->u.args + 1, ctx);
 
     fprintf(asm_dest, "    mov     [rax], rdx\n");
+}
+
+static void
+gen_add_at_addr(ir_quadr* q, codegen_ctx* ctx)
+{
+    // TODO: If arg0 is in register, don't use RAX
+    // TODO: If arg1 is in register (or constant), don't use RDX
+
+    gen_load(RAX, q->u.args + 0, ctx);
+    gen_load(RDX, q->u.args + 1, ctx);
+
+    fprintf(asm_dest, "    add     [rax], rdx\n");
 }
 
 static void
@@ -641,7 +676,7 @@ gen_glob_func(u32 f_id)
         if (ctx.regalloc.temps[i])
             ctx.used_regs[ctx.regalloc.temps[i]] = 1;
 
-    gen_func_prologue((i32)f_id, &ctx, fname);
+    gen_func_prologue(func->is_local, func->is_local ? func->local_id : (i32)f_id, &ctx, fname);
     for (mm i = 0, size = array_size(ir); i < size; ++i)
     {
         ir_quadr q = ir[i];
@@ -798,6 +833,11 @@ gen_glob_func(u32 f_id)
             gen_arr_set_end(&q, &ctx);
         } break;
 
+        case ADD_AT_ADDR:
+        {
+            gen_add_at_addr(&q, &ctx);
+        } break;
+
         case NOP:
         case DISPOSE:
         {
@@ -816,7 +856,9 @@ gen_constants()
 {
     for (mm i = 0, size = array_size(g_str_consts); i < size; ++i)
     {
-        fprintf(asm_dest, ".BS%ld:\n    db \"%s\",0x0\n", i, g_str_consts[i].data);
+        char* escaped = str_escape(g_str_consts[i].data);
+        fprintf(asm_dest, ".BS%ld:\n    db `%s`,0x0\n", i, escaped);
+        free(escaped);
     }
 }
 

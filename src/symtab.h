@@ -28,6 +28,8 @@ struct d_var
     i32 lnum;
     u32 type_id;
     i32 block_id; // -1 means var in the class body
+    i32 argnum;
+    i32 memnum;
     b32 is_iterator;
 };
 
@@ -59,6 +61,7 @@ struct d_func
     u32 ret_type_id;
     i32 num_args;
     i32 return_label_id;
+    i32 local_id; // only if is_local, else -1
     b32 is_local;
 };
 

@@ -103,5 +103,6 @@ extern void* alloc_ast_node(size_t size);
 extern i32 get_lnum(void* ast_node);
 
 extern int overflows_32bit(mm val);
+extern char* str_escape(char const* s);
 
 #endif // MISC_H_
