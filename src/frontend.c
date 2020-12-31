@@ -3,9 +3,21 @@
 #include "misc.h"
 #include "symtab.h"
 
+static b8* g_inh_matrix;
+static mm g_inh_matrix_size;
 static i32 g_temp_reg = 1;
 static i32 g_label = 1;
 static i32 g_local_func_id = 1;
+
+static b32 is_assignable(u32 lhs_type, u32 rhs_type)
+{
+    if ((lhs_type & TYPEID_FLAG_ARRAY) != (rhs_type & TYPEID_FLAG_ARRAY))
+        return 0;
+
+    u32 lhs = TYPEID_UNMASK(lhs_type);
+    u32 rhs = TYPEID_UNMASK(rhs_type);
+    return g_inh_matrix[rhs * g_inh_matrix_size + lhs];
+}
 
 static inline parsed_type
 parse_type(Type type)
@@ -306,7 +318,7 @@ expr_requires_jumping_code(Expr e)
 static inline void
 typecheck_assigning(u32 type_id, processed_expr* vval, void* node)
 {
-    if (UNLIKELY(type_id != vval->type_id)) // TODO(ex): Handle inheritance
+    if (UNLIKELY(!is_assignable(type_id, vval->type_id)))
     {
         d_type expected_t = g_types[TYPEID_UNMASK(type_id)];
         d_type got_t = g_types[TYPEID_UNMASK(vval->type_id)];

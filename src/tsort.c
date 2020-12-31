@@ -136,6 +136,36 @@ sort_classes(i32* exts, mm n_verts)
         }
     }
 
+    g_inh_matrix = calloc(n_verts * n_verts, sizeof(b8));
+    g_inh_matrix_size = n_verts;
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+    {
+        i32 v = order[i];
+        if (exts[v] != -1)
+        {
+            printf("%d over %d\n", v, exts[v]);
+            memcpy(g_inh_matrix + (v * n_verts * sizeof(b8)),
+                   g_inh_matrix + (exts[v] * n_verts * sizeof(b8)),
+                   n_verts * sizeof(b8));
+            g_inh_matrix[v * n_verts + exts[v]] = 1;
+        }
+    }
+
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+        g_inh_matrix[i * n_verts + i] = 1;
+
+    printf("INHERITANCE MATRIX:\n");
+    printf("   0 1 2 3 4 5 6 7 8 9\n");
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+    {
+        printf("%ld_ ", i);
+        for (mm j = 0; j < n_order; ++j)
+            printf("%d ", g_inh_matrix[i * n_verts + j] ? 1 : 0);
+
+        printf("\n");
+    }
+    printf("\n");
+
     free(pos);
     free(visited);
     return order;
