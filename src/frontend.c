@@ -2081,6 +2081,42 @@ add_classes(Program p)
     }
 }
 
+static i32*
+build_inhtree(Program p)
+{
+    i32* retval = malloc(array_size(g_types) * sizeof(i32));
+    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    {
+        TopDef t = it->topdef_;
+        if (t->kind != is_ClDef)
+            continue;
+
+        symbol ts = symbol_get(t->u.cldef_.ident_, t->u.cldef_.clprops_, 1);
+        assert(ts.type == S_TYPE);
+
+        i32 parent_class_id = -1;
+        if (t->u.cldef_.clprops_->kind == is_CExtends)
+        {
+            symbol is = symbol_get(t->u.cldef_.clprops_->u.cextends_.ident_,
+                                  t->u.cldef_.clprops_, 1);
+            if (is.type == S_NONE) return 0; // Inherited class not found
+
+            assert(is.type == S_TYPE);
+            parent_class_id = is.id;
+
+            if (UNLIKELY(parent_class_id <= TYPEID_LAST_BUILTIN_TYPE))
+                error(get_lnum(t->u.cldef_.clprops_), "Cannot inherit from a builtin type");
+        }
+
+        retval[ts.id] = parent_class_id;
+    }
+
+    for (mm i = 0; i <= TYPEID_LAST_BUILTIN_TYPE; ++i)
+        retval[i] = -1;
+
+    return retval;
+}
+
 static void
 add_class_members_and_local_funcs(Program p)
 {
@@ -2247,6 +2283,7 @@ add_class_members_and_local_funcs(Program p)
             array_push(member_funcs, f);
         }
 
+        // TODO: Remove that?
         if (member_funcs)
         {
             // Make it easy to find a member by name

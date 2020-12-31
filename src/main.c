@@ -50,6 +50,7 @@ extern char const* __asan_default_options() { return "detect_leaks=0,color=never
 #include "frontend.c"
 #include "optim.c"
 #include "codegen.c"
+#include "tsort.c"
 
 //
 // Used to get a filename when error parsing reporting in extern parser
@@ -106,22 +107,30 @@ main(int argc, char** argv)
         usage(argv[0]);
 
     Program parse_tree = parse_file(argv[1]);
-    if (!parse_tree)
-        no_recover();
+    if (!parse_tree) no_recover();
 
     define_primitives();
     add_classes(parse_tree);
+
+    if (has_error) no_recover();
+
+    i32* inhtree = build_inhtree(parse_tree);
+    if (has_error) no_recover();
+
+    i32* order = sort_classes(inhtree, array_size(g_types));
+    free(inhtree);
+
+    if (has_error) no_recover();
+
     add_global_funcs(parse_tree);
     add_class_members_and_local_funcs(parse_tree);
 
-    if (has_error)
-        no_recover();
+    if (has_error) no_recover();
 
     check_global_funcs(parse_tree);
     check_class_funcs(parse_tree);
 
-    if (has_error)
-        no_recover();
+    if (has_error) no_recover();
 
     optimize();
 
