@@ -649,6 +649,15 @@ gen_add_at_addr(ir_quadr* q, codegen_ctx* ctx)
 }
 
 static void
+gen_set_vtab(ir_quadr* q, codegen_ctx* ctx)
+{
+    // TODO: If arg0 is in register, don't use RAX
+
+    gen_load(RAX, q->u.args + 0, ctx);
+    fprintf(asm_dest, "    mov     QWORD [rax-8], .VT%ld\n", q->u.args[1].u.constant);
+}
+
+static void
 gen_glob_func(u32 f_id)
 {
     d_func* func = g_funcs + f_id;
@@ -838,6 +847,11 @@ gen_glob_func(u32 f_id)
             gen_add_at_addr(&q, &ctx);
         } break;
 
+        case SET_VTAB:
+        {
+            gen_set_vtab(&q, &ctx);
+        } break;
+
         case NOP:
         case DISPOSE:
         {
@@ -849,6 +863,19 @@ gen_glob_func(u32 f_id)
     gen_func_epilogue(&ctx);
     fprintf(asm_dest, "    ret\n");
     fprintf(asm_dest, "\n");
+}
+
+static void
+gen_vtables()
+{
+    for (mm i = TYPEID_LAST_BUILTIN_TYPE + 1; i < array_size(g_types); ++i)
+    {
+        d_type* t = g_types + i;
+        fprintf(asm_dest, ".VT%ld: ; type %s\n    dq ", i, t->name);
+        for (mm j = 0, n_mfuncs = array_size(t->member_funcs); j < n_mfuncs; ++j)
+            fprintf(asm_dest, ".LF%d,", t->member_funcs[j].local_id);
+        fprintf(asm_dest, "0x0\n");
+    }
 }
 
 static void
@@ -877,6 +904,7 @@ gen_code()
     }
 
     gen_entry_point((i32)main_id);
+    gen_vtables();
     gen_constants();
 
     fwrite(gen_asm_epilogue, 1, COUNT_OF(gen_asm_epilogue) - 1, asm_dest);

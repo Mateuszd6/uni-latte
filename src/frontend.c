@@ -987,8 +987,11 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
 
         mm n_fields = array_size(g_types[type_id].members);
         ir_val alloc_size = { .type = IRVT_CONST, .u = { .reg_id = n_fields } };
+        ir_val constant = { .type = IRVT_CONST, .u = { .constant = type_id } };
         IR_SET_EXPR(retval, type_id, 0, IR_NEXT_TEMP_REGISTER());
         IR_PUSH(retval.val, ALLOC, alloc_size);
+        IR_PUSH(IR_EMPTY(), SET_VTAB, retval.val, constant);
+
         return retval;
     }
 

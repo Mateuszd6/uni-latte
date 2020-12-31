@@ -145,6 +145,20 @@ main(int argc, char** argv)
     fclose(ir_dest);
 #endif
 
+#if 0 // TODO
+    for (mm i = TYPEID_LAST_BUILTIN_TYPE + 1; i < array_size(g_types); ++i)
+    {
+        printf("type %ld (%s):\n", i, g_types[i].name);
+        for (mm j = 0, n_member_funcs = array_size(g_types[i].member_funcs);
+             j < n_member_funcs;
+             ++j)
+        {
+            printf("    %ld -> %d\n", j, g_types[i].member_funcs[j].local_id);
+        }
+    }
+    printf("\n\n");
+#endif
+
     gen_code();
     fclose(asm_dest);
 
