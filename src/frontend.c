@@ -421,7 +421,7 @@ process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir)
                 array_free(pre_buf);
             }
 
-            if (got_type_id != expected_type_id) // TODO(ex): Handle inheritance
+            if (UNLIKELY(!is_assignable(expected_type_id, got_type_id)))
             {
                 d_type t_expected = g_types[TYPEID_UNMASK(expected_type_id)];
                 d_type t_provided = g_types[TYPEID_UNMASK(got_type_id)];
@@ -853,8 +853,8 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         //
         default:
         {
-            // TODO(ex): Make sure equality works when type A inherits from type B
-            if (e1.type_id != e2.type_id)
+            if (UNLIKELY(!(is_assignable(e2.type_id, e1.type_id)
+                           || is_assignable(e1.type_id, e2.type_id))))
                 goto type_missmatch;
 
             if (e1.type_id == TYPEID_VOID)
@@ -1604,7 +1604,7 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             e = process_expr(s->u.ret_.expr_, ir, 0);
         }
 
-        if (UNLIKELY(e.type_id != return_type)) // TODO(ex): Handle inheritance
+        if (UNLIKELY(!is_assignable(return_type, e.type_id)))
         {
             d_type expected_t = g_types[TYPEID_UNMASK(return_type)];
             d_type got_t = g_types[TYPEID_UNMASK(e.type_id)];
@@ -1836,10 +1836,8 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
         } break;
         }
 
-        if (iter_type_id != (TYPEID_UNMASK(e_expr.type_id)))
+        if (!is_assignable(iter_type_id, TYPEID_UNMASK(e_expr.type_id)))
         {
-            // TODO(ex): Handle inheritance, eg: "for (base b : new dervied[10])"
-
             d_type t_arr = g_types[TYPEID_UNMASK(e_expr.type_id)];
             d_type t_iter = g_types[TYPEID_UNMASK(iter_type_id)];
             error(get_lnum(e), "Given array has a type, which is non assignable to the iterator type");
@@ -2152,7 +2150,9 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
         if (exts[type_id] != -1)
         {
             d_class_mem* parent_members = g_types[exts[type_id]].members;
-            array_pushn(members, parent_members, array_size(parent_members));
+            mm n_parent_members = array_size(parent_members);
+            if (n_parent_members > 0)
+                array_pushn(members, parent_members, n_parent_members);
             n_members = (i32)array_size(members);
         }
 
