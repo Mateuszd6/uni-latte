@@ -2,7 +2,7 @@
 #define ASM_PRELUDE_H_
 
 static char const gen_asm_intro[] = 
-    "extern _start, calloc, exit, fgetc, free, getline, malloc, printf, puts, scanf, sscanf, stdin, strcat, strcmp, strlen\n"
+    "extern _start, calloc, exit, free, getline, malloc, printf, puts, sscanf, stdin, strcat, strcmp, strlen\n"
     "\n"
 ;
 
