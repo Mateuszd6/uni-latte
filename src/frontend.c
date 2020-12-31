@@ -1099,7 +1099,7 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
 
         if (cltype.is_primitive)
         {
-            error(get_lnum(e->u.eclapp_.expr_), "Builtin types does not have a member functions");
+            error(get_lnum(e->u.eclapp_.expr_), "Builtin types do not have a member functions");
             note(get_lnum(e->u.eclapp_.expr_), "Expresion evaluated to type \"%s\"", cltype.name);
             note(get_lnum(e->u.eclapp_.expr_), "Assuming return type \"int\"");
             retval.type_id = TYPEID_INT;
@@ -2045,6 +2045,7 @@ add_classes(Program p)
             .name = t->u.cldef_.ident_,
             .members = 0,
             .member_funcs = 0,
+            .body = t->u.cldef_.listclbody_,
             .lnum = get_lnum(t->u.cldef_.clprops_),
             .is_primitive = 0
         };
@@ -2118,21 +2119,34 @@ build_inhtree(Program p)
 }
 
 static void
-add_class_members_and_local_funcs(Program p)
+add_class_members_and_local_funcs(i32* types, i32* exts)
 {
-    LIST_FOREACH(it, p->u.prog_, listtopdef_)
+    for (mm i = 0, n_types = array_size(types); i < n_types; ++i)
     {
-        TopDef t = it->topdef_;
-        if (t->kind != is_ClDef)
+        if (i <= TYPEID_LAST_BUILTIN_TYPE)
             continue;
 
-        u32 class_type_id = symbol_resolve_type(t->u.cldef_.ident_, 0, t->u.cldef_.clprops_);
-        assert(class_type_id != TYPEID_NOTFOUND); // We've added all classes already
+        u32 type_id = types[i];
+        d_type* type = g_types + type_id;
+        printf("Parsing %s\n", type->name);
 
+        //
         // Parse member variables
+        //
+
         d_class_mem* members = 0;
         i32 n_members = 0;
-        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+
+        if (exts[type_id] != -1)
+        {
+            d_class_mem* parent_members = g_types[exts[type_id]].members;
+            array_pushn(members, parent_members, array_size(parent_members));
+            n_members = (i32)array_size(members);
+        }
+
+        struct { ListClBody listclbody_; } clbody_list;
+        clbody_list.listclbody_ = type->body;
+        LIST_FOREACH(cl_it, clbody_list, listclbody_)
         {
             ClBody cl = cl_it->clbody_;
             if (cl->kind != is_CBVar)
@@ -2147,12 +2161,12 @@ add_class_members_and_local_funcs(Program p)
                 switch (shad_sym.type) {
                 case S_TYPE:
                 {
-                    d_type* type = g_types + shad_sym.id;
+                    d_type* oth_type = g_types + shad_sym.id;
                     error(get_lnum(member_type), "Class member \"%s\" cannot be named after a class",
                           member_name);
 
                     if (shad_sym.id > TYPEID_LAST_BUILTIN_TYPE)
-                        note(type->lnum, "Class \"%s\" defined here", member_name);
+                        note(oth_type->lnum, "Class \"%s\" defined here", member_name);
                     else
                         note(0, "\"%s\" is a builtin type", member_name);
                 } break;
@@ -2176,23 +2190,23 @@ add_class_members_and_local_funcs(Program p)
             }
 
             parsed_type mem_type = parse_type(cl->u.cbvar_.type_);
-            u32 type_id = symbol_resolve_type(mem_type.name, mem_type.is_array, cl->u.cbvar_.type_);
+            u32 mem_type_id = symbol_resolve_type(mem_type.name, mem_type.is_array, cl->u.cbvar_.type_);
 
-            switch (type_id) {
+            switch (mem_type_id) {
             case TYPEID_NOTFOUND:
             {
                 note(get_lnum(cl->u.cbvar_.type_), "Assuming type \"int\"");
-                type_id = TYPEID_INT; // Default to int in order to avoid errors
+                mem_type_id = TYPEID_INT; // Default to int in order to avoid errors
             } break;
             case TYPEID_VOID:
             case TYPEID_VOID | TYPEID_FLAG_ARRAY:
             {
                 error(get_lnum(member_type),
                       "Cannot declare member field of type \"void%s\"",
-                      type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
+                      mem_type_id & TYPEID_FLAG_ARRAY ? "[]" : "");
                 note(get_lnum(member_type), "Assuming type \"int\"");
 
-                type_id = TYPEID_INT;
+                mem_type_id = TYPEID_INT;
             } break;
             default:
             {
@@ -2202,7 +2216,7 @@ add_class_members_and_local_funcs(Program p)
             d_class_mem clmem = {
                 .name = member_name,
                 .offset = n_members++,
-                .type_id = type_id,
+                .type_id = mem_type_id,
                 .lnum = get_lnum(member_type),
             };
 
@@ -2216,15 +2230,29 @@ add_class_members_and_local_funcs(Program p)
         {
             // Make it easy to find a member by name
             qsort(members, (umm)n_members, sizeof(d_class_mem), qsort_d_class_mem);
-            g_types[class_type_id].members = members;
+            g_types[mem_type_id].members = members;
         }
 #else
-        g_types[class_type_id].members = members;
+        g_types[type_id].members = members;
 #endif
 
+        //
         // Parse local functions
+        //
+
         d_func* member_funcs = 0;
-        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        d_func* inherited_funcs = 0;
+        if (exts[type_id] != -1)
+        {
+            inherited_funcs = g_types[exts[type_id]].member_funcs;
+
+            mm n_inherited_funcs = array_size(inherited_funcs);
+            array_pushn(member_funcs, inherited_funcs, n_inherited_funcs);
+            for (mm f = 0; f < n_inherited_funcs; ++f)
+                member_funcs[f].local_body = 0;
+        }
+
+        LIST_FOREACH(cl_it, clbody_list, listclbody_)
         {
             ClBody cl = cl_it->clbody_;
             if (cl->kind != is_CBFnDef)
@@ -2232,19 +2260,18 @@ add_class_members_and_local_funcs(Program p)
 
             void* node = cl->u.cbfndef_.type_;
             char* func_name = cl->u.cbfndef_.ident_;
-
             symbol shad_sym = symbol_check(func_name);
             if (UNLIKELY(shad_sym.type != S_NONE && shad_sym.type != S_FUN))
             {
                 switch (shad_sym.type) {
                 case S_TYPE:
                 {
-                    d_type* type = g_types + shad_sym.id;
+                    d_type* oth_type = g_types + shad_sym.id;
                     error(get_lnum(node), "Class method \"%s\" cannot be named after a class",
                           func_name);
 
                     if (shad_sym.id > TYPEID_LAST_BUILTIN_TYPE)
-                        note(type->lnum, "Class \"%s\" defined here", func_name);
+                        note(oth_type->lnum, "Class \"%s\" defined here", func_name);
                     else
                         note(0, "\"%s\" is a builtin type", func_name);
                 } break;
@@ -2257,39 +2284,61 @@ add_class_members_and_local_funcs(Program p)
             }
 
             parsed_type retval_type = parse_type(cl->u.cbfndef_.type_);
-            u32 type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, cl->u.cbfndef_.type_);
-            if (type_id == TYPEID_NOTFOUND)
-                type_id = TYPEID_INT;
+            u32 ret_type_id = symbol_resolve_type(retval_type.name, retval_type.is_array, cl->u.cbfndef_.type_);
+            if (ret_type_id == TYPEID_NOTFOUND)
+                ret_type_id = TYPEID_INT;
 
-            if (type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
+            if (ret_type_id == (TYPEID_VOID | TYPEID_FLAG_ARRAY))
             {
                 error(get_lnum(cl->u.cbfndef_.type_), "Return type void[] is not allowed");
-                type_id = TYPEID_INT;
+                ret_type_id = TYPEID_INT;
             }
 
-            d_func_arg* fun_args = get_args_for_function(cl->u.cbfndef_.listarg_, (i32)class_type_id);
+            d_func_arg* fun_args = get_args_for_function(cl->u.cbfndef_.listarg_, (i32)type_id);
             mm n_args = array_size(fun_args);
+
+            //
+            // TODO: If a function is to acutally hide a parent function, check
+            //       the return type and params and insead of adding new one,
+            //       replace clbody in the existing one
+            //
+            mm inhf = 0;
+            mm n_inherited_funcs = array_size(inherited_funcs);
+            for (; inhf < n_inherited_funcs; ++inhf)
+                if (strcmp(inherited_funcs[inhf].name, cl->u.cbfndef_.ident_) == 0)
+                    break;
 
             d_func f = {
                 .name = cl->u.cbfndef_.ident_,
                 .lnum = get_lnum(cl->u.cbfndef_.type_),
-                .ret_type_id = type_id,
+                .ret_type_id = ret_type_id,
                 .num_args = (i32)n_args,
                 .args = fun_args,
+                .local_body = cl,
                 .is_local = 1,
                 .local_id = g_local_func_id++,
             };
 
-            array_push(member_funcs, f);
+            if (inhf != n_inherited_funcs)
+            {
+                printf("Shadowing function %s\n", cl->u.cbfndef_.ident_);
+                member_funcs[inhf] = f;
+            }
+            else
+            {
+                printf("Defining a new function %s\n", cl->u.cbfndef_.ident_);
+                array_push(member_funcs, f);
+            }
         }
 
+#if 0
         // TODO: Remove that?
+        // Make it easy to find a member by name
         if (member_funcs)
-        {
-            // Make it easy to find a member by name
             qsort(member_funcs, (umm)array_size(member_funcs), sizeof(d_func), qsort_d_func);
-            g_types[class_type_id].member_funcs = member_funcs;
-        }
+#endif
+
+        g_types[type_id].member_funcs = member_funcs;
     }
 }
 
@@ -2407,14 +2456,19 @@ check_class_funcs(Program p)
 
         d_type type = g_types[type_id];
         mm n_member_funcs = array_size(type.member_funcs);
-        for (mm i = 0; i < n_member_funcs; ++i)
-            create_func(type.member_funcs[i]);
 
-        LIST_FOREACH(cl_it, t->u.cldef_, listclbody_)
+        for (mm mf = 0; mf < n_member_funcs; ++mf)
         {
-            ClBody cl = cl_it->clbody_;
-            if (cl->kind != is_CBFnDef)
-                continue;
+            ClBody cl = type.member_funcs[mf].local_body;
+            if (!cl) continue; // Taking the inherited function
+
+            create_func(type.member_funcs[mf]);
+        }
+
+        for (mm mf = 0; mf < n_member_funcs; ++mf)
+        {
+            ClBody cl = type.member_funcs[mf].local_body;
+            if (!cl) continue; // Taking the inherited function
 
             array_clear(g_vars);
 
@@ -2447,7 +2501,12 @@ check_class_funcs(Program p)
         }
 
         // Pop back the member functions
-        for (mm i = 0; i < n_member_funcs; ++i)
-            symbol_pop(type.member_funcs[i].name);
+        for (mm mf = 0; mf < n_member_funcs; ++mf)
+        {
+            ClBody cl = type.member_funcs[mf].local_body;
+            if (!cl) continue; // Taking the inherited function
+
+            symbol_pop(type.member_funcs[mf].name);
+        }
     }
 }

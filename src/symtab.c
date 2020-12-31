@@ -65,6 +65,7 @@ define_primitive_types(void)
             .name = type_names[i],
             .members = 0,
             .member_funcs = 0,
+            .body = 0,
             .lnum = 0,
             .is_primitive = 1,
         };

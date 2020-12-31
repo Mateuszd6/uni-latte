@@ -118,12 +118,10 @@ main(int argc, char** argv)
     if (has_error) no_recover();
 
     i32* order = sort_classes(inhtree, array_size(g_types));
-    free(inhtree);
-
     if (has_error) no_recover();
 
     add_global_funcs(parse_tree);
-    add_class_members_and_local_funcs(parse_tree);
+    add_class_members_and_local_funcs(order, inhtree);
 
     if (has_error) no_recover();
 

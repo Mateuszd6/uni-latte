@@ -56,6 +56,7 @@ struct d_func
     char* name;
     d_func_arg* args;
     void* code;
+    ClBody local_body; // null means either a global func or a func is inherited
     reg_alloc_info regalloc;
     i32 lnum;
     u32 ret_type_id;
@@ -71,6 +72,7 @@ struct d_type
     char* name;
     d_class_mem* members;
     d_func* member_funcs;
+    ListClBody body;
     i32 lnum;
     b32 is_primitive;
 };

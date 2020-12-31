@@ -196,7 +196,7 @@ static void process_func_body(char* fnname, Block b, void* node);
 
 static void add_classes(Program p);
 static void add_global_funcs(Program p);
-static void add_class_members_and_local_funcs(Program p);
+static void add_class_members_and_local_funcs(i32* types, i32* exts);
 static void check_global_funcs(Program p);
 static void check_class_funcs(Program p);
 
