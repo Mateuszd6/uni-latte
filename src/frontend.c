@@ -927,7 +927,8 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
 
     case is_EApp:
     {
-        u32 func_id = symbol_resolve_func(e->u.eapp_.ident_, e);
+        char* fn_name = e->u.eapp_.ident_;
+        u32 func_id = symbol_resolve_func(fn_name, e);
         if (func_id == FUNCID_NOTFOUND)
         {
             // Can't do anything reasonable, so just asume that type is int
@@ -942,23 +943,41 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         process_params(e->u.eapp_.listexpr_, f, e, ir);
 
         ir_val fn_to_call = {0};
+        ir_val clean_size = { .type = IRVT_CONST, .u = { .constant = f->num_args }, };
         if (f->is_local)
         {
             ir_val this_param = { .type = IRVT_FNPARAM, .u = { .constant = 0 }, };
             IR_PUSH(IR_EMPTY(), PARAM, this_param);
-
             fn_to_call.type = IRVT_LOCFN;
             fn_to_call.u.constant = f->local_id;
+
+            // Lookup an correct local function to call
+            u32 self_var_id = symbol_resolve_var("self", e);
+            assert(self_var_id != VARID_NOTFOUND);
+            d_type cltype = g_types[g_vars[self_var_id].type_id]; // Type of "self" var
+            mm n_member_funcs = array_size(cltype.member_funcs);
+            mm idx = 0;
+            for (; idx < n_member_funcs; ++idx)
+                if (strcmp(cltype.member_funcs[idx].name, fn_name) == 0)
+                    break;
+
+            assert(idx < n_member_funcs);
+
+            ir_val func_idx = { .type = IRVT_CONST, .u = { .constant = idx }, };
+            IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, VIRTCALL, this_param, func_idx);
+            IR_PUSH(IR_EMPTY(), CLEANUP, clean_size);
         }
         else
         {
             fn_to_call.type = IRVT_FN;
             fn_to_call.u.constant = func_id;
+            IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(retval.val, CALL, fn_to_call);
+            // IR_PUSH(IR_EMPTY(), CLEANUP, clean_size);
         }
 
         // Like in Java, functions always return rvalues
-        IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
-        IR_PUSH(retval.val, CALL, fn_to_call);
         return retval;
     }
 

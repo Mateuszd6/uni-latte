@@ -1,9 +1,8 @@
 // TODO: Rename executable to latc_x64
 //
-// TODO: Add explicite LOAD/STORE for writing to arrays and class members
-// TODO: Add IRVT for local functions
+// TODO: Remove IRVT for local functions
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
-// TODO: Cleanup process_expr and try to remove is_lvalue from there
+//       (which breaks because we lookup "self" wehn calling a local functions!
 // TODO: Don't emit bitwise-or (test core017), although you would have to know
 //       to create a test that actually exploits that
 
