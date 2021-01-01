@@ -105,4 +105,10 @@ extern i32 get_lnum(void* ast_node);
 extern int overflows_32bit(mm val);
 extern char* str_escape(char const* s);
 
+// Bit twiddling hacks
+#define IS_POWER_OF_2(V) ((V) && !((V) & ((V) - 1)))
+
+// https://stackoverflow.com/a/11376759
+#define LOG2(V) ((unsigned) (8 * sizeof(unsigned long long) - __builtin_clzll((V)) - 1))
+
 #endif // MISC_H_

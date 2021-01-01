@@ -835,7 +835,17 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
             : TYPEID_INT);
 
         IR_SET_EXPR(retval, typeid, 0, IR_NEXT_TEMP_REGISTER());
-        IR_PUSH(retval.val, binintop, e1.val, e2.val);
+
+        if (typeid == TYPEID_INT && binintop == MUL
+            && e1.kind == EET_CONSTANT && e2.kind != EET_CONSTANT)
+        {
+            IR_PUSH(retval.val, binintop, e2.val, e1.val);
+        }
+        else
+        {
+            IR_PUSH(retval.val, binintop, e1.val, e2.val);
+        }
+
         return retval;
     }
 

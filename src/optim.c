@@ -483,7 +483,41 @@ get_correct_jump_op(ir_op original_op, b32 is_neg)
 }
 
 //
-// This function optimizes jumping code like:
+// Optimizes:
+//
+//   t_2 = .....
+//   v_1 = MOV t_2
+//   (t_2 dies)
+//
+// Into:
+//
+//   v_1 = .....
+//
+static void
+replace_temp_moves(ir_quadr** ir_, lifetime_info* info)
+{
+    ir_quadr* ir = *ir_; // we don't add/remove elems from the array
+    for (mm i = 0, ir_size = array_size(ir); i < ir_size - 2; ++i)
+    {
+        if (ir[i].target.type == IRVT_TEMP
+            && (ir[i + 1].op == MOV)
+            && ir[i + 1].u.args[0].type == IRVT_TEMP
+            && ir[i + 1].u.args[0].u.reg_id == ir[i].target.u.reg_id
+            && !lifetime_check_at(info, ir[i].target.u.reg_id, IRVT_TEMP, i + 2))
+        {
+            printf("Replacing temp mov!\n");
+            assert(lifetime_check_at(info, ir[i].target.u.reg_id, IRVT_TEMP, i + 1));
+
+            ir_val empty_val = IR_EMPTY();
+            ir[i].target = ir[i + 1].target;
+            ir[i + 1].target = empty_val;
+            ir[i + 1].op = NOP;
+        }
+    }
+}
+
+//
+// Optimizes jumping code like:
 //
 //   t_2 = CMP_LTH v_0 v_1
 //   JMP_TRUE t_2 LAB ; t_2 is last time alive
@@ -541,6 +575,7 @@ optimize_func(d_func* func)
     lifetime_info info = compute_lifetimes(ir);
 
 #ifdef OPTIMIZE
+    replace_temp_moves(&ir, &info);
     replace_compare_jumps_with_flag_jumps(&ir, &info);
 
     // Keep removing unused temp registers:

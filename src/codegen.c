@@ -315,9 +315,26 @@ gen_mov(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_arithm_bin(ir_quadr* q, char const* op, codegen_ctx* ctx)
 {
-    // TODO: If target is in regiser, don't use rax, just mov into target and do
-    // the operation there
+    u8 target_reg_id = get_reg_for(&q->target, ctx);
 
+    // This breaks when adding variable to itself
+    if (target_reg_id
+        // NOTE: Check for args[0] not needed, b/c arg0 is never op'ed
+        && q->target.u.reg_id != q->u.args[1].u.reg_id)
+    {
+        u8 arg0_reg_id = get_reg_for(q->u.args + 0, ctx);
+        if (target_reg_id != arg0_reg_id) // Otherwise no need to mov
+        {
+            char buf[64];
+            gen_get_address_of(buf, q->u.args + 0, ctx);
+            fprintf(asm_dest, "    mov     %s, %s\n", x64_reg_name[target_reg_id], buf);
+        }
+
+        gen_simple_op(target_reg_id, q->u.args + 1, op, ctx);
+        return;
+    }
+
+    // If target is in memory, use rax as a temp register
     gen_load(RAX, q->u.args + 0, ctx);
     gen_simple_op(RAX, q->u.args + 1, op, ctx);
     gen_store(&q->target, RAX, ctx);
@@ -335,10 +352,44 @@ gen_sub(ir_quadr* q, codegen_ctx* ctx)
     gen_arithm_bin(q, "sub", ctx);
 }
 
-// TODO: Use LEA for faster constant multiplication
 static void
 gen_mul(ir_quadr* q, codegen_ctx* ctx)
 {
+    if (q->u.args[1].type == IRVT_CONST)
+    {
+        //
+        // HACK: Use lea for fast multiplication by 2 3 5 or 9. Yes, by 2 also.
+        //       All major compilers seems to agree, that using lea for
+        //       multiplying by 2 is faster than shifting the number (!!)
+        //
+        u8 target_reg = get_reg_for(&q->target, ctx);
+        u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+        if ((q->u.args[1].u.constant == 2
+             || q->u.args[1].u.constant == 3
+             || q->u.args[1].u.constant == 5
+             || q->u.args[1].u.constant == 9)
+            && target_reg && arg0_reg)
+        {
+            fprintf(asm_dest, "    lea     %s, [%s+%s*%ld]\n",
+                    x64_reg_name[target_reg],
+                    x64_reg_name[arg0_reg],
+                    x64_reg_name[arg0_reg],
+                    q->u.args[1].u.constant - 1);
+
+            return;
+        }
+
+        if (IS_POWER_OF_2(q->u.args[1].u.constant))
+        {
+            mm save = q->u.args[1].u.constant;
+            q->u.args[1].u.constant = LOG2(q->u.args[1].u.constant);
+            gen_arithm_bin(q, "sal", ctx);
+            q->u.args[1].u.constant = save;
+
+            return;
+        }
+    }
+
     gen_arithm_bin(q, "imul", ctx);
 }
 
