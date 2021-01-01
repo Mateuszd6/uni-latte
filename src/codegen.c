@@ -543,6 +543,7 @@ gen_call(ir_quadr* q, codegen_ctx* ctx)
         mm id_in_g_funcs = id_to_call;
         i32 is_local = (q->u.args[0].type == IRVT_LOCFN);
 
+        // TODO: Probably remove once inheritance is implemented
         if (is_local)
             for (id_in_g_funcs = 0;
                  id_in_g_funcs < array_size(g_funcs);
@@ -557,6 +558,7 @@ gen_call(ir_quadr* q, codegen_ctx* ctx)
         i32 n_args = g_funcs[id_in_g_funcs].num_args;
         fprintf(asm_dest, "    call    .%s%ld\n", is_local ? "LF" : "GF", id_to_call);
 
+        // TODO: Use CLEANUP instruction for that
         // Cleanup if args were passed on the stack
         if (n_args > 0)
             fprintf(asm_dest, "    add     rsp, %d ; cleanup\n", 8 * n_args);
@@ -655,6 +657,33 @@ gen_set_vtab(ir_quadr* q, codegen_ctx* ctx)
 
     gen_load(RAX, q->u.args + 0, ctx);
     fprintf(asm_dest, "    mov     QWORD [rax-8], .VT%ld\n", q->u.args[1].u.constant);
+}
+
+static void
+gen_virtcall(ir_quadr* q, codegen_ctx* ctx)
+{
+    // TODO: If arg0 is in register, don't use RAX
+    gen_load(RAX, q->u.args + 0, ctx);
+    fprintf(asm_dest, "    sub     rax, 8\n");
+    fprintf(asm_dest, "    mov     rax, [rax]\n");
+
+    if (q->u.args[1].u.constant == 0) // To avoid +0
+        fprintf(asm_dest, "    call    [rax]\n");
+    else
+        fprintf(asm_dest, "    call    [rax+%ld]\n", 8 * q->u.args[1].u.constant);
+
+    // If function returns something, write it to the result
+    if (q->target.type != IRVT_NONE)
+        gen_store(&q->target, RAX, ctx);
+}
+
+static void
+gen_cleanup(ir_quadr* q, codegen_ctx* ctx)
+{
+    // Cleanup if args were passed on the stack
+    mm n_args = q->u.args[0].u.constant;
+    if (n_args > 0)
+        fprintf(asm_dest, "    add     rsp, %ld ; cleanup\n", 8 * n_args);
 }
 
 static void
@@ -850,6 +879,16 @@ gen_glob_func(u32 f_id)
         case SET_VTAB:
         {
             gen_set_vtab(&q, &ctx);
+        } break;
+
+        case VIRTCALL:
+        {
+            gen_virtcall(&q, &ctx);
+        } break;
+
+        case CLEANUP:
+        {
+            gen_cleanup(&q, &ctx);
         } break;
 
         case NOP:

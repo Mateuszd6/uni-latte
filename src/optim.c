@@ -169,7 +169,7 @@ remove_dead_temps(ir_quadr* ir, lifetime_info* info)
         if (ir[i].target.type == IRVT_TEMP && dead[ir[i].target.u.reg_id])
         {
             removed = 1;
-            if (ir[i].op == CALL) // Other side-effect operations
+            if (ir[i].op == CALL || ir[i].op == VIRTCALL) // TODO: Other side-effect operations?
             {
                 ir_val empty = IR_EMPTY();
                 ir[i].target = empty;

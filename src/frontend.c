@@ -1145,13 +1145,13 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
                 d_func* f = cltype.member_funcs + idx;
                 process_params(e->u.eclapp_.listexpr_, f, e, ir);
 
-                // TODO(ex): replace with virtual function call
-
-                // Set "this" param:
-                ir_val mem_func_id = { .type = IRVT_LOCFN, .u = { .constant = f->local_id }, };
+                // Set "this" param, make a virtcall, and cleanup the stack
+                ir_val func_idx = { .type = IRVT_CONST, .u = { .constant = idx }, };
+                ir_val clean_size = { .type = IRVT_CONST, .u = { .constant = f->num_args }, };
                 IR_PUSH(IR_EMPTY(), PARAM, e_struct.val);
                 IR_SET_EXPR(retval, retval.type_id, 0, IR_NEXT_TEMP_REGISTER());
-                IR_PUSH(retval.val, CALL, mem_func_id);
+                IR_PUSH(retval.val, VIRTCALL, e_struct.val, func_idx);
+                IR_PUSH(IR_EMPTY(), CLEANUP, clean_size);
 
                 return retval;
             }

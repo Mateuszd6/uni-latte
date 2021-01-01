@@ -63,6 +63,8 @@ enum ir_op
     ARR_SET_END = 38,
     ADD_AT_ADDR = 39,
     SET_VTAB = 40,
+    VIRTCALL = 41,
+    CLEANUP = 42,
 };
 typedef enum ir_op ir_op;
 
@@ -73,7 +75,8 @@ static char const* const ir_op_name[] = {
     "SUBSCR", "ADDROF", "ALLOC", "STR_ADD", "JMP_TRUE", "JMP_FALSE",
     "CMP_SET_FLAGS", "JMP_FLAGS_E", "JMP_FLAGS_NE",
     "JMP_FLAGS_L", "JMP_FLAGS_LE", "JMP_FLAGS_G", "JMP_FLAGS_GE",
-    "NOP", "DISPOSE", "STORE", "ARR_SET_END", "ADD_AT_ADDR", "SET_VTAB"
+    "NOP", "DISPOSE", "STORE", "ARR_SET_END", "ADD_AT_ADDR", "SET_VTAB",
+    "VIRTCALL", "CLEANUP",
 };
 
 static int const ir_op_n_args[] = {
@@ -81,7 +84,7 @@ static int const ir_op_n_args[] = {
     2, 2, 2, 2, 2, 2, 2, 1, 1, 1,
     1, 1, 2, 2, 1, 2, 2, 2, 2, 1,
     1, 1, 1, 1, 1, 0, 1, 2, 1, 2,
-    2,
+    2, 2, 1,
 };
 
 STATIC_ASSERT(COUNT_OF(ir_op_n_args) == COUNT_OF(ir_op_name), arrays_dont_match);
