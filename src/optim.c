@@ -119,6 +119,34 @@ compute_lifetimes(ir_quadr* ir)
     return retval;
 }
 
+static inline void
+compute_life_intrv(lifetime_info* info, mm ir_size, mm num, ir_val_type type,
+                   mm* /* OUT */ life_starts, mm* /* OUT */ life_ends)
+{
+    *life_starts = 0;
+    *life_ends = 0;
+
+    mm ino = 0;
+    while (ino < ir_size && !lifetime_check_at(info, num, type, ino))
+        ++ino;
+    *life_starts = ino;
+
+    b32 set = 0;
+    while (ino < ir_size)
+    {
+        if (lifetime_check_at(info, num, type, ino))
+        {
+            *life_ends = ino + 1;
+            set = 1;
+        }
+
+        ++ino;
+    }
+
+    if (!set)
+        *life_ends = ino;
+}
+
 // Can't add/remove from the array, only modify!!
 static b32
 remove_dead_temps(ir_quadr* ir, lifetime_info* info)
@@ -133,29 +161,9 @@ remove_dead_temps(ir_quadr* ir, lifetime_info* info)
     memset(dead, 0, sizeof(b8) * (info->n_temps + 1));
     for (mm i = 0; i < info->n_temps; ++i)
     {
-        // TODO: Copypaste from register allocation
-        mm life_starts = 0;
-        mm life_ends = 0;
-
-        mm ino = 0;
-        while (ino < ir_size && !lifetime_check_at(info, i, IRVT_TEMP, ino))
-            ++ino;
-        life_starts = ino;
-
-        b32 set = 0;
-        while (ino < ir_size)
-        {
-            if (lifetime_check_at(info, i, IRVT_TEMP, ino))
-            {
-                life_ends = ino + 1;
-                set = 1;
-            }
-
-            ++ino;
-        }
-
-        if (!set)
-            life_ends = ino;
+        mm life_starts;
+        mm life_ends;
+        compute_life_intrv(info, ir_size, i, IRVT_TEMP, &life_starts, &life_ends);
 
         if (life_starts == life_ends && life_ends == ir_size)
             dead[i] = 1;
@@ -167,7 +175,9 @@ remove_dead_temps(ir_quadr* ir, lifetime_info* info)
         if (ir[i].target.type == IRVT_TEMP && dead[ir[i].target.u.reg_id])
         {
             removed = 1;
-            if (ir[i].op == CALL || ir[i].op == VIRTCALL) // TODO: Other side-effect operations?
+
+            // Other side-effect operations that have a target must be placed here
+            if (ir[i].op == CALL || ir[i].op == VIRTCALL)
             {
                 ir_val empty = IR_EMPTY();
                 ir[i].target = empty;
@@ -202,32 +212,11 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
     };
 
     for (mm j = 0; j < COUNT_OF(types); ++j)
-    {
         for (mm i = 0; i < types[j].num; ++i)
         {
-            mm life_starts = 0;
-            mm life_ends = 0;
-
-            mm ino = 0;
-            while (ino < ir_size && !lifetime_check_at(info, i, types[j].type, ino))
-                ++ino;
-            life_starts = ino;
-
-            b32 set = 0;
-            while (ino < ir_size)
-            {
-                if (lifetime_check_at(info, i, types[j].type, ino))
-                {
-                    life_ends = ino + 1;
-                    set = 1;
-                }
-
-                ++ino;
-            }
-
-            if (!set)
-                life_ends = ino;
-
+            mm life_starts;
+            mm life_ends;
+            compute_life_intrv(info, ir_size, i, types[j].type, &life_starts, &life_ends);
             if (!(life_starts == life_ends && life_ends == ir_size))
             {
                 life_interval in = {
@@ -240,7 +229,6 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
                 array_push(intervs, in);
             }
         }
-    }
 
     mm intervs_size = array_size(intervs);
     if (intervs_size > 0)

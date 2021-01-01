@@ -981,7 +981,7 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
 
         retval.type_id = var.type_id;
         retval.kind = EET_COMPUTE;
-        retval.is_lvalue = 1;
+        retval.is_lvalue = (strcmp(var_name, "self") != 0); // "self" is not writable
         retval.is_addr = 0;
 
         if (var.block_id == CLMEM_BLOCK_ID) // Class member
@@ -1633,6 +1633,12 @@ process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir)
             Item i = it->item_;
             char* vname = i->kind == is_NoInit ? i->u.noinit_.ident_ : i->u.init_.ident_;
             processed_expr vval;
+
+            if (strcmp(vname, "self") == 0)
+            {
+                error(get_lnum(i), "\"self\" cannot be a name of a variable");
+                note(get_lnum(i), "\"self\" is reserved as a \"this pointer\" in class functions");
+            }
 
             mm var_id = array_size(g_vars);
             ir_val target_variable = IR_LOCAL_VARIABLE(var_id);

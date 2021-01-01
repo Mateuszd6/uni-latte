@@ -1,9 +1,6 @@
-// TODO: Rename executable to latc_x64
-//
-// TODO: Right now, it is possible to write to "self" variable in the memfunc
-//       (which breaks because we lookup "self" wehn calling a local functions!
 // TODO: Don't emit bitwise-or (test core017), although you would have to know
 //       to create a test that actually exploits that
+// TODO: Bump number of reisters!
 
 // Disable leak checking for asan in debug mode
 #if DEBUG

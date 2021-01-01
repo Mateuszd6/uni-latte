@@ -3,13 +3,13 @@ USE_SANITIZERS = YES
 USE_PROFILER = NO
 DUMP_IR = YES
 OPTIMIZE = YES
-MAX_ALLOCATED_REGS = 12
+MAX_ALLOCATED_REGS = 4
 
 CC = clang
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -DMAX_ALLOCATED_REGS=${MAX_ALLOCATED_REGS}
 CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
 CFLAGS_RELEASE = -O3 -DNDEBUG
-CWARNINGS = -Wall -Wextra -Wshadow -pedantic -Wno-unused-function -Wno-sign-conversion
+CWARNINGS = -Wall -Wextra -Wshadow -pedantic -Wno-sign-conversion -Wno-unused-function
 CSANITIZERS = -fsanitize=address,undefined
 
 BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
@@ -63,7 +63,7 @@ clean:
 	@-rm -rf ./outs ./obj ./cov latc
 
 latc: ${OBJS} src/*.c src/*.h src/gen/*
-	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc
+	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc_x86_64
 
 obj/%.o: src/%.c
 	@-mkdir -p obj

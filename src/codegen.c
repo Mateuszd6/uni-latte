@@ -649,7 +649,7 @@ gen_virtcall(ir_quadr* q, codegen_ctx* ctx)
 }
 
 static void
-gen_cleanup(ir_quadr* q, codegen_ctx* ctx)
+gen_cleanup(ir_quadr* q)
 {
     // Cleanup if args were passed on the stack
     mm n_args = q->u.args[0].u.constant;
@@ -859,7 +859,7 @@ gen_glob_func(u32 f_id)
 
         case CLEANUP:
         {
-            gen_cleanup(&q, &ctx);
+            gen_cleanup(&q);
         } break;
 
         case NOP:
