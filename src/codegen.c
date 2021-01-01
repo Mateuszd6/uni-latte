@@ -408,23 +408,79 @@ gen_or(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_not(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: Instead of loading to RDX test can be alredy performed on the
-    //       allocated register if that is the case
+    u8 target_reg = get_reg_for(&q->target, ctx);
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
 
-    gen_load(RDX, q->u.args + 0, ctx);
+    u8 output_reg = target_reg;
+    u8 input_reg = arg0_reg;
 
-    fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
-    fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[RDX], x64_reg_name[RDX]);
-    fprintf(asm_dest, "    sete    al\n"); // TODO: Name of the bottom parts of regs
+    if (!arg0_reg)
+    {
+        gen_load(RDX, q->u.args + 0, ctx);
+        input_reg = RDX;
+    }
 
-    // TODO: Same case: if allocated register probably not needed, need to xor
-    // different reg though
-    gen_store(&q->target, RAX, ctx);
+    if (!target_reg)
+        output_reg = RAX;
+
+    fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[output_reg], x64_reg_name[output_reg]);
+    fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[input_reg], x64_reg_name[input_reg]);
+    fprintf(asm_dest, "    sete    %s\n", x64_reg_name_bottom_part[output_reg]);
+
+    if (!target_reg)
+    {
+        assert(output_reg == RAX);
+        gen_store(&q->target, output_reg, ctx);
+    }
 }
 
 static void
 gen_div_or_mod(ir_quadr* q, b32 take_reminder, codegen_ctx* ctx)
 {
+    // Optimise division by a power of 2 constant
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+    if (!take_reminder && arg0_reg && q->u.args[1].type == IRVT_CONST
+        && IS_POWER_OF_2(q->u.args[1].u.constant))
+    {
+        u8 target_reg = get_reg_for(&q->target, ctx);
+        u8 output_reg = target_reg;
+        if (!target_reg)
+            output_reg = RAX;
+
+        fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[arg0_reg], x64_reg_name[arg0_reg]);
+        fprintf(asm_dest, "    lea     %s, [%s+%ld]\n",
+                x64_reg_name[output_reg], x64_reg_name[arg0_reg], q->u.args[1].u.constant - 1);
+        fprintf(asm_dest, "    cmovns  %s, %s\n", x64_reg_name[output_reg], x64_reg_name[arg0_reg]);
+        fprintf(asm_dest, "    sar     %s, %u\n", x64_reg_name[output_reg], LOG2(q->u.args[1].u.constant));
+
+        if (!target_reg)
+            gen_store(&q->target, RAX, ctx);
+
+        return;
+    }
+
+    // Now we go full crazy and do the same optimisation for modulus
+    else if (take_reminder && arg0_reg && q->u.args[1].type == IRVT_CONST
+             && IS_POWER_OF_2(q->u.args[1].u.constant) && q->u.args[1].u.constant != 1)
+    {
+        u8 target_reg = get_reg_for(&q->target, ctx);
+        u8 output_reg = target_reg;
+        if (!target_reg)
+            output_reg = RAX;
+
+        fprintf(asm_dest, "    mov     rdx, %s\n", x64_reg_name[arg0_reg]);
+        fprintf(asm_dest, "    sar     rdx, 63\n");
+        fprintf(asm_dest, "    shr     rdx, %u\n", 64 - LOG2(q->u.args[1].u.constant));
+        fprintf(asm_dest, "    lea     %s, [%s+rdx]\n", x64_reg_name[output_reg], x64_reg_name[arg0_reg]);
+        fprintf(asm_dest, "    and     %s, %ld\n", x64_reg_name[output_reg], q->u.args[1].u.constant - 1);
+        fprintf(asm_dest, "    sub     %s, rdx\n", x64_reg_name[output_reg]);
+
+        if (!target_reg)
+            gen_store(&q->target, RAX, ctx);
+
+        return;
+    }
+
     char buf[64];
     gen_get_address_of(buf, q->u.args + 1, ctx);
 
@@ -453,33 +509,33 @@ gen_div_or_mod(ir_quadr* q, b32 take_reminder, codegen_ctx* ctx)
 static void
 gen_compare_flags(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: Instead of loading to RDX test can be alredy performed on the
-    //       allocated register if that is the case
-
-    // Here RDX gets loaded with the second operand, first _can_ be in memory,
-    // THE ORDER MATTERS, otherwise we would have to swap the comparison
-    // operator (swap != negate, so <= becomes >=)
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+    u8 input_reg = arg0_reg;
+    if (!arg0_reg)
+    {
+        gen_load(RDX, q->u.args + 0, ctx);
+        input_reg = RDX;
+    }
 
     char buf[64];
-    gen_load(RDX, q->u.args + 0, ctx);
     gen_get_address_of(buf, q->u.args + 1, ctx);
-    fprintf(asm_dest, "    cmp     %s, %s\n", x64_reg_name[RDX], buf);
+    fprintf(asm_dest, "    cmp     %s, %s\n", x64_reg_name[input_reg], buf);
 }
 
 static void
 gen_compare(ir_quadr* q, compar_op op, codegen_ctx* ctx)
 {
-    // TODO: Instead of loading to RDX test can be alredy performed on the
-    //       allocated register if that is the case
+    u8 target_reg = get_reg_for(&q->target, ctx);
+    u8 output_reg = target_reg;
+    if (!target_reg)
+        output_reg = RAX;
 
-    fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
+    fprintf(asm_dest, "    xor     %s, %s\n", x64_reg_name[output_reg], x64_reg_name[output_reg]);
     gen_compare_flags(q, ctx);
-    fprintf(asm_dest, "    set%s   al\n", compar_op_name[op]);
+    fprintf(asm_dest, "    set%s   %s\n", compar_op_name[op], x64_reg_name_bottom_part[output_reg]);
 
-    // TODO: Name of the bottom parts of regs
-    // TODO: Same case: if allocated register probably not needed, need to xor
-    // different reg though
-    gen_store(&q->target, RAX, ctx);
+    if (!target_reg)
+        gen_store(&q->target, RAX, ctx);
 }
 
 static void
@@ -495,18 +551,18 @@ gen_str_cmp(ir_quadr* q, compar_op op, codegen_ctx* ctx)
     fprintf(asm_dest, "    call    .BF0\n");
     fprintf(asm_dest, "    add     rsp, 16 ; cleanup\n"); // Cleanup 2 args
 
-    // If testing for non-equality, reverse the input.
-    // TODO: Use dest register instead of rax when taget is in reg
+    // No gain from using allocated registers, because the result of the
+    // function is in rax anyway
+
+    // If testing for non-equality, negate the result
     if (op == COP_NE)
     {
-        fprintf(asm_dest, "    xor     edx, edx\n");
-        fprintf(asm_dest, "    test    eax, eax\n");
+        fprintf(asm_dest, "    xor     rdx, rdx\n");
+        fprintf(asm_dest, "    test    rax, rax\n");
         fprintf(asm_dest, "    sete    dl\n");
-        fprintf(asm_dest, "    mov     eax, edx\n");
+        fprintf(asm_dest, "    mov     rax, rdx\n");
     }
 
-    // TODO: Same case: if allocated register probably not needed, need to xor
-    // different reg though
     gen_store(&q->target, RAX, ctx);
 }
 
@@ -558,11 +614,15 @@ gen_jump_flags(ir_quadr* q)
 static void
 gen_conditional_jump(ir_quadr* q, b32 is_negated, codegen_ctx* ctx)
 {
-    // TODO: Instead of loading to RAX test can be alredy performed on the
-    //       allocated register if that is the case
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+    u8 input_reg = arg0_reg;
+    if (!arg0_reg)
+    {
+        gen_load(RAX, q->u.args + 0, ctx);
+        input_reg = RAX;
+    }
 
-    gen_load(RAX, q->u.args + 0, ctx);
-    fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[RAX], x64_reg_name[RAX]);
+    fprintf(asm_dest, "    test    %s, %s\n", x64_reg_name[input_reg], x64_reg_name[input_reg]);
     fprintf(asm_dest, "    j%s     .L%ld\n",
             is_negated ? "e " : "ne", q->u.args[1].u.constant);
 
@@ -609,82 +669,131 @@ gen_alloc(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_arr_set_end(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: lea right into register, when target is reg allocated
-    // TODO: don't use rdx if arg0 is in register
+    u8 target_reg = get_reg_for(&q->target, ctx);
+    u8 output_reg = target_reg;
+    if (!target_reg)
+        output_reg = RAX;
 
-    gen_load(RDX, q->u.args + 0, ctx);
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+    u8 input_reg = arg0_reg;
+    if (!arg0_reg)
+    {
+        gen_load(RDX, q->u.args + 0, ctx);
+        input_reg = RDX;
+    }
 
-    fprintf(asm_dest, "    mov     rax, QWORD [rdx-8]\n");
-    fprintf(asm_dest, "    lea     rax, [rdx+rax*8]\n");
+    fprintf(asm_dest, "    mov     %s, QWORD [%s-8]\n", x64_reg_name[output_reg], x64_reg_name[input_reg]);
+    fprintf(asm_dest, "    lea     %s, [%s+%s*8]\n",
+            x64_reg_name[output_reg], x64_reg_name[input_reg], x64_reg_name[output_reg]);
 
-    gen_store(&q->target, RAX, ctx);
+    if (!target_reg)
+        gen_store(&q->target, RAX, ctx);
+}
+
+static void
+gen_subscr_or_addof(ir_quadr* q, codegen_ctx* ctx, char* ins, char* siz)
+{
+    u8 target_reg = get_reg_for(&q->target, ctx);
+    u8 output_reg = target_reg;
+    if (!target_reg)
+        output_reg = RAX;
+
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+    u8 input0_reg = arg0_reg;
+    if (!arg0_reg)
+    {
+        gen_load(RAX, q->u.args + 0, ctx);
+        input0_reg = RAX;
+    }
+
+    u8 arg1_reg = get_reg_for(q->u.args + 1, ctx);
+    u8 input1_reg = arg1_reg;
+    if (!arg1_reg)
+    {
+        gen_load(RDX, q->u.args + 1, ctx);
+        input1_reg = RDX;
+    }
+
+    gen_load(RAX, q->u.args + 0, ctx);
+    gen_load(RDX, q->u.args + 1, ctx);
+
+    fprintf(asm_dest, "    %s     %s, %s[%s+%s*8]\n",
+            ins, x64_reg_name[output_reg], siz,
+            x64_reg_name[input0_reg], x64_reg_name[input1_reg]);
+
+    if (!target_reg)
+        gen_store(&q->target, RAX, ctx);
 }
 
 static void
 gen_subscr(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: If target is in register mov directly to target
-    // TODO: If arg0 is in register, don't use RAX
-    // TODO: If arg1 is in register, don't use RDX
-
-    gen_load(RAX, q->u.args + 0, ctx);
-    gen_load(RDX, q->u.args + 1, ctx);
-
-    fprintf(asm_dest, "    mov     rax, QWORD [rax+rdx*8]\n");
-    gen_store(&q->target, RAX, ctx);
+    gen_subscr_or_addof(q, ctx, "mov", "QWORD ");
 }
 
 static void
 gen_addrof(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: If target is in register lea directly to target
-    // TODO: If arg0 is in register, don't use RAX
-    // TODO: If arg1 is in register, don't use RDX
+    gen_subscr_or_addof(q, ctx, "lea", "");
+}
 
-    gen_load(RAX, q->u.args + 0, ctx);
-    gen_load(RDX, q->u.args + 1, ctx);
+static void
+gen_ptr_store_or_add(ir_quadr* q, codegen_ctx* ctx, char* op)
+{
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+    u8 input0_reg = arg0_reg;
+    if (!arg0_reg)
+    {
+        gen_load(RAX, q->u.args + 0, ctx);
+        input0_reg = RAX;
+    }
 
-    fprintf(asm_dest, "    lea     rax, [rax+rdx*8]\n");
-    gen_store(&q->target, RAX, ctx);
+    if (q->u.args[1].type == IRVT_CONST)
+    {
+        fprintf(asm_dest, "    %s     QWORD [%s], %ld\n", op, x64_reg_name[input0_reg], q->u.args[1].u.constant);
+        return;
+    }
+
+    u8 arg1_reg = get_reg_for(q->u.args + 1, ctx);
+    u8 input1_reg = arg1_reg;
+    if (!arg1_reg)
+    {
+        gen_load(RDX, q->u.args + 1, ctx);
+        input1_reg = RDX;
+    }
+
+    fprintf(asm_dest, "    %s     QWORD [%s], %s\n", op, x64_reg_name[input0_reg], x64_reg_name[input1_reg]);
 }
 
 static void
 gen_ptr_store(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: If arg0 is in register, don't use RAX
-    // TODO: If arg1 is in register (or constant), don't use RDX
-
-    gen_load(RAX, q->u.args + 0, ctx);
-    gen_load(RDX, q->u.args + 1, ctx);
-
-    fprintf(asm_dest, "    mov     [rax], rdx\n");
+    gen_ptr_store_or_add(q, ctx, "mov");
 }
 
 static void
 gen_add_at_addr(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: If arg0 is in register, don't use RAX
-    // TODO: If arg1 is in register (or constant), don't use RDX
-
-    gen_load(RAX, q->u.args + 0, ctx);
-    gen_load(RDX, q->u.args + 1, ctx);
-
-    fprintf(asm_dest, "    add     [rax], rdx\n");
+    gen_ptr_store_or_add(q, ctx, "add");
 }
 
 static void
 gen_set_vtab(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: If arg0 is in register, don't use RAX
+    u8 arg0_reg = get_reg_for(q->u.args + 0, ctx);
+    u8 input_reg = arg0_reg;
+    if (!arg0_reg)
+    {
+        gen_load(RAX, q->u.args + 0, ctx);
+        input_reg = RAX;
+    }
 
-    gen_load(RAX, q->u.args + 0, ctx);
-    fprintf(asm_dest, "    mov     QWORD [rax-8], .VT%ld\n", q->u.args[1].u.constant);
+    fprintf(asm_dest, "    mov     QWORD [%s-8], .VT%ld\n", x64_reg_name[input_reg], q->u.args[1].u.constant);
 }
 
 static void
 gen_virtcall(ir_quadr* q, codegen_ctx* ctx)
 {
-    // TODO: If arg0 is in register, don't use RAX
     gen_load(RAX, q->u.args + 0, ctx);
     fprintf(asm_dest, "    sub     rax, 8\n");
     fprintf(asm_dest, "    mov     rax, [rax]\n");

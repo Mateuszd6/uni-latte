@@ -58,6 +58,14 @@ static char const* x64_reg_name[] =
     "r12", "r13", "r14", "r15",
 };
 
+static char const* x64_reg_name_bottom_part[] =
+{
+    "al", "dl", "bpl", "spl",
+    "cl", "sil", "dil", "r8b",
+    "r9b", "r10b", "r11b", "bl",
+    "r12b", "r13b", "r14b", "r15b",
+};
+
 #define PROGRAM_ENTRY_POINT                                                    \
     "_start:\n"                                                                \
     "    call    .GF%d ; main\n"                                               \
