@@ -8,6 +8,10 @@ static mm g_inh_matrix_size;
 static i32 g_temp_reg = 1;
 static i32 g_label = 1;
 static i32 g_local_func_id = 1;
+static i32 g_next_block_id = 1;
+
+#define CLMEM_BLOCK_ID (-1)
+#define PARAM_BLOCK_ID (1)
 
 static b32 is_assignable(u32 lhs_type, u32 rhs_type)
 {
@@ -143,10 +147,90 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
     return retval;
 }
 
-static i32 g_next_block_id = 1;
+//
+// Topological sort of all global functions
+//
 
-#define CLMEM_BLOCK_ID (-1)
-#define PARAM_BLOCK_ID (1)
+static void
+sort_classes_dfs(int vert, i32* exts, b8* visited, i32* order)
+{
+    printf("Visiting %d\n", vert);
+    visited[vert] = 1;
+    if (exts[vert] != -1 && !visited[exts[vert]])
+        sort_classes_dfs(exts[vert], exts, visited, order);
+
+    array_push(order, vert);
+}
+
+static i32*
+sort_classes(i32* exts, mm n_verts)
+{
+    // exts[i] == -1 means a func does not exstends any type, otherwise it's a type id
+    b8* visited = calloc(n_verts, sizeof(b8));
+    i32* pos = calloc(n_verts, sizeof(i32));
+    i32* order = 0;
+    array_reserve(order, n_verts);
+
+    for (mm i = 0; i < n_verts; i++)
+        if (visited[i] == 0)
+            sort_classes_dfs((i32)i, exts, visited, order);
+
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+        pos[order[i]] = (i32)i;
+
+    printf("Final order: [ ");
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+        printf("%d ", order[i]);
+    printf("]\n");
+
+    for (mm i = 0; i < n_verts; ++i)
+    {
+        if (exts[i] != -1 && pos[i] < pos[exts[i]])
+        {
+            d_type t_child = g_types[i];
+            d_type t_parent = g_types[exts[i]];
+
+            error(t_child.lnum, "Inheritance graph cycle. \"%s\" inherits after \"%s\" creating a cycle",
+                  t_child.name, t_parent.name);
+            note(t_parent.lnum, "\"%s\" declared here", t_parent.name);
+            break;
+        }
+    }
+
+    g_inh_matrix = calloc(n_verts * n_verts, sizeof(b8));
+    g_inh_matrix_size = n_verts;
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+    {
+        i32 v = order[i];
+        if (exts[v] != -1)
+        {
+            printf("%d over %d\n", v, exts[v]);
+            memcpy(g_inh_matrix + (v * n_verts * sizeof(b8)),
+                   g_inh_matrix + (exts[v] * n_verts * sizeof(b8)),
+                   n_verts * sizeof(b8));
+            g_inh_matrix[v * n_verts + exts[v]] = 1;
+        }
+    }
+
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+        g_inh_matrix[i * n_verts + i] = 1;
+
+    printf("INHERITANCE MATRIX:\n");
+    printf("   0 1 2 3 4 5 6 7 8 9\n");
+    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
+    {
+        printf("%ld_ ", i);
+        for (mm j = 0; j < n_order; ++j)
+            printf("%d ", g_inh_matrix[i * n_verts + j] ? 1 : 0);
+
+        printf("\n");
+    }
+    printf("\n");
+
+    free(pos);
+    free(visited);
+    return order;
+}
 
 static inline i32
 push_block(void)
@@ -887,7 +971,6 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
             // Must be a variable, b/c function params are not iteratros
             assert(var.block_id != PARAM_BLOCK_ID);
 
-            // TODO: Use addr_only and get only ptr, so that assignment is possible?
             ir_val v = IR_LOCAL_VARIABLE(var_id);
             ir_val zero = { .type = IRVT_CONST, .u = { .reg_id = 0 } };
             IR_SET_EXPR(retval, var.type_id, 0, IR_NEXT_TEMP_REGISTER());
@@ -942,18 +1025,14 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         d_func* f = g_funcs + func_id;
         process_params(e->u.eapp_.listexpr_, f, e, ir);
 
-        ir_val fn_to_call = {0};
         ir_val clean_size = { .type = IRVT_CONST, .u = { .constant = f->num_args }, };
         if (f->is_local)
         {
             ir_val this_param = { .type = IRVT_FNPARAM, .u = { .constant = 0 }, };
-            IR_PUSH(IR_EMPTY(), PARAM, this_param);
-            fn_to_call.type = IRVT_LOCFN;
-            fn_to_call.u.constant = f->local_id;
-
-            // Lookup an correct local function to call
             u32 self_var_id = symbol_resolve_var("self", e);
             assert(self_var_id != VARID_NOTFOUND);
+
+            // Lookup an correct local function to call
             d_type cltype = g_types[g_vars[self_var_id].type_id]; // Type of "self" var
             mm n_member_funcs = array_size(cltype.member_funcs);
             mm idx = 0;
@@ -965,16 +1044,16 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
 
             ir_val func_idx = { .type = IRVT_CONST, .u = { .constant = idx }, };
             IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
+            IR_PUSH(IR_EMPTY(), PARAM, this_param);
             IR_PUSH(retval.val, VIRTCALL, this_param, func_idx);
             IR_PUSH(IR_EMPTY(), CLEANUP, clean_size);
         }
         else
         {
-            fn_to_call.type = IRVT_FN;
-            fn_to_call.u.constant = func_id;
+            ir_val fn_to_call = { .type = IRVT_FN, .u = { .constant = func_id } };
             IR_SET_EXPR(retval, f->ret_type_id, 0, IR_NEXT_TEMP_REGISTER());
             IR_PUSH(retval.val, CALL, fn_to_call);
-            // IR_PUSH(IR_EMPTY(), CLEANUP, clean_size);
+            IR_PUSH(IR_EMPTY(), CLEANUP, clean_size);
         }
 
         // Like in Java, functions always return rvalues
@@ -2281,9 +2360,12 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
             inherited_funcs = g_types[exts[type_id]].member_funcs;
 
             mm n_inherited_funcs = array_size(inherited_funcs);
-            array_pushn(member_funcs, inherited_funcs, n_inherited_funcs);
-            for (mm f = 0; f < n_inherited_funcs; ++f)
-                member_funcs[f].local_body = 0;
+            if (n_inherited_funcs > 0)
+            {
+                array_pushn(member_funcs, inherited_funcs, n_inherited_funcs);
+                for (mm f = 0; f < n_inherited_funcs; ++f)
+                    member_funcs[f].local_body = 0;
+            }
         }
 
         LIST_FOREACH(cl_it, clbody_list, listclbody_)
@@ -2364,13 +2446,6 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
                 array_push(member_funcs, f);
             }
         }
-
-#if 0
-        // TODO: Remove that?
-        // Make it easy to find a member by name
-        if (member_funcs)
-            qsort(member_funcs, (umm)array_size(member_funcs), sizeof(d_func), qsort_d_func);
-#endif
 
         g_types[type_id].member_funcs = member_funcs;
     }

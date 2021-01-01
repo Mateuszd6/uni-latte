@@ -58,7 +58,6 @@ enum ir_op
     DISPOSE = 36,
 
     // Extensions
-    // TODO: Different ALLOC for objs
     STORE = 37,
     ARR_SET_END = 38,
     ADD_AT_ADDR = 39,
@@ -96,16 +95,15 @@ enum ir_val_type
     IRVT_FNPARAM = 2,
     IRVT_TEMP = 3,
     IRVT_FN = 4,
-    IRVT_LOCFN = 5,
-    IRVT_CONST = 6,
-    IRVT_STRCONST = 7,
+    IRVT_CONST = 5,
+    IRVT_STRCONST = 6,
 
 };
 typedef enum ir_val_type ir_val_type;
 
 static char const* const ir_val_type_name[] =
 {
-    "NONE" , "v_", "p_", "t_", "gf:", "lf:", "", "str:"
+    "NONE" , "v_", "p_", "t_", "gf:", "", "str:",
 };
 
 typedef struct ir_val ir_val;

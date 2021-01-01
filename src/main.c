@@ -1,6 +1,5 @@
 // TODO: Rename executable to latc_x64
 //
-// TODO: Remove IRVT for local functions
 // TODO: Right now, it is possible to write to "self" variable in the memfunc
 //       (which breaks because we lookup "self" wehn calling a local functions!
 // TODO: Don't emit bitwise-or (test core017), although you would have to know
@@ -49,11 +48,8 @@ extern char const* __asan_default_options() { return "detect_leaks=0,color=never
 #include "frontend.c"
 #include "optim.c"
 #include "codegen.c"
-#include "tsort.c"
 
-//
 // Used to get a filename when error parsing reporting in extern parser
-//
 char* myfilename = 0;
 
 // Returned string is HEAP ALLOCATED.
@@ -142,20 +138,6 @@ main(int argc, char** argv)
 #if DUMP_IR
     gen_ir();
     fclose(ir_dest);
-#endif
-
-#if 0 // TODO
-    for (mm i = TYPEID_LAST_BUILTIN_TYPE + 1; i < array_size(g_types); ++i)
-    {
-        printf("type %ld (%s):\n", i, g_types[i].name);
-        for (mm j = 0, n_member_funcs = array_size(g_types[i].member_funcs);
-             j < n_member_funcs;
-             ++j)
-        {
-            printf("    %ld -> %d\n", j, g_types[i].member_funcs[j].local_id);
-        }
-    }
-    printf("\n\n");
 #endif
 
     gen_code();

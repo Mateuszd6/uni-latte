@@ -14,14 +14,9 @@ gen_ir_for_function(u32 f_id)
     char* fname = g_funcs[f_id].name;
 
     if (!g_funcs[f_id].is_local)
-    {
-        fprintf(ir_dest, "GLOBAL_FUNC_%u ; %s\n", f_id, fname);
-    }
+        fprintf(ir_dest, "GF_%u ; %s\n", f_id, fname);
     else
-    {
-        // TODO: get name of the class
-        fprintf(ir_dest, "LOCAL_FUNC_%u ; %s.%s\n", g_funcs[f_id].local_id, "TODO", fname);
-    }
+        fprintf(ir_dest, "LF_%u ; %s\n", g_funcs[f_id].local_id, fname);
 
     for (mm i = 0, size = array_size(ircode); i < size; ++i)
     {
@@ -83,7 +78,6 @@ get_reg_for(ir_val* v, codegen_ctx* ctx)
     case IRVT_STRCONST:
     case IRVT_NONE:
     case IRVT_FN:
-    case IRVT_LOCFN:
         return 0;
     }
 
@@ -231,7 +225,6 @@ gen_get_address_of(char* buf, ir_val* v, codegen_ctx* ctx)
     } break;
     case IRVT_NONE:
     case IRVT_FN:
-    case IRVT_LOCFN:
     {
         NOTREACHED;
     } break;
@@ -537,31 +530,9 @@ gen_param(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_call(ir_quadr* q, codegen_ctx* ctx)
 {
-    if (q->u.args[0].type == IRVT_FN || q->u.args[0].type == IRVT_LOCFN)
+    if (q->u.args[0].type == IRVT_FN)
     {
-        mm id_to_call = q->u.args[0].u.constant;
-        mm id_in_g_funcs = id_to_call;
-        i32 is_local = (q->u.args[0].type == IRVT_LOCFN);
-
-        // TODO: Probably remove once inheritance is implemented
-        if (is_local)
-            for (id_in_g_funcs = 0;
-                 id_in_g_funcs < array_size(g_funcs);
-                 ++id_in_g_funcs)
-            {
-                if (g_funcs[id_in_g_funcs].local_id == id_to_call)
-                    break;
-            }
-
-        assert(id_in_g_funcs < array_size(g_funcs));
-
-        i32 n_args = g_funcs[id_in_g_funcs].num_args;
-        fprintf(asm_dest, "    call    .%s%ld\n", is_local ? "LF" : "GF", id_to_call);
-
-        // TODO: Use CLEANUP instruction for that
-        // Cleanup if args were passed on the stack
-        if (n_args > 0)
-            fprintf(asm_dest, "    add     rsp, %d ; cleanup\n", 8 * n_args);
+        fprintf(asm_dest, "    call    .GF%ld\n", q->u.args[0].u.constant);
 
         // If function returns something, write it to the result
         if (q->target.type != IRVT_NONE)

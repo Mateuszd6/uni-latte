@@ -53,7 +53,6 @@ compute_max_lifetimes(mm* n_vars, mm* n_fparams, mm* n_temps, ir_val v)
     } break;
     case IRVT_NONE:
     case IRVT_FN:
-    case IRVT_LOCFN:
     case IRVT_CONST:
     case IRVT_STRCONST:
     {
@@ -88,7 +87,6 @@ compute_lifetimes(ir_quadr* ir)
         case IRVT_TEMP: SET_TEMP(VAL, USED); break;                            \
         case IRVT_NONE:                                                        \
         case IRVT_FN:                                                          \
-        case IRVT_LOCFN:                                                       \
         case IRVT_CONST:                                                       \
         case IRVT_STRCONST:                                                    \
             break;                                                             \
