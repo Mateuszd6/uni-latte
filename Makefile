@@ -61,7 +61,7 @@ endif
 all: latc
 
 clean:
-	@-rm -rf ./outs ./obj ./cov latc
+	@-rm -rf ./outs ./obj ./cov latc_x86_64
 
 latc: ${OBJS} src/*.c src/*.h src/gen/*
 	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc_x86_64
