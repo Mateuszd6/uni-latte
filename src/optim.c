@@ -151,8 +151,6 @@ compute_life_intrv(lifetime_info* info, mm ir_size, mm num, ir_val_type type,
 static b32
 remove_dead_temps(ir_quadr* ir, lifetime_info* info)
 {
-    printf("Doing single removing iteration!\n");
-
     mm ir_size = array_size(ir);
     b32 removed = 0;
     b8 dead[info->n_temps + 1]; // +1 because zero-length vlas are UB
@@ -260,16 +258,10 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
             unallocated_var uv = { .id = life.id, .type = life.type, };
             array_push(unalloced, uv);
         }
-
-        printf("%s_%ld: [%ld; %ld]\n",
-               life.type == IRVT_VAR ? "v" : (life.type == IRVT_FNPARAM ? "p" : "t"),
-               life.id, life.start, life.end);
     }
 
-    printf("\nREGISTER ALLOCATION:\n");
     for (mm r = first_al; r < regs_size; ++r)
     {
-        printf("%s:\n", x64_reg_name[r]);
         for (mm j = 0; j < array_size(regs[r]); ++j)
         {
             switch (regs[r][j].type) {
@@ -278,25 +270,8 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
             case IRVT_TEMP: alloc_info[info->n_vars + info->n_fparams + regs[r][j].id] = (u8)r; break;
             default: NOTREACHED;
             }
-
-            printf("    %s_%ld: [%ld; %ld]\n",
-                   regs[r][j].type == IRVT_VAR ? "v" : (regs[r][j].type == IRVT_FNPARAM ? "p" : "t"),
-                   regs[r][j].id, regs[r][j].start, regs[r][j].end);
         }
-
-        printf("\n");
     }
-
-#if 1
-    printf("UNALLOCATED:\n");
-    for (mm i = 0, n_unalloced = array_size(unalloced); i < n_unalloced; ++i)
-    {
-        printf("    %s_%ld\n",
-               unalloced[i].type == IRVT_VAR ? "v" : (unalloced[i].type == IRVT_FNPARAM ? "p" : "t"),
-               unalloced[i].id);
-    }
-    printf("\n");
-#endif
 
     mm n_unalloced = array_size(unalloced);
     i32* bp_offset = malloc(sizeof(i32) *  info->n_all);
@@ -308,25 +283,11 @@ allocate_registers(ir_quadr* ir, lifetime_info* info)
 
     for (mm i = 0; i < n_unalloced; ++i)
         if (unalloced[i].type == IRVT_VAR)
-        {
-            printf("Allocating v_%ld at rbp+%d\n", unalloced[i].id, offset * 8);
             bp_vars[unalloced[i].id] = offset++;
-        }
 
     for (mm i = 0; i < n_unalloced; ++i)
         if (unalloced[i].type == IRVT_TEMP)
-        {
-            printf("Allocating t_%ld at rbp+%d\n", unalloced[i].id, offset * 8);
             bp_temps[unalloced[i].id] = offset++;
-        }
-
-    for (mm i = 0; i < info->n_vars; ++i)
-        printf("%d ", bp_vars[i]);
-    printf("\n");
-
-    for (mm i = 0; i < info->n_temps; ++i)
-        printf("%d ", bp_temps[i]);
-    printf("\n");
 
     reg_alloc_info retval = {
         .vars = alloc_info,
@@ -358,12 +319,6 @@ get_used_labels(ir_quadr* ir)
             used_labels[ir[i].u.args[0].u.constant] = 1;
         else if (ir[i].op == JMP_TRUE || ir[i].op == JMP_FALSE)
             used_labels[ir[i].u.args[1].u.constant] = 1;
-    }
-
-    for (mm i = 0; i < used_labels_size; ++i)
-    {
-        if (used_labels[i])
-            printf("Used label: %ld\n", i);
     }
 
     return used_labels;
@@ -407,13 +362,10 @@ opt_fallthrough_jumps(ir_quadr** ir)
                 // This happens rarely, usually with some statement-expressions that require
                 // jumping code. Anyway, since both jumps take us to the same label, we can
                 // skip testing against it. Usless temporary evaluations will be removed later
-
-                printf("Being fancy here ^2\n");
                 array_push(new_ir, cur_ir[i + 2]);
             }
             else
             {
-                printf("Being fancy here!\n");
                 ir_quadr cjmp = cur_ir[i];
                 cjmp.op = cjmp.op == JMP_TRUE ? JMP_FALSE : JMP_TRUE;
                 cjmp.u.args[1].u.constant = cur_ir[i + 1].u.args[0].u.constant;
@@ -432,7 +384,6 @@ opt_fallthrough_jumps(ir_quadr** ir)
             && cur_ir[i].u.args[0].u.constant == cur_ir[i + 1].u.args[0].u.constant)
         {
             // Simply, don't emit the jump, because we don't need it
-            printf("Fixing stupid things!\n");
             continue;
         }
 
@@ -505,7 +456,6 @@ replace_temp_moves(ir_quadr** ir_, lifetime_info* info)
             && ir[i + 1].u.args[0].u.reg_id == ir[i].target.u.reg_id
             && !lifetime_check_at(info, ir[i].target.u.reg_id, IRVT_TEMP, i + 2))
         {
-            printf("Replacing temp mov!\n");
             assert(lifetime_check_at(info, ir[i].target.u.reg_id, IRVT_TEMP, i + 1));
 
             ir_val empty_val = IR_EMPTY();

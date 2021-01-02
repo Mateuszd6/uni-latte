@@ -957,7 +957,9 @@ gen_glob_func(u32 f_id)
                 gen_load(RAX, ir[i].u.args + 0, &ctx);
 
             if (i + 1 < size && ir[i + 1].op == LABEL && ir[i + 1].u.args[0].u.constant == return_label_id)
-                printf("Yup\n");
+            {
+                // NOP
+            }
             else
                 fprintf(asm_dest, "    jmp     .L%d\n", return_label_id);
         } break;

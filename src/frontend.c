@@ -154,7 +154,6 @@ compute_binary_string_expr(mm str1, mm str2, void* node)
 static void
 sort_classes_dfs(int vert, i32* exts, b8* visited, i32* order)
 {
-    printf("Visiting %d\n", vert);
     visited[vert] = 1;
     if (exts[vert] != -1 && !visited[exts[vert]])
         sort_classes_dfs(exts[vert], exts, visited, order);
@@ -178,11 +177,6 @@ sort_classes(i32* exts, mm n_verts)
     for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
         pos[order[i]] = (i32)i;
 
-    printf("Final order: [ ");
-    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
-        printf("%d ", order[i]);
-    printf("]\n");
-
     for (mm i = 0; i < n_verts; ++i)
     {
         if (exts[i] != -1 && pos[i] < pos[exts[i]])
@@ -204,7 +198,6 @@ sort_classes(i32* exts, mm n_verts)
         i32 v = order[i];
         if (exts[v] != -1)
         {
-            printf("%d over %d\n", v, exts[v]);
             memcpy(g_inh_matrix + (v * n_verts * sizeof(b8)),
                    g_inh_matrix + (exts[v] * n_verts * sizeof(b8)),
                    n_verts * sizeof(b8));
@@ -214,18 +207,6 @@ sort_classes(i32* exts, mm n_verts)
 
     for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
         g_inh_matrix[i * n_verts + i] = 1;
-
-    printf("INHERITANCE MATRIX:\n");
-    printf("   0 1 2 3 4 5 6 7 8 9\n");
-    for (mm i = 0, n_order = array_size(order); i < n_order; ++i)
-    {
-        printf("%ld_ ", i);
-        for (mm j = 0; j < n_order; ++j)
-            printf("%d ", g_inh_matrix[i * n_verts + j] ? 1 : 0);
-
-        printf("\n");
-    }
-    printf("\n");
 
     free(pos);
     free(visited);
@@ -976,8 +957,6 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         d_var var = g_vars[var_id];
         if (var.is_iterator)
         {
-            printf("The variable is an iterator, and should be dereferenced first!\n");
-
             // Must be a variable, b/c function params are not iteratros
             assert(var.block_id != PARAM_BLOCK_ID);
 
@@ -2254,7 +2233,6 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
 
         u32 type_id = types[i];
         d_type* type = g_types + type_id;
-        printf("Parsing %s\n", type->name);
 
         //
         // Parse member variables
@@ -2486,12 +2464,10 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
                     }
                 }
 
-                printf("Shadowing function %s\n", cl->u.cbfndef_.ident_);
                 member_funcs[inhf] = f;
             }
             else
             {
-                printf("Defining a new function %s\n", cl->u.cbfndef_.ident_);
                 array_push(member_funcs, f);
             }
         }
