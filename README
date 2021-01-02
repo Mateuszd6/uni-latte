@@ -5,9 +5,85 @@ Frontend:
   All extensions except inheritance are already implemented. The 'extends' is
   allowed but is ignored so far. Errors are displayed in gcc-compatible format:
   "./filename:line_number: error: what" (without column number, because BNFC
-  makes in extraordinarily hard to implement in C). There are some TODOs
-  (because the project is not even started for good, of course!), they are
-  marked with tags like "ir" (intermediate representation), "ex" extension etc.
+  makes in extraordinarily hard to implement in C).
+
+Code generation:
+  The compiler generates code to x64. These is an IR which can be written to a
+  file, by setting DUMP_IR to "yes" in the Makefile and recompiling. The
+  assembly is in NASM, which is itself derivative of the Intel syntax. After
+  assembling with NASM code is just linked to C stdlib using ld, no C compiler
+  is required at any stage. The builtin functions (printInt etc) are in the .s
+  file of the produced input (written in assembly by hand). The IR contains 3
+  types of "registers": "v", "p", and "t". "v" registers simply variables
+  defined in code, "p" are very similar, but are function params (p_0 is first
+  param, p_1 second etc). "t" registers are temporary registers used when
+  evaluating expressions, also every "t" register is assigned exactly once which
+  is used during register allocation, basically algorithm will prefer to
+  allocate registers for "t"s first, because these usually live shorter and it
+  makes more sense.
+
+ABI:
+  Different ABI is used than standard sysV x64, namely:
+  * All registers except AX and DX are callee saved to make register allocation
+    way easier
+  * All parameters are passed on the stack
+  * The address is not required to be 16 bytes aligned when calling a function
+  ... the interfacing with C stdlib is hand-coded so that it works.
+
+Register allocation:
+  Simple greedy algorithm is used. Number of registers used by the compiler can
+  be tuned in the Makefile. All registers can be allocated except AX, DX, BP and
+  SP, which have special purpose. So the max number of used registers (and the
+  default on of course) is 12. Registers are assigned to variables preferring
+  one that ends later, then the one that starts first. This actually makes us
+  reserve registers for "temp" registers first, which is usually what we want,
+  because they in most cases live shorter than any variable and since each temp
+  register is assigned only once, we can determine its lifetime really easily.
+
+Optimisations:
+  * Reducing comparisons and jumps in if/while (to I _think_ optimal number)
+  * Reducing jumping conditions - things like `if (false && dontCallMe())` are
+    compile time evaluated and jump is not emitted. Things like `if (true &&
+    callMe())` are reduced to `if (callMe())`.
+  * Reducing use of temporary registers, eg.:
+    ```
+    temp_1 = (some_computation)
+    var_1 = temp_1
+    ```
+    is replaced with:
+    ```
+    var_1 = (some_computation)
+    ```
+  * Reducing use of temporary registers in jumping code, eg.:
+    ```
+    temp_1 = (compute jump condition)
+    jump_if_equal temp_1
+    ```
+    ... requires us to store a computation result which is inefficient. It will
+    be replaced with special instruction allowing the flag based jump right
+    after computation when it is possible
+  * Single return in functions - since our return has a lot instructions (popping
+    a lot of registers) it is more worth to have a single place in a function
+    when it returns and just jump to it (at least due to major C compilers)
+  * Removing some dead code (sometimes dead code gets emitted, but when it is
+    unreachable we don't care), but eg.: single statement expressions without
+    side-effects etc are removed
+  * Code generation minor optimisations: fast multiplication by 1, 2, 3, 5, 9
+    using LEA. Division and modulus by power of 2 (support for signed division,
+    which is not as easy as just shifting right!)
+  * Trying to reduce moving between registers as much as possible
+  * Removing most of dead labels (except one near return, which was tricky)
+  * For loops using element pointer to avoid calculating the address every time
+  * I-believe-optimal implementation of vtables (single pointer stored in an
+    allocation, global function pointers are per-class compiled in the .data
+    section of the program)
+
+  It is possible to disable optimisations and compare generated assembly (and/or
+  IR) to see what has changed
+
+Extensions:
+  All except memory management are already supported (so arrays, structs,
+  objects, inheritance)
 
 Compilation:
   Project is build exclusively by running 'make'. The project is compiled using
