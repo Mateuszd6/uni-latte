@@ -315,22 +315,22 @@ gen_mov(ir_quadr* q, codegen_ctx* ctx)
 static void
 gen_arithm_bin(ir_quadr* q, char const* op, codegen_ctx* ctx)
 {
-    u8 target_reg_id = get_reg_for(&q->target, ctx);
+    u8 target_reg = get_reg_for(&q->target, ctx);
 
     // This breaks when adding variable to itself
-    if (target_reg_id
+    if (target_reg
         // NOTE: Check for args[0] not needed, b/c arg0 is never op'ed
         && q->target.u.reg_id != q->u.args[1].u.reg_id)
     {
         u8 arg0_reg_id = get_reg_for(q->u.args + 0, ctx);
-        if (target_reg_id != arg0_reg_id) // Otherwise no need to mov
+        if (target_reg != arg0_reg_id) // Otherwise no need to mov
         {
             char buf[64];
             gen_get_address_of(buf, q->u.args + 0, ctx);
-            fprintf(asm_dest, "    mov     %s, %s\n", x64_reg_name[target_reg_id], buf);
+            fprintf(asm_dest, "    mov     %s, %s\n", x64_reg_name[target_reg], buf);
         }
 
-        gen_simple_op(target_reg_id, q->u.args + 1, op, ctx);
+        gen_simple_op(target_reg, q->u.args + 1, op, ctx);
         return;
     }
 
