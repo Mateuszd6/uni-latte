@@ -1318,8 +1318,7 @@ process_expr(Expr e, ir_quadr** ir, b32 addr_only)
         }
 
         // Right now all types are incompatible.
-        // TODO(ex): Adjust when inhericance is implemented
-        if (expr_to_cast.type_id != type_id)
+        if (UNLIKELY(!is_assignable(type_id, expr_to_cast.type_id)))
         {
             d_type* src_type = g_types + TYPEID_UNMASK(expr_to_cast.type_id);
             d_type* dest_type = g_types + TYPEID_UNMASK(type_id);
@@ -2352,18 +2351,26 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
             array_push(members, clmem);
         }
 
-        // TODO: Get rid of these, but actually CHECK IF MEMBERS ARE UNIQUE,
-        //       becasue it is not checked right now
-#if 0
-        if (members)
-        {
-            // Make it easy to find a member by name
-            qsort(members, (umm)n_members, sizeof(d_class_mem), qsort_d_class_mem);
-            g_types[mem_type_id].members = members;
-        }
-#else
         g_types[type_id].members = members;
-#endif
+
+        // Copy the members array and sort it to check for repeated fields
+        mm n_cl_members = array_size(members);
+        d_class_mem* cl_members = malloc(n_cl_members * sizeof(d_class_mem));
+        for (mm m = 0; m < n_cl_members; ++m)
+            cl_members[m] = g_types[type_id].members[m];
+
+        qsort(cl_members, (umm)n_cl_members, sizeof(d_class_mem), qsort_d_class_mem);
+        for (mm m = 0; m < n_cl_members - 1; ++m)
+            if (UNLIKELY(strcmp(cl_members[m].name, cl_members[m + 1].name) == 0))
+            {
+                mm lnum = MAX(cl_members[m].lnum, cl_members[m + 1].lnum);
+                mm prev_lnum = MIN(cl_members[m].lnum, cl_members[m + 1].lnum);
+
+                error(lnum, "Redefinition of field \"%s\"", cl_members[m].name);
+                note(prev_lnum, "Previously defined here");
+            }
+
+        free(cl_members);
 
         //
         // Parse local functions
@@ -2429,11 +2436,6 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
             d_func_arg* fun_args = get_args_for_function(cl->u.cbfndef_.listarg_, (i32)type_id);
             mm n_args = array_size(fun_args);
 
-            //
-            // TODO: If a function is to acutally hide a parent function, check
-            //       the return type and params and insead of adding new one,
-            //       replace clbody in the existing one
-            //
             mm inhf = 0;
             mm n_inherited_funcs = array_size(inherited_funcs);
             for (; inhf < n_inherited_funcs; ++inhf)
@@ -2453,6 +2455,37 @@ add_class_members_and_local_funcs(i32* types, i32* exts)
 
             if (inhf != n_inherited_funcs)
             {
+                if (f.ret_type_id != member_funcs[inhf].ret_type_id)
+                {
+                    error(f.lnum, "Overriding a function changes the return type");
+                    note(f.lnum, "Return type is \"%s\"", g_types[f.ret_type_id].name);
+                    note(member_funcs[inhf].lnum,
+                         "Return type in the parent class is \"%s\"",
+                         g_types[member_funcs[inhf].ret_type_id].name);
+                }
+
+                if (f.num_args != member_funcs[inhf].num_args)
+                {
+                    // HACK: Substract 1 from args b/c we don't count "this" param
+                    error(f.lnum, "Overriding a function changes number of arguments");
+                    note(f.lnum, "Function takes %d arguments", f.num_args - 1);
+                    note(member_funcs[inhf].lnum, "Parent class function takes %d arguments",
+                         member_funcs[inhf].num_args - 1);
+                }
+                else
+                {
+                    for (mm a = 1; a < f.num_args; ++a) // Start from 1, b/c 0 is "this" param
+                    {
+                        if (f.args[a].type_id !=  member_funcs[inhf].args[a].type_id)
+                        {
+                            error(f.lnum, "Argument type missmatch when overriding a function");
+                            note(f.lnum, "Argument %ld has a type \"%s\"", a, g_types[f.args[a].type_id].name);
+                            note(f.lnum, "Argument %ld in parent class has a type \"%s\"", a,
+                                 g_types[member_funcs[inhf].args[a].type_id].name);
+                        }
+                    }
+                }
+
                 printf("Shadowing function %s\n", cl->u.cbfndef_.ident_);
                 member_funcs[inhf] = f;
             }

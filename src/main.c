@@ -1,7 +1,3 @@
-// TODO: Don't emit bitwise-or (test core017), although you would have to know
-//       to create a test that actually exploits that
-// TODO: Bump number of reisters!
-
 // Disable leak checking for asan in debug mode
 #if DEBUG
 extern char const* __asan_default_options(void);

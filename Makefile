@@ -1,15 +1,15 @@
-DEBUG = YES
-USE_SANITIZERS = YES
+DEBUG = NO
+USE_SANITIZERS = NO
 USE_PROFILER = NO
 DUMP_IR = YES
 OPTIMIZE = YES
-MAX_ALLOCATED_REGS = 4
+MAX_ALLOCATED_REGS = 12
 
-CC = clang
+CC = gcc
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -DMAX_ALLOCATED_REGS=${MAX_ALLOCATED_REGS}
 CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
 CFLAGS_RELEASE = -O3 -DNDEBUG
-CWARNINGS = -Wall -Wextra -Wshadow -pedantic -Wno-sign-conversion -Wno-unused-function
+CWARNINGS = -Wall -Wextra -Wshadow -Wno-sign-conversion -Wno-unused-function -Wno-pedantic
 CSANITIZERS = -fsanitize=address,undefined
 
 BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
@@ -52,7 +52,8 @@ endif
 
 ifeq ($(CC),clang)
 	CWARNINGS += -Weverything -Wno-padded -Wno-c++-compat -Wno-reserved-id-macro \
-				 -Wno-gnu-empty-struct -Wno-unused-function -Wno-missing-noreturn
+				 -Wno-gnu-empty-struct -Wno-unused-function -Wno-missing-noreturn \
+				 -Wno-switch-enum -Wno-vla -Wno-overlength-strings
 endif
 
 .PHONY: all clean grammar validate
