@@ -4,7 +4,7 @@ USE_SANITIZERS = NO
 CC = gcc
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L
 CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
-CFLAGS_RELEASE = -O3 -DNDEBUG
+CFLAGS_RELEASE = -O3 -DNDEBUG -fno-omit-frame-pointer
 CWARNINGS = -Wall -Wextra -Wno-unused-function
 CSANITIZERS = -fsanitize=address,undefined
 

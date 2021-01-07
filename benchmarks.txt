@@ -1,0 +1,3 @@
+10k - noopt: 0m1.103s
+10k - mimal: 0m0.966s (12.42% improvement)
+10k -
