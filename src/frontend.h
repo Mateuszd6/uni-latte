@@ -191,7 +191,7 @@ struct jump_ctx
 static void process_jumping_expr(
     ir_quadr** ir, preprocessed_jump_expr* e, preprocessed_jump_expr* const pre_buf, jump_ctx ctx);
 static preprocessed_jump_expr preprocess_jumping_expr(
-    Expr e, preprocessed_jump_expr** buf, b32 reverse);
+    Expr e, preprocessed_jump_expr** buf);
 static processed_expr process_expr(Expr e, ir_quadr** ir, b32 addr_only);
 static processed_stmt process_stmt(Stmt s, u32 return_type, i32 cur_block_id, ir_quadr** ir);
 static void process_params(ListExpr arg_exprs, d_func* fun, void* node, ir_quadr** ir);
