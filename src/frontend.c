@@ -13,7 +13,8 @@ static i32 g_next_block_id = 1;
 #define CLMEM_BLOCK_ID (-1)
 #define PARAM_BLOCK_ID (1)
 
-static b32 is_assignable(u32 lhs_type, u32 rhs_type)
+static b32
+is_assignable(u32 lhs_type, u32 rhs_type)
 {
     if ((lhs_type & TYPEID_FLAG_ARRAY) != (rhs_type & TYPEID_FLAG_ARRAY))
         return 0;
