@@ -1,0 +1,76 @@
+int main001() {
+    printInt(fac001(10));
+    printInt(rfac001(10));
+    printInt(mfac001(10));
+        printInt(ifac001(10));
+        string r ; // just to test blocks
+    {
+      int n = 10;
+      int r = 1;
+      while (n>0) {
+        r = r * n;
+        n--;
+      }
+      printInt(r);
+    }
+    printString (repStr001("=",60));
+    printString ("hello */");
+        printString ("/* world") ;
+        return 0 ;
+}
+
+int fac001(int a) {
+    int r;
+    int n;
+
+    r = 1;
+    n = a;
+    while (n > 0) {
+      r = r * n;
+      n = n - 1;
+    }
+    return r;
+}
+
+int rfac001(int n) {
+    if (n == 0)
+      return 1;
+    else
+      return n * rfac001(n-1);
+}
+
+int mfac001(int n) {
+    if (n == 0)
+      return 1;
+    else
+      return n * nfac001(n-1);
+}
+
+int nfac001(int n) {
+    if (n != 0)
+      return mfac001(n-1) * n;
+    else
+      return 1;
+}
+
+int ifac001(int n) { return ifac2f001(1,n); }
+
+int ifac2f001(int l, int h) {
+        if (l == h)
+          return l;
+        if (l > h)
+          return 1;
+        int m;
+        m = (l + h) / 2;
+        return ifac2f001(l,m) * ifac2f001(m+1,h);
+}
+
+string repStr001(string s, int n) {
+  string r = "";
+  int i = 0;
+  while(i<n) {
+    r = r + s;
+    i++;
+  }
+ return r;
+}
