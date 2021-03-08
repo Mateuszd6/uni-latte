@@ -4,9 +4,12 @@ USE_SANITIZERS = NO
 CC = gcc
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L
 CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
-CFLAGS_RELEASE = -O3 -DNDEBUG
+CFLAGS_RELEASE = -O3 -DNDEBUG -flto
 CWARNINGS = -Wall -Wextra -Wno-unused-function
 CSANITIZERS = -fsanitize=address,undefined
+
+CXX = g++
+CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200809L -ggdb -O0 -DDEBUG
 
 BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
 BNFC_FLAGS = --c
@@ -20,7 +23,7 @@ BISON_FLAGS = -t -platte
 CFORMAT = clang-format \
 	-style="{BasedOnStyle: mozilla, TabWidth: 4, IndentWidth: 4, BreakBeforeBraces: Allman, ColumnLimit: 80}" -i
 
-OBJS = ./obj/absyn.o ./obj/lexer.o ./obj/parser.o
+OBJS = ./obj/lexer.o ./obj/parser.o
 
 ifeq ($(DEBUG),YES)
 	CFLAGS += $(CFLAGS_DEBUG)
@@ -39,13 +42,16 @@ endif
 
 .PHONY: all clean grammar validate
 
-all: latc
+all: latc bench
 
 clean:
 	@-rm -rf ./outs ./obj ./cov latc
 
 latc: ${OBJS} src/*.c src/*.h
 	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc
+
+bench:
+	${CXX} ${CXXFLAGS} ${CWARNINGS} ./benchmark.cpp -o benchmark
 
 obj/%.o: src/%.c
 	@-mkdir -p obj

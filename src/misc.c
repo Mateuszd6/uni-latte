@@ -115,10 +115,15 @@ static lnumtab_kvp* g_lnumtab = 0;
 extern void*
 alloc_ast_node(size_t size)
 {
+#if 0
     void* mem = malloc(size);
-    if (!mem) fatal("Out of memory");
+#else
+    void* mem = arena_allocate(&g_arena_allocator, size);
+#endif
 
-    lnumtab_insert(g_lnumtab, (umm)mem, yy_mylinenumber + 1);
+    if (UNLIKELY(!mem)) fatal("Out of memory");
+
+    // lnumtab_insert(g_lnumtab, (umm)mem, yy_mylinenumber + 1);
     return mem;
 }
 
