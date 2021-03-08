@@ -20,9 +20,12 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 
 #include "misc.h" // typedefs
 
-#define ARENA_STATIC
-#define ARENA_IMPLEMENTATION
-#include "arena.h"
+#ifdef USE_ARENA_ALLOCATOR
+#  warning Using arena allocator!
+#  define ARENA_STATIC
+#  define ARENA_IMPLEMENTATION
+#  include "arena.h"
+#endif
 
 #include "absyn.h"
 #include "absyn.c"
@@ -31,7 +34,9 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include "parser.h"
 #include "symtab.h"
 
+#ifdef USE_ARENA_ALLOCATOR
 static arena g_arena_allocator = {0};
+#endif
 
 #include "misc.c"
 #include "symtab.c"

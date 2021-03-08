@@ -49,6 +49,7 @@ clean:
 
 latc: ${OBJS} src/*.c src/*.h
 	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc
+	${CC} -DUSE_ARENA_ALLOCATOR ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc-arena
 
 bench:
 	${CXX} ${CXXFLAGS} ${CWARNINGS} ./benchmark.cpp -o benchmark

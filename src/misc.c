@@ -115,10 +115,10 @@ static lnumtab_kvp* g_lnumtab = 0;
 extern void*
 alloc_ast_node(size_t size)
 {
-#if 0
-    void* mem = malloc(size);
-#else
+#ifdef USE_ARENA_ALLOCATOR
     void* mem = arena_allocate(&g_arena_allocator, size);
+#else
+    void* mem = malloc(size);
 #endif
 
     if (UNLIKELY(!mem)) fatal("Out of memory");
