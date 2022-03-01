@@ -10,6 +10,9 @@ extern char const* __asan_default_options() { return "detect_leaks=0"; }
 #include <stdlib.h>
 #include <string.h>
 
+// #define TRACY_ENABLE 1
+// #include "../tracy/TracyC.h"
+
 #define ARRAY_STATIC
 #define ARRAY_IMPLEMENTATION
 #include "lib/array.h"
@@ -74,12 +77,12 @@ parse_file(char* fname)
     TIMER_PUSH();
     {
         parse_tree = pProgram(input);
-        fclose(input);
     }
 
     double parse_time = TIMER_POP();
     printf("parsing: %.5f\n", parse_time);
 
+    fclose(input);
     return parse_tree;
 }
 
@@ -100,6 +103,8 @@ main(int argc, char** argv)
     parse_tree = parse_file(argv[1]);
     if (!parse_tree)
         no_recover();
+
+    exit(0);
 
     TIMER_PUSH();
     {

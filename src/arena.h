@@ -1,7 +1,9 @@
 #ifndef ARENA_H_
 #define ARENA_H_
 
-#define ARENA_NODE_SIZE (1 << 16)
+#include <sys/mman.h>
+
+#define ARENA_NODE_SIZE (1 << 27)
 #define ARENA_MAX_ALLOC_SIZE (((mm)(ARENA_NODE_SIZE - sizeof(arena_node*) - sizeof(mm))))
 
 typedef struct arena_node arena_node;
@@ -39,7 +41,13 @@ arena_allocate(arena* a, mm size)
         return retval;
     }
 
+#if 0
     arena_node* node = malloc(sizeof(arena_node));
+#else
+    arena_node* node = mmap(0, sizeof(arena_node), PROT_READ | PROT_WRITE,
+                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
+
     arena_node* prev_head = a->head;
     a->head = node;
     node->next = prev_head;

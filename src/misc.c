@@ -119,6 +119,7 @@ alloc_ast_node(size_t size)
     void* mem = arena_allocate(&g_arena_allocator, size);
 #else
     void* mem = malloc(size);
+    // TracyCAlloc(mem, size);
 #endif
 
     if (UNLIKELY(!mem)) fatal("Out of memory");

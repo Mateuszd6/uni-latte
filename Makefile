@@ -1,15 +1,15 @@
-DEBUG = NO
+DEBUG = YES
 USE_SANITIZERS = NO
 
 CC = gcc
-CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L
-CFLAGS_DEBUG = -ggdb -O0 -DDEBUG
+CFLAGS = -std=c99 -D_GNU_SOURCE # -D_POSIX_C_SOURCE=200809L
+CFLAGS_DEBUG = -g3 -O0 -DDEBUG
 CFLAGS_RELEASE = -O3 -DNDEBUG -flto
 CWARNINGS = -Wall -Wextra -Wno-unused-function
-CSANITIZERS = -fsanitize=address,undefined
+CSANITIZERS = -fsanitize=address,undefined # -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
 
 CXX = g++
-CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200809L -ggdb -O0 -DDEBUG
+CXXFLAGS = -std=c++11 -D_POSIX_C_SOURCE=200809L -g3 -O0 -DDEBUG
 
 BNFC = /home/students/inf/PUBLIC/MRJP/bin/students/bnfc
 BNFC_FLAGS = --c
@@ -50,6 +50,10 @@ clean:
 latc: ${OBJS} src/*.c src/*.h
 	${CC} ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc
 	${CC} -DUSE_ARENA_ALLOCATOR ${CFLAGS} ${CWARNINGS} ${OBJS} ./src/main.c -o latc-arena
+
+	${CC} -c ${CFLAGS} ${CWARNINGS} ./src/main.c -o ./obj/main.tcmalloc.o
+	${CXX} ${CFLAGS} ${CWARNINGS} ${OBJS} ./obj/main.tcmalloc.o -o latc-tc -ltcmalloc
+
 
 bench:
 	${CXX} ${CXXFLAGS} ${CWARNINGS} ./benchmark.cpp -o benchmark

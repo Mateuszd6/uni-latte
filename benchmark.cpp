@@ -24,7 +24,13 @@ exec(const char* cmd)
 int
 main(void)
 {
-    std::vector<char const*> commands = { "./latc", "./latc-arena" };
+    std::vector<char const*> commands = {
+        "./latc",
+        // "./latc-arena",
+        // "env LD_PRELOAD=/home/mateusz/sandbox/mimalloc/out/release/libmimalloc.so ./latc",
+        // "env LD_PRELOAD=//usr/local/lib/libjemalloc.so.2 ./latc",
+        "./latc-tc",
+    };
     std::vector<int> sizes = {
         600, 650, 700, 750, 800, 850, 900, 950, 1000, 1050, 1100, 1150, 1200,
     };
