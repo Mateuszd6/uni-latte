@@ -105,7 +105,6 @@ main(int argc, char** argv)
         no_recover();
 
     exit(0);
-
     TIMER_PUSH();
     {
         define_primitives();
